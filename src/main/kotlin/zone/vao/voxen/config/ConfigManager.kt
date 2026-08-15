@@ -226,10 +226,30 @@ class ConfigManager(
             filterEnabled = yaml.getBoolean("filter.enabled", true),
             filterMode = ModerationConfig.FilterMode.from(yaml.getString("filter.mode")),
             censorReplacement = yaml.getString("filter.censor-char")?.firstOrNull() ?: '*',
-            blockedWords = yaml.getStringList("filter.words").map { it.trim() }.filter { it.isNotEmpty() },
+            blockedWords = loadBlockedWords(yaml),
             blockedPatterns = patterns,
             chatClearLines = yaml.getInt("chat-clear-lines", 100).coerceIn(1, 500),
         )
+    }
+
+    private fun loadBlockedWords(yaml: YamlConfiguration): List<String> {
+        val words = LinkedHashSet<String>()
+        yaml.getStringList("filter.words").forEach { raw ->
+            raw.trim().lowercase().ifEmpty { null }?.let(words::add)
+        }
+        val fileName = yaml.getString("filter.words-file")?.trim().orEmpty()
+        if (fileName.isNotEmpty()) {
+            val wordsFile = file(fileName)
+            if (wordsFile.isFile) {
+                wordsFile.readLines(Charsets.UTF_8).forEach { line ->
+                    val word = line.trim().lowercase()
+                    if (word.isNotEmpty() && !word.startsWith("#")) words += word
+                }
+            } else {
+                plugin.logger.warning("modules/moderation.yml: 'filter.words-file' $fileName does not exist; ignoring it.")
+            }
+        }
+        return words.toList()
     }
 
     private fun parseMentions(yaml: YamlConfiguration): MentionsConfig {

@@ -167,6 +167,7 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `filter.enabled` | the word filter |
 | `filter.mode` | `block` rejects the message, `censor` masks matches with `censor-char` |
 | `filter.words` | list of blocked words, matched case-insensitively |
+| `filter.words-file` | optional extra word list file, one word per line, `#` starts a comment; path relative to the plugin folder |
 | `filter.patterns` | list of blocked regex patterns |
 | `chat-clear-lines` | how many blank lines `/voxen chatclear` sends |
 

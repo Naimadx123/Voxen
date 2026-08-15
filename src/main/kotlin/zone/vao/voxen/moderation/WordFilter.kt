@@ -18,11 +18,13 @@ class WordFilter(
 
         val ranges = mutableListOf<IntRange>()
         val lower = content.lowercase()
-        for (word in config.blockedWords) {
-            var index = lower.indexOf(word.lowercase())
-            while (index >= 0) {
-                ranges += index until index + word.length
-                index = lower.indexOf(word.lowercase(), index + 1)
+        val index = config.wordIndex
+        if (index.isNotEmpty()) {
+            for (i in lower.indices) {
+                val candidates = index[lower[i]] ?: continue
+                for (word in candidates) {
+                    if (lower.startsWith(word, i)) ranges += i until i + word.length
+                }
             }
         }
         for (pattern in config.blockedPatterns) {

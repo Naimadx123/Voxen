@@ -13,6 +13,8 @@ data class ModerationConfig(
     val blockedPatterns: List<Pattern>,
     val chatClearLines: Int,
 ) {
+    val wordIndex: Map<Char, List<String>> by lazy { blockedWords.groupBy { it.first() } }
+
     enum class FilterMode {
         BLOCK,
         CENSOR;

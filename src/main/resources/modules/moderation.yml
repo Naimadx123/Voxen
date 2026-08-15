@@ -12,6 +12,9 @@ filter:
   mode: censor
   censor-char: "*"
   words: []
+  # Optional extra word list file, one word per line, '#' starts a comment.
+  # The path is relative to the plugin folder, e.g. "blocked-words.txt".
+  words-file: ""
   patterns: []
 
 # How many blank lines /voxen chatclear sends.
