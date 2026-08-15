@@ -1,0 +1,101 @@
+---
+title: integrations.yml
+description: Every plugin hook Voxen supports, and what each one changes.
+---
+
+import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+One switch per hook. Every one of them is optional: a plugin that is not installed is
+skipped without an error, so the defaults are safe on an empty server.
+
+```yaml title="plugins/Voxen/integrations.yml"
+placeholderapi: true
+miniplaceholders: true
+luckperms: true
+vault-chat: true
+discordsrv: true
+essentials-discord: true
+towny: true
+factions: true
+mcmmo: true
+```
+
+The `network:` block in the same file is the cross-server transport and has
+[its own page](/network/cross-server/).
+
+| Switch | What it gives you |
+| --- | --- |
+| `placeholderapi` | `%papi%` in formats, and Voxen's own `%voxen_*%` placeholders |
+| `miniplaceholders` | MiniMessage tags in both directions |
+| `luckperms` | `<prefix>`, `<suffix>` and group names for `group-formats` |
+| `vault-chat` | the same, for setups without LuckPerms |
+| `discordsrv` | forwards channel messages to Discord |
+| `essentials-discord` | the same, through EssentialsX Discord |
+| `towny` | `scope: towny` on a channel |
+| `factions` | `scope: factions` |
+| `mcmmo` | `scope: mcmmo` |
+
+## Prefixes and groups
+
+`luckperms` and `vault-chat` both feed the same two things: the `<prefix>` and `<suffix>`
+placeholders, and the group name that `group-formats` matches against.
+
+LuckPerms is used when both are available, since it is asked directly rather than through
+Vault. Leave both on and Voxen takes whichever is there.
+
+## Discord
+
+Forwarding is per channel, not global:
+
+```yaml title="plugins/Voxen/channels/global.yml"
+discord: true
+discord-format: "[<world>] <player> » <message>"
+```
+
+The message is rendered to plain text first, so MiniMessage tags never reach Discord. An
+empty `discord-format` keeps each plugin's own default: the bare message for DiscordSRV,
+which then formats it with its own config, and `name: message` for EssentialsDiscord.
+
+Both hooks can be on at once, in which case the message goes to both. That is usually a
+mistake, so pick one.
+
+<Aside type="note">
+	Only chat sent through Voxen is forwarded. Nothing in the other direction: messages
+	coming **from** Discord are still handled by DiscordSRV or EssentialsX exactly as
+	before.
+</Aside>
+
+## Towny, Factions and mcMMO
+
+These three do one job: `scope` on a channel narrows recipients to the sender's own town,
+faction or mcMMO party.
+
+```yaml title="plugins/Voxen/channels/town.yml"
+type: global
+scope: towny
+display-name: "<green>Town"
+format: "<green>[Town] <player> <dark_gray>» <white><message>"
+```
+
+| Value | Recipients |
+| --- | --- |
+| `towny` | residents of the sender's town |
+| `factions` | members of the sender's faction, wilderness excluded |
+| `mcmmo` | members of the sender's mcMMO party |
+
+Scope is applied **on top of** the channel's own rules, so read permission, world list and
+radius all still count. It only removes people who are not on the sender's team; it never
+adds anyone.
+
+<Aside type="caution" title="Do not combine scope with cross-server">
+	Team membership is only known locally, so a message arriving from another server is
+	delivered to everyone who can read the channel, scope and all. Keep
+	`cross-server: false` on scoped channels.
+</Aside>
+
+<CardGrid>
+	<LinkCard title="PlaceholderAPI" description="%voxen_* placeholders and %papi% in formats." href="/integrations/placeholderapi/" />
+	<LinkCard title="MiniPlaceholders" description="The same state as MiniMessage tags." href="/integrations/miniplaceholders/" />
+	<LinkCard title="Channels" description="Every field a channel file accepts." href="/guides/channels/" />
+	<LinkCard title="Cross-server chat" description="Redis, NATS or RabbitMQ." href="/network/cross-server/" />
+</CardGrid>

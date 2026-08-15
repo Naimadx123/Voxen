@@ -66,6 +66,7 @@ export default defineConfig({
 				{
 					label: 'Integrations',
 					items: [
+						{ label: 'integrations.yml', slug: 'integrations/overview' },
 						{ label: 'PlaceholderAPI', slug: 'integrations/placeholderapi' },
 						{ label: 'MiniPlaceholders', slug: 'integrations/miniplaceholders' },
 					],
