@@ -48,7 +48,11 @@ class ContentRenderer(
         for ((name, rule) in config.rules) {
             if (name == "color" || name == "hex") continue
             val resolver = standardResolver(name, rule, hasPermission) ?: continue
-            if (permitted(config, name, hasPermission)) allowed += resolver else denied += resolver
+            if (permitted(config, name, hasPermission) || argsPermitted(rule, raw, hasPermission)) {
+                allowed += resolver
+            } else {
+                denied += resolver
+            }
         }
 
         if (mode == TagsConfig.UnauthorizedMode.STRIP && denied.isNotEmpty()) {
@@ -66,6 +70,18 @@ class ContentRenderer(
         val rule = config.rules[name] ?: return false
         if (!rule.enabled) return false
         return hasPermission(rule.permission) || hasPermission(TAG_WILDCARD)
+    }
+
+    private fun argsPermitted(rule: TagsConfig.TagRule, raw: String, hasPermission: (String) -> Boolean): Boolean {
+        if (!rule.enabled) return false
+        val names = rule.names().joinToString("|") { Regex.escape(it) }
+        val pattern = Regex("(?<!\\\\)<(?:$names):([^>]*)>", RegexOption.IGNORE_CASE)
+        val matches = pattern.findAll(raw).toList()
+        if (matches.isEmpty()) return false
+        return matches.all { match ->
+            val node = match.groupValues[1].trim().lowercase().replace(':', '.')
+            node.isNotEmpty() && hasPermission("${rule.permission}.$node")
+        }
     }
 
     private fun standardResolver(
@@ -185,22 +201,17 @@ class ContentRenderer(
         override fun resolve(name: String, arguments: ArgumentQueue, ctx: Context): Tag {
             val action = arguments.popOr("A click action is required").value().lowercase()
             val value = arguments.popOr("A click value is required").value()
-            val clickAction = ClickEvent.Action.NAMES.value(action)
-                ?: throw ctx.newException("Unknown click action '$action'.")
-            if (clickAction == ClickEvent.Action.OPEN_FILE) {
-                throw ctx.newException("The open_file click action is not allowed.")
-            }
             rule.actionPermissions[action]?.let { permission ->
                 if (!hasPermission(permission)) {
                     throw ctx.newException("The click action '$action' is not permitted here.")
                 }
             }
-            val event = when (clickAction) {
-                ClickEvent.Action.OPEN_URL -> ClickEvent.openUrl(value)
-                ClickEvent.Action.RUN_COMMAND -> ClickEvent.runCommand(value)
-                ClickEvent.Action.SUGGEST_COMMAND -> ClickEvent.suggestCommand(value)
-                ClickEvent.Action.COPY_TO_CLIPBOARD -> ClickEvent.copyToClipboard(value)
-                ClickEvent.Action.CHANGE_PAGE -> ClickEvent.changePage(
+            val event = when (action) {
+                "open_url" -> ClickEvent.openUrl(value)
+                "run_command" -> ClickEvent.runCommand(value)
+                "suggest_command" -> ClickEvent.suggestCommand(value)
+                "copy_to_clipboard" -> ClickEvent.copyToClipboard(value)
+                "change_page" -> ClickEvent.changePage(
                     value.toIntOrNull() ?: throw ctx.newException("Invalid page '$value'.")
                 )
                 else -> throw ctx.newException("The click action '$action' is not supported here.")
@@ -212,8 +223,6 @@ class ContentRenderer(
     companion object {
         const val TAG_WILDCARD = "voxen.chat.tag.*"
 
-        // Tags newer than the MiniMessage version bundled with Paper 1.21.8;
-        // resolved reflectively so they light up on servers that ship them.
         private val SPRITE: TagResolver? by lazy { optionalStandardTag("sprite") }
         private val HEAD: TagResolver? by lazy { optionalStandardTag("sequentialHead") }
 

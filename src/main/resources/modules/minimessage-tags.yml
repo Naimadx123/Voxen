@@ -12,6 +12,10 @@ legacy:
 # Each tag can be disabled, given a custom permission, aliases and
 # blocked-params (regex checked against the tag arguments).
 # click actions can require extra permissions per action.
+# Arguments can be permission-gated too: the base permission allows every
+# argument, and 'permission + arguments with : replaced by .' allows one
+# combination, e.g. voxen.chat.tag.gradient.red.blue allows only
+# <gradient:red:blue>. One unpermitted use blocks the tag for that message.
 tags:
   color:
     enabled: true

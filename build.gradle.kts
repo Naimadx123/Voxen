@@ -41,6 +41,24 @@ kotlin {
     jvmToolchain(21)
 }
 
+val adventure5Version = "5.2.0"
+val adventure5TestClasspath: Configuration by configurations.creating {
+    extendsFrom(configurations.testRuntimeClasspath.get())
+    resolutionStrategy.eachDependency {
+        if (requested.group == "net.kyori" && requested.name.startsWith("adventure-")) {
+            useVersion(adventure5Version)
+        }
+    }
+}
+
+val testAdventure5 by tasks.registering(Test::class) {
+    description = "Runs the test suite against Adventure $adventure5Version."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].output + sourceSets["main"].output + adventure5TestClasspath
+    useJUnitPlatform()
+}
+
 tasks {
     shadowJar {
         archiveFileName.set("Voxen-v${project.version}.jar")
@@ -55,6 +73,10 @@ tasks {
 
     build {
         dependsOn(shadowJar)
+    }
+
+    check {
+        dependsOn(testAdventure5)
     }
 
     test {
