@@ -53,7 +53,7 @@ class SpamGuard(
         val recent = state?.recent.orEmpty().filter { inWindow(it, now, config.repeatWindowMillis) }
         if (!bypassRepeat && config.repeatEnabled) {
             if (recent.any { it.normalized == normalized }) return Result.Repeat
-            if (config.similarityEnabled && recent.any { similarity(it.normalized, normalized) >= config.similarityThreshold }) {
+            if (config.similarityEnabled && recent.any { similarity(it.normalized, normalized, config.similarityThreshold) >= config.similarityThreshold }) {
                 return Result.Repeat
             }
         }
@@ -76,14 +76,16 @@ class SpamGuard(
     }
 
     private fun normalize(content: String): String =
-        content.trim().lowercase().replace(Regex("\\s+"), " ")
+        content.trim().lowercase().replace(WHITESPACE, " ")
 
     private fun inWindow(entry: Recent, now: Long, windowMillis: Long): Boolean =
         windowMillis <= 0 || now - entry.at <= windowMillis
 
-    private fun similarity(left: String, right: String): Double {
+    private fun similarity(left: String, right: String, threshold: Double): Double {
         val longest = maxOf(left.length, right.length)
         if (longest == 0) return 1.0
+        val budget = ((1.0 - threshold) * longest).toInt()
+        if (Math.abs(left.length - right.length) > budget) return 0.0
         return 1.0 - distance(left, right).toDouble() / longest
     }
 
@@ -101,5 +103,9 @@ class SpamGuard(
             current = swap
         }
         return previous[right.length]
+    }
+
+    private companion object {
+        val WHITESPACE = Regex("\\s+")
     }
 }

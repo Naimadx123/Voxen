@@ -46,7 +46,7 @@ class WordFilter(
 
     fun checkLinks(content: String): Result {
         val config = moderation()
-        if (!config.linksEnabled) return Result.Clean
+        if (!config.linksEnabled || !content.contains('.')) return Result.Clean
 
         val ranges = mutableListOf<IntRange>()
         for (match in URL.findAll(content)) {
