@@ -39,6 +39,13 @@ object VoxenApi {
         service = null
     }
 
+    /**
+     * Returns true once Voxen has enabled and the API is usable. Check this
+     * first in a `softdepend` plugin; every other method throws until it does.
+     */
+    @JvmStatic
+    fun isAvailable(): Boolean = service != null
+
     /** Returns a snapshot of every configured channel, including disabled ones. */
     @JvmStatic
     fun channels(): Collection<ChannelInfo> = service().channels()
