@@ -22,5 +22,13 @@ filter:
     diacritics: true
     separators: true
 
+# Stores sent messages so staff can read them back with /voxen history <player>.
+history:
+  enabled: false
+  # Entries older than this are deleted on startup. 0 keeps them forever.
+  keep-days: 14
+  # How many of the newest messages /voxen history shows.
+  entries: 15
+
 # How many blank lines /voxen chatclear sends.
 chat-clear-lines: 100

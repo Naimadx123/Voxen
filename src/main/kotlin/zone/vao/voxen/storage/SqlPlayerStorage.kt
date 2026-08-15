@@ -14,6 +14,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
     private val mutesTable = "${tablePrefix}mutes"
     private val partiesTable = "${tablePrefix}parties"
     private val partyMembersTable = "${tablePrefix}party_members"
+    private val chatLogTable = "${tablePrefix}chat_log"
     private val schemaTable = "${tablePrefix}schema"
     private val dataSource = HikariDataSource(hikariConfig)
 
@@ -70,6 +71,19 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                 st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN last_pm_name VARCHAR(16)")
             }
             version = 3
+        }
+        if (version < 4) {
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $chatLogTable " +
+                        "(uuid VARCHAR(36) NOT NULL, player VARCHAR(16) NOT NULL, channel VARCHAR(64) NOT NULL, " +
+                        "content TEXT NOT NULL, server VARCHAR(64) NOT NULL, created_at BIGINT NOT NULL)"
+                )
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${chatLogTable}_lookup ON $chatLogTable (uuid, created_at)")
+                }
+            }
+            version = 4
         }
         conn.createStatement().use { st -> st.executeUpdate("DELETE FROM $schemaTable") }
         conn.prepareStatement("INSERT INTO $schemaTable (version) VALUES (?)").use { ps ->
@@ -320,6 +334,57 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
             conn.prepareStatement("DELETE FROM $partyMembersTable WHERE party_id = ? AND uuid = ?").use { ps ->
                 ps.setString(1, id.toString())
                 ps.setString(2, member.toString())
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun logChat(entry: ChatLogEntry) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $chatLogTable (uuid, player, channel, content, server, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, entry.uuid.toString())
+                ps.setString(2, entry.playerName)
+                ps.setString(3, entry.channel)
+                ps.setString(4, entry.content)
+                ps.setString(5, entry.server)
+                ps.setLong(6, entry.createdAt)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun chatHistory(uuid: UUID, limit: Int): List<ChatLogEntry> {
+        val result = ArrayList<ChatLogEntry>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT player, channel, content, server, created_at FROM $chatLogTable " +
+                    "WHERE uuid = ? ORDER BY created_at DESC LIMIT ?"
+            ).use { ps ->
+                ps.setString(1, uuid.toString())
+                ps.setInt(2, limit)
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        result += ChatLogEntry(
+                            uuid = uuid,
+                            playerName = rs.getString(1),
+                            channel = rs.getString(2),
+                            content = rs.getString(3),
+                            server = rs.getString(4),
+                            createdAt = rs.getLong(5),
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    override fun purgeChatLog(before: Long) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $chatLogTable WHERE created_at < ?").use { ps ->
+                ps.setLong(1, before)
                 ps.executeUpdate()
             }
         }

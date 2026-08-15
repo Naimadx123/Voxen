@@ -233,6 +233,9 @@ class ConfigManager(
             normalizeLeet = yaml.getBoolean("filter.normalize.leetspeak", true),
             normalizeDiacritics = yaml.getBoolean("filter.normalize.diacritics", true),
             normalizeSeparators = yaml.getBoolean("filter.normalize.separators", true),
+            historyEnabled = yaml.getBoolean("history.enabled", false),
+            historyKeepDays = yaml.getInt("history.keep-days", 14).coerceIn(0, 3650),
+            historyEntries = yaml.getInt("history.entries", 15).coerceIn(1, 100),
         )
     }
 

@@ -44,6 +44,11 @@ mute-list-empty: "<gray>Brak aktywnych wyciszeń."
 mute-list-header: "<aqua>Aktywne wyciszenia (<amount>):"
 mute-list-entry: "<gray>  <white><player></white> na <white><channel></white> przez <white><moderator></white> - <reason> (wygasa: <remaining>)"
 
+history-disabled: "<red>Historia czatu jest wyłączona w modules/moderation.yml."
+history-empty: "<gray>Brak zapisanych wiadomości gracza <white><player></white>."
+history-header: "<aqua>Ostatnie wiadomości gracza <white><player></white> (<amount>):"
+history-entry: "<gray>  [<time>] <white><channel></white>/<white><server></white>: <message>"
+
 chat-cooldown: "<red>Poczekaj <white><remaining></white> przed wysłaniem kolejnej wiadomości."
 chat-repeat: "<red>Nie powtarzaj tej samej wiadomości."
 message-blocked: "<red>Twoja wiadomość zawiera zablokowane słowa."

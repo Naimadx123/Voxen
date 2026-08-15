@@ -14,6 +14,9 @@ import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
 import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.util.Durations
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 @Suppress("UnstableApiUsage")
@@ -68,6 +71,14 @@ object VoxenCommand {
                         Commands.argument("player", StringArgumentType.word())
                             .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
                             .executes { ctx -> muteInfo(plugin, ctx) }
+                    )
+            )
+            .then(
+                permLiteral("history", "voxen.mod.history")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .executes { ctx -> history(plugin, ctx) }
                     )
             )
             .then(
@@ -325,6 +336,47 @@ object VoxenCommand {
         return Command.SINGLE_SUCCESS
     }
 
+    private fun history(plugin: Voxen, ctx: CommandContext<CommandSourceStack>): Int {
+        val sender = ctx.source.sender
+        val messages = plugin.messages()
+        val moderation = plugin.configManager.config.moderation
+        if (!moderation.historyEnabled) {
+            messages.send(sender, "history-disabled")
+            return Command.SINGLE_SUCCESS
+        }
+        val name = arg(ctx, "player")
+        val target = resolve(plugin, name) ?: run {
+            messages.send(sender, "player-not-found", Placeholder.unparsed("player", name))
+            return Command.SINGLE_SUCCESS
+        }
+        plugin.playerDataService.async { storage ->
+            val entries = storage.chatHistory(target.first, moderation.historyEntries)
+            if (entries.isEmpty()) {
+                messages.send(sender, "history-empty", Placeholder.unparsed("player", target.second))
+                return@async
+            }
+            messages.send(
+                sender,
+                "history-header",
+                Placeholder.unparsed("player", target.second),
+                Placeholder.unparsed("amount", entries.size.toString()),
+            )
+            for (entry in entries.asReversed()) {
+                sender.sendMessage(
+                    messages.line(
+                        sender,
+                        "history-entry",
+                        Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
+                        Placeholder.unparsed("channel", entry.channel),
+                        Placeholder.unparsed("server", entry.server),
+                        Placeholder.unparsed("message", entry.content),
+                    )
+                )
+            }
+        }
+        return Command.SINGLE_SUCCESS
+    }
+
     private fun unmute(plugin: Voxen, ctx: CommandContext<CommandSourceStack>, channelInput: String?): Int {
         val sender = ctx.source.sender
         val messages = plugin.messages()
@@ -384,4 +436,7 @@ object VoxenCommand {
 
     private fun permLiteral(name: String, permission: String): LiteralArgumentBuilder<CommandSourceStack> =
         Commands.literal(name).requires { it.sender.hasPermission(permission) }
+
+    private val TIME_FORMAT: DateTimeFormatter =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 }

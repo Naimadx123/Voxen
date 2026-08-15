@@ -80,6 +80,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         playerDataService = PlayerDataService(this)
         server.pluginManager.registerEvents(playerDataService, this)
         playerDataService.attach(createStorage())
+        purgeChatLog()
 
         ignoreService = IgnoreService(playerDataService)
         server.pluginManager.registerEvents(ignoreService, this)
@@ -302,6 +303,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 ),
             )
         }
+    }
+
+    private fun purgeChatLog() {
+        val moderation = configManager.config.moderation
+        if (!moderation.historyEnabled || moderation.historyKeepDays <= 0) return
+        val cutoff = System.currentTimeMillis() - moderation.historyKeepDays * 86_400_000L
+        playerDataService.async { it.purgeChatLog(cutoff) }
     }
 
     private fun refreshClientCommands() {

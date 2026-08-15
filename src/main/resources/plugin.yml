@@ -30,6 +30,9 @@ permissions:
   voxen.mod.mutechannel:
     description: Allows muting single channels.
     default: op
+  voxen.mod.history:
+    description: Allows reading a player's stored chat history.
+    default: op
   voxen.mod.chatclear:
     description: Allows clearing the chat.
     default: op

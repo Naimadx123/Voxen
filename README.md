@@ -173,9 +173,14 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `filter.normalize.leetspeak` | matches digit and symbol swaps, so `d4rn` and `$hoot` still hit the word list |
 | `filter.normalize.diacritics` | strips accents, so `dąrn` and `shoöt` still hit the word list |
 | `filter.normalize.separators` | ignores spacing and punctuation inside a word, so `d.a.r.n` still hits the word list |
+| `history.enabled` | stores every sent message so staff can read it back with `/voxen history` |
+| `history.keep-days` | entries older than this are deleted on startup, `0` keeps them forever |
+| `history.entries` | how many of the newest messages `/voxen history` shows |
 | `chat-clear-lines` | how many blank lines `/voxen chatclear` sends |
 
 Normalization applies to `filter.words` only. Regex patterns always run against the raw message, so write them to match whatever you need. Censoring still masks the original characters, so `d.a.r.n` becomes `*****`.
+
+The history is off by default. When you turn it on, messages are written to the `chat_log` table after they pass the filter, together with the channel and the `server-id` they were sent from, so on a network every server writes to the same log if they share one database. Storing chat is personal data in some places, so check what your rules require before enabling it.
 
 In `censor` mode, players with `voxen.filter.toggle` can run `/filter` to see the original, uncensored messages. `block` mode rejects messages before they exist, so there is nothing to reveal.
 
@@ -244,6 +249,7 @@ Names below are defaults; see [config.yml](#configyml) for renaming.
 | `muteinfo <player\|uuid>` | check one player's mutes | `voxen.mod.mute` |
 | `mutechat` | mute the whole chat | `voxen.mod.mutechat` |
 | `mutechannel <channel>` | mute one channel | `voxen.mod.mutechannel` |
+| `history <player\|uuid>` | read a player's stored messages | `voxen.mod.history` |
 | `chatclear [player]` | clear the chat | `voxen.mod.chatclear` |
 | `spy` | toggle social spy | `voxen.socialspy` |
 | `mentions` / `pm` | personal toggles | everyone |
@@ -270,6 +276,7 @@ Mute durations look like `10m`, `2h`, `7d` or `permanent`. Moderation commands a
 | `voxen.mod.mute` | muting and unmuting players |
 | `voxen.mod.mutechat` | muting the whole chat |
 | `voxen.mod.mutechannel` | muting single channels |
+| `voxen.mod.history` | reading a player's stored chat history |
 | `voxen.mod.chatclear` | clearing the chat |
 | `voxen.mod.chatclear.exempt` | keeps chat visible during a global clear |
 | `voxen.mute.exempt` | cannot be muted |

@@ -15,6 +15,9 @@ data class ModerationConfig(
     val normalizeLeet: Boolean = true,
     val normalizeDiacritics: Boolean = true,
     val normalizeSeparators: Boolean = true,
+    val historyEnabled: Boolean = false,
+    val historyKeepDays: Int = 14,
+    val historyEntries: Int = 15,
 ) {
     val wordIndex: Map<Char, List<String>> by lazy { blockedWords.groupBy { it.first() } }
 

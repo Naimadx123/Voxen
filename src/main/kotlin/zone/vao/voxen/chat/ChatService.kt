@@ -18,6 +18,7 @@ import zone.vao.voxen.mention.MentionService
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
 import zone.vao.voxen.moderation.WordFilter
+import zone.vao.voxen.storage.ChatLogEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
 import zone.vao.voxen.util.Durations
@@ -216,6 +217,18 @@ class ChatService(
         }
 
         server.pluginManager.callEvent(ChatMessageDeliveredEvent(out.player, out.channel.id, out.content, out.formatted, out.recipients))
+
+        if (config().moderation.historyEnabled) {
+            val entry = ChatLogEntry(
+                uuid = out.player.uniqueId,
+                playerName = out.player.name,
+                channel = out.channel.id,
+                content = out.content,
+                server = config().network.serverId,
+                createdAt = System.currentTimeMillis(),
+            )
+            playerData.async { it.logChat(entry) }
+        }
 
         if (out.channel.crossServer) {
             val mentionContent = if (out.mentionsAllowed) plain.serialize(out.message) else ""
