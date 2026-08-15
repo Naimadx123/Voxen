@@ -170,7 +170,12 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `filter.words` | list of blocked words, matched case-insensitively |
 | `filter.words-file` | optional extra word list file, one word per line, `#` starts a comment; path relative to the plugin folder |
 | `filter.patterns` | list of blocked regex patterns |
+| `filter.normalize.leetspeak` | matches digit and symbol swaps, so `d4rn` and `$hoot` still hit the word list |
+| `filter.normalize.diacritics` | strips accents, so `dąrn` and `shoöt` still hit the word list |
+| `filter.normalize.separators` | ignores spacing and punctuation inside a word, so `d.a.r.n` still hits the word list |
 | `chat-clear-lines` | how many blank lines `/voxen chatclear` sends |
+
+Normalization applies to `filter.words` only. Regex patterns always run against the raw message, so write them to match whatever you need. Censoring still masks the original characters, so `d.a.r.n` becomes `*****`.
 
 In `censor` mode, players with `voxen.filter.toggle` can run `/filter` to see the original, uncensored messages. `block` mode rejects messages before they exist, so there is nothing to reveal.
 

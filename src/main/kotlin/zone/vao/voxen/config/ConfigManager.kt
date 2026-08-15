@@ -230,6 +230,9 @@ class ConfigManager(
             blockedWords = loadBlockedWords(yaml),
             blockedPatterns = patterns,
             chatClearLines = yaml.getInt("chat-clear-lines", 100).coerceIn(1, 500),
+            normalizeLeet = yaml.getBoolean("filter.normalize.leetspeak", true),
+            normalizeDiacritics = yaml.getBoolean("filter.normalize.diacritics", true),
+            normalizeSeparators = yaml.getBoolean("filter.normalize.separators", true),
         )
     }
 
