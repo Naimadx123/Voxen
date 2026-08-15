@@ -26,11 +26,13 @@ object MessageCommand {
                                     return@executes Command.SINGLE_SUCCESS
                                 }
                                 val targetName = StringArgumentType.getString(ctx, "player")
-                                val target = plugin.server.getPlayerExact(targetName) ?: run {
-                                    plugin.messages().send(sender, "player-not-found", Placeholder.unparsed("player", targetName))
-                                    return@executes Command.SINGLE_SUCCESS
+                                val content = StringArgumentType.getString(ctx, "message")
+                                val target = plugin.server.getPlayerExact(targetName)
+                                when {
+                                    target != null -> plugin.privateMessageService.send(sender, target, content)
+                                    plugin.brokerService.active() -> plugin.privateMessageService.sendRemote(sender, targetName, content)
+                                    else -> plugin.messages().send(sender, "player-not-found", Placeholder.unparsed("player", targetName))
                                 }
-                                plugin.privateMessageService.send(sender, target, StringArgumentType.getString(ctx, "message"))
                                 Command.SINGLE_SUCCESS
                             }
                     )

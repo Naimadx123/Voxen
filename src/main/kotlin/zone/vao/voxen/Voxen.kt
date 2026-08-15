@@ -151,6 +151,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 )
             )
         }
+        privateMessageService.remotePublisher = { message ->
+            brokerService.publish(message.copy(server = configManager.config.network.serverId))
+        }
+        privateMessageService.scheduleTimeout = { delayMillis, task ->
+            server.asyncScheduler.runDelayed(this, { task() }, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }
+        brokerService.onPmMessage = { privateMessageService.handleRemote(it) }
         brokerService.onChatMessage = { message ->
             val component = message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
                 ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()

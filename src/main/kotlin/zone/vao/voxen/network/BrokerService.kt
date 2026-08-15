@@ -17,6 +17,9 @@ class BrokerService(
     @Volatile
     var onChatMessage: ((BrokerMessage) -> Unit)? = null
 
+    @Volatile
+    var onPmMessage: ((BrokerMessage) -> Unit)? = null
+
     private val gson = Gson()
     private val io = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "voxen-network").apply { isDaemon = true }
@@ -74,15 +77,24 @@ class BrokerService(
         val message = runCatching { gson.fromJson(payload, BrokerMessage::class.java) }.getOrNull() ?: return
         val id = message.id
         if (id.isNullOrEmpty() || message.server == network().serverId) return
-        if (message.channel.isNullOrEmpty() || message.component.isNullOrEmpty()) return
         synchronized(seen) {
             if (seen.containsKey(id)) return
             seen[id] = true
         }
+        if (message.type == TYPE_PM || message.type == TYPE_PM_ACK) {
+            onPmMessage?.invoke(message)
+            return
+        }
+        if (message.channel.isNullOrEmpty() || message.component.isNullOrEmpty()) return
         onChatMessage?.invoke(message)
     }
 
     private fun markSeen(id: String) {
         synchronized(seen) { seen[id] = true }
+    }
+
+    companion object {
+        const val TYPE_PM = "pm"
+        const val TYPE_PM_ACK = "pm_ack"
     }
 }
