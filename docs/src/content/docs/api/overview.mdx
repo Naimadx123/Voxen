@@ -12,14 +12,54 @@ type in it is stable; everything else is not.
 
 <Steps>
 
-1. Add the API as a `compileOnly` dependency, either the published `:api` module or the
-   plugin jar itself:
+1. Add the repository and the API as a `compileOnly` dependency:
 
-   ```kotlin title="build.gradle.kts"
-   dependencies {
-       compileOnly("zone.vao:voxen-api:1.0")
-   }
-   ```
+   <Tabs syncKey="build">
+   	<TabItem label="Gradle (Kotlin)">
+   		```kotlin title="build.gradle.kts"
+   		repositories {
+   		    maven("https://repo.vao.zone/releases")
+   		}
+
+   		dependencies {
+   		    compileOnly("zone.vao:voxen-api:1.0")
+   		}
+   		```
+   	</TabItem>
+   	<TabItem label="Gradle (Groovy)">
+   		```groovy title="build.gradle"
+   		repositories {
+   		    maven { url 'https://repo.vao.zone/releases' }
+   		}
+
+   		dependencies {
+   		    compileOnly 'zone.vao:voxen-api:1.0'
+   		}
+   		```
+   	</TabItem>
+   	<TabItem label="Maven">
+   		```xml title="pom.xml"
+   		<repositories>
+   		    <repository>
+   		        <id>vao</id>
+   		        <url>https://repo.vao.zone/releases</url>
+   		    </repository>
+   		</repositories>
+
+   		<dependencies>
+   		    <dependency>
+   		        <groupId>zone.vao</groupId>
+   		        <artifactId>voxen-api</artifactId>
+   		        <version>1.0</version>
+   		        <scope>provided</scope>
+   		    </dependency>
+   		</dependencies>
+   		```
+   	</TabItem>
+   </Tabs>
+
+   The plugin jar works as a dependency too, but the API module is smaller and pulls in
+   nothing else.
 
 2. Declare Voxen in your plugin descriptor:
 
@@ -52,8 +92,14 @@ type in it is stable; everything else is not.
 	</TabItem>
 </Tabs>
 
-The facade throws if Voxen is not loaded yet. `ServicesManager` returns `null` instead,
-which is the friendlier option in a `softdepend` plugin.
+The facade throws if Voxen is not loaded yet, so in a `softdepend` plugin either ask first
+or take the `ServicesManager` route, which returns `null` instead:
+
+```java
+if (VoxenApi.isAvailable()) {
+    // safe from here
+}
+```
 
 ## What you can do
 
