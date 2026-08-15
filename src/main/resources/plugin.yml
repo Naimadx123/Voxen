@@ -87,6 +87,9 @@ permissions:
   voxen.bypass.filter:
     description: Bypasses the blocked word filter.
     default: op
+  voxen.bypass.links:
+    description: Bypasses the link and IP filter.
+    default: op
   voxen.bypass.mutechat:
     description: Allows chatting while the chat is globally muted.
     default: op

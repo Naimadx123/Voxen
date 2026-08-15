@@ -149,6 +149,19 @@ class ChatService(
         var content = rawContent
         if (hooks.papi != null) content = applyPapi(player, content)
         var uncensored: String? = null
+        if (!player.hasPermission(BYPASS_LINKS)) {
+            when (val result = wordFilter.checkLinks(content)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(player, "message-has-link")
+                    return null
+                }
+                is WordFilter.Result.Censored -> {
+                    uncensored = content
+                    content = result.content
+                }
+                WordFilter.Result.Clean -> Unit
+            }
+        }
         if (!player.hasPermission(BYPASS_FILTER)) {
             when (val result = wordFilter.check(content)) {
                 WordFilter.Result.Blocked -> {
@@ -156,7 +169,7 @@ class ChatService(
                     return null
                 }
                 is WordFilter.Result.Censored -> {
-                    uncensored = content
+                    uncensored = uncensored ?: content
                     content = result.content
                 }
                 WordFilter.Result.Clean -> Unit
@@ -337,6 +350,7 @@ class ChatService(
         const val BYPASS_COOLDOWN = "voxen.bypass.cooldown"
         const val BYPASS_SPAM = "voxen.bypass.spam"
         const val BYPASS_FILTER = "voxen.bypass.filter"
+        const val BYPASS_LINKS = "voxen.bypass.links"
         const val FILTER_TOGGLE = "voxen.filter.toggle"
         const val BYPASS_ITEM_COOLDOWN = "voxen.bypass.item-cooldown"
         const val MENTION_PERMISSION = "voxen.chat.mention"

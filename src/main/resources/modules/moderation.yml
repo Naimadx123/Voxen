@@ -22,6 +22,16 @@ filter:
     diacritics: true
     separators: true
 
+# Blocks links and IP addresses. mode: block (reject the message) or censor (mask the link).
+# Anything on the whitelist is allowed, including its subdomains.
+links:
+  enabled: false
+  mode: block
+  ips: true
+  whitelist:
+    - youtube.com
+    - youtu.be
+
 # Lets staff raise a channel's cooldown on the fly with /voxen slowmode <channel> <time>.
 # The setting is not saved, so a restart clears it.
 slowmode:

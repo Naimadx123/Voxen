@@ -41,16 +41,45 @@ class WordFilter(
                 if (matcher.end() > matcher.start()) ranges += matcher.start() until matcher.end()
             }
         }
+        return apply(content, ranges, config.filterMode, config.censorReplacement)
+    }
+
+    fun checkLinks(content: String): Result {
+        val config = moderation()
+        if (!config.linksEnabled) return Result.Clean
+
+        val ranges = mutableListOf<IntRange>()
+        for (match in URL.findAll(content)) {
+            if (!isWhitelisted(match.value, config.linkWhitelist)) ranges += match.range
+        }
+        if (config.linkIps) {
+            for (match in IP.findAll(content)) ranges += match.range
+        }
+        return apply(content, ranges, config.linkMode, config.censorReplacement)
+    }
+
+    private fun apply(
+        content: String,
+        ranges: List<IntRange>,
+        mode: ModerationConfig.FilterMode,
+        replacement: Char,
+    ): Result {
         if (ranges.isEmpty()) return Result.Clean
-        if (config.filterMode == ModerationConfig.FilterMode.BLOCK) return Result.Blocked
+        if (mode == ModerationConfig.FilterMode.BLOCK) return Result.Blocked
 
         val chars = content.toCharArray()
         for (range in ranges) {
             for (i in range) {
-                if (i in chars.indices && !chars[i].isWhitespace()) chars[i] = config.censorReplacement
+                if (i in chars.indices && !chars[i].isWhitespace()) chars[i] = replacement
             }
         }
         return Result.Censored(String(chars))
+    }
+
+    private fun isWhitelisted(match: String, whitelist: Set<String>): Boolean {
+        if (whitelist.isEmpty()) return false
+        val host = match.substringAfter("://").substringBefore('/').substringBefore(':').lowercase()
+        return whitelist.any { host == it || host.endsWith(".$it") }
     }
 
     private fun normalize(lower: String, config: ModerationConfig): Normalized? {
@@ -78,5 +107,7 @@ class WordFilter(
     private companion object {
         val LEET = mapOf('0' to 'o', '1' to 'i', '3' to 'e', '4' to 'a', '5' to 's', '7' to 't', '@' to 'a', '$' to 's')
         val SPECIAL = mapOf('ł' to 'l', 'ø' to 'o', 'đ' to 'd', 'æ' to 'a', 'ß' to 's')
+        val URL = Regex("""(?:[a-z][a-z0-9+.-]*://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?(?:/\S*)?""", RegexOption.IGNORE_CASE)
+        val IP = Regex("""\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?\b""")
     }
 }

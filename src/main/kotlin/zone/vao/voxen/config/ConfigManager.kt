@@ -233,6 +233,12 @@ class ConfigManager(
             normalizeLeet = yaml.getBoolean("filter.normalize.leetspeak", true),
             normalizeDiacritics = yaml.getBoolean("filter.normalize.diacritics", true),
             normalizeSeparators = yaml.getBoolean("filter.normalize.separators", true),
+            linksEnabled = yaml.getBoolean("links.enabled", false),
+            linkMode = ModerationConfig.FilterMode.from(yaml.getString("links.mode")),
+            linkIps = yaml.getBoolean("links.ips", true),
+            linkWhitelist = yaml.getStringList("links.whitelist")
+                .mapNotNull { it.trim().lowercase().removePrefix("*.").ifEmpty { null } }
+                .toSet(),
             slowmodeEnabled = yaml.getBoolean("slowmode.enabled", true),
             historyEnabled = yaml.getBoolean("history.enabled", false),
             historyKeepDays = yaml.getInt("history.keep-days", 14).coerceIn(0, 3650),

@@ -173,6 +173,10 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `filter.normalize.leetspeak` | matches digit and symbol swaps, so `d4rn` and `$hoot` still hit the word list |
 | `filter.normalize.diacritics` | strips accents, so `dąrn` and `shoöt` still hit the word list |
 | `filter.normalize.separators` | ignores spacing and punctuation inside a word, so `d.a.r.n` still hits the word list |
+| `links.enabled` | the link and IP filter |
+| `links.mode` | `block` rejects the message, `censor` masks the link |
+| `links.ips` | also catches bare IPv4 addresses like `1.2.3.4:25565` |
+| `links.whitelist` | domains that stay allowed, subdomains included |
 | `slowmode.enabled` | lets staff raise a channel's cooldown with `/voxen slowmode` |
 | `history.enabled` | stores every sent message so staff can read it back with `/voxen history` |
 | `history.keep-days` | entries older than this are deleted on startup, `0` keeps them forever |
@@ -180,6 +184,8 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `chat-clear-lines` | how many blank lines `/voxen chatclear` sends |
 
 Normalization applies to `filter.words` only. Regex patterns always run against the raw message, so write them to match whatever you need. Censoring still masks the original characters, so `d.a.r.n` becomes `*****`.
+
+The link filter runs before the word filter and has its own bypass, `voxen.bypass.links`, so you can let staff post links while everyone else cannot. It catches addresses with or without `http://`, so `example.com/thing` counts. Whitelist entries match the host and its subdomains, so `youtube.com` also allows `www.youtube.com` and `m.youtube.com`.
 
 Slowmode never makes a channel faster than its own `cooldown` in the channel file, it only raises it. `voxen.bypass.cooldown` skips it like any other cooldown. The value lives in memory and applies to the server you ran the command on, so on a network run it once per server, and a restart clears it.
 
@@ -299,6 +305,7 @@ Mute durations look like `10m`, `2h`, `7d` or `permanent`. Moderation commands a
 | `voxen.bypass.cooldown` | chat cooldowns |
 | `voxen.bypass.spam` | the repeated message check |
 | `voxen.bypass.filter` | the blocked word filter |
+| `voxen.bypass.links` | the link and IP filter |
 | `voxen.bypass.mutechat` | the global chat mute |
 | `voxen.bypass.mutechannel` | channel mutes |
 | `voxen.bypass.ignore` | messages reach players who ignore the sender |
