@@ -1,0 +1,123 @@
+---
+title: Cross-server chat
+description: Sharing channels, private messages, mentions and mutes between servers over Redis, NATS or RabbitMQ.
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Voxen talks to its other instances directly through a message broker. There is nothing to
+install on the proxy, and BungeeCord or Velocity are not required at all: two standalone
+servers pointed at the same Redis work just as well.
+
+## Setting it up
+
+<Steps>
+
+1. Pick a transport in `integrations.yml` and fill in its connection details:
+
+   <Tabs syncKey="transport">
+   	<TabItem label="Redis">
+   		```yaml title="plugins/Voxen/integrations.yml"
+   		network:
+   		  transport: redis
+   		  server-id: lobby
+   		  redis:
+   		    host: 10.0.0.5
+   		    port: 6379
+   		    username: ""
+   		    password: "secret"
+   		    ssl: false
+   		    channel: "voxen:chat"
+   		```
+   	</TabItem>
+   	<TabItem label="NATS">
+   		```yaml title="plugins/Voxen/integrations.yml"
+   		network:
+   		  transport: nats
+   		  server-id: lobby
+   		  nats:
+   		    url: "nats://10.0.0.5:4222"
+   		    username: ""
+   		    password: ""
+   		    subject: "voxen.chat"
+   		```
+   	</TabItem>
+   	<TabItem label="RabbitMQ">
+   		```yaml title="plugins/Voxen/integrations.yml"
+   		network:
+   		  transport: rabbitmq
+   		  server-id: lobby
+   		  rabbitmq:
+   		    host: 10.0.0.5
+   		    port: 5672
+   		    username: guest
+   		    password: guest
+   		    virtual-host: "/"
+   		    exchange: "voxen.chat"
+   		```
+   	</TabItem>
+   </Tabs>
+
+2. Give every server a **unique** `server-id`. It is how servers tell each other apart and
+   what gets written into the chat log.
+
+3. Mark the channels that should be shared:
+
+   ```yaml title="plugins/Voxen/channels/global.yml"
+   cross-server: true
+   ```
+
+   The bundled `server` channel already has it, so you have a local-only channel from the
+   start.
+
+4. Restart every server. Repeat the same `integrations.yml` everywhere except
+   `server-id`.
+
+</Steps>
+
+`transport: none` is the default and keeps Voxen in single-server mode.
+`reconnect-seconds` and `timeout-millis` control connection recovery and how long a lookup
+of a player on another server may take.
+
+## What crosses the network
+
+| Feature | Behavior |
+| --- | --- |
+| Channel messages | delivered to every server, rendered with `external-format` when set |
+| Mentions | `@name` finds the player wherever they are and respects their toggle |
+| Private messages | `/msg` and `/r` reach any server |
+| Social spy | every PM is broadcast so each server can show its own spies |
+| Mutes | applied everywhere the moment they are set |
+
+## Where things are decided
+
+Formatting permissions are applied **on the sending server**. The message is rendered
+there and travels as finished MiniMessage text, so what a player may write depends on
+their permissions where they typed it. Servers can run different Paper builds.
+
+The receiving side decides what belongs to it: the mention toggle, the PM toggle and the
+ignore list are checked on the recipient's server.
+
+## Private messages
+
+Tab completion only suggests local players, but any name can be typed. If nobody on the
+network has that player, the sender gets the not-found message after `timeout-millis`.
+
+The `/r` target lives in player data. With a shared MySQL database it follows players
+between servers and survives relogs; with per-server SQLite each server keeps its own.
+
+## Mutes
+
+`network.sync-mutes` is on by default and broadcasts every `/voxen mute` and `unmute`
+immediately. With shared MySQL mutes also survive restarts on every server. With
+per-server SQLite each server only knows about mutes it was online to receive.
+
+<Aside type="caution" title="Keep the broker private">
+	Chat and private message contents travel over it in the clear unless you configure TLS
+	on the broker itself. It should not be reachable from outside your network.
+</Aside>
+
+<Aside type="note">
+	Slowmode and `/voxen mutechat` are per server and are not broadcast. Run them on each
+	server, or mute the channel everywhere with a scripted command.
+</Aside>

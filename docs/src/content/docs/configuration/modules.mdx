@@ -1,0 +1,108 @@
+---
+title: Other modules
+description: Mentions, private messages, parties and emotes.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The remaining files in `modules/`. Moderation has
+[its own page](/configuration/moderation/), and so does
+[minimessage-tags.yml](/guides/player-formatting/).
+
+## Mentions
+
+```yaml title="plugins/Voxen/modules/mentions.yml"
+enabled: true
+highlight: "<yellow>@<player></yellow>"
+cooldown: 5s
+sound:
+  enabled: true
+  key: "minecraft:entity.experience_orb.pickup"
+  source: master
+  volume: 1.0
+  pitch: 1.2
+```
+
+Typing `@name` highlights the name for the mentioned player and plays them a sound.
+`highlight` is how the mention is rendered, with `<player>` being the mentioned name.
+
+Sending a mention needs `voxen.chat.mention`. Receiving them is a personal toggle,
+`/voxen mentions`. The `cooldown` limits how often one player can mention others;
+`voxen.bypass.mention-cooldown` skips it.
+
+On a network, mentions reach the player wherever they are. Permission and cooldown are
+checked on the sending server, the toggle on the receiving one.
+
+## Private messages
+
+```yaml title="plugins/Voxen/modules/private-messages.yml"
+enabled: true
+sender-format: "<gray>[<gold>You</gold> → <gold><target></gold>]</gray> <white><message></white>"
+receiver-format: "<gray>[<gold><player></gold> → <gold>You</gold>]</gray> <white><message></white>"
+spy-format: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>"
+notify-monitored: false
+sound:
+  enabled: true
+  key: "minecraft:block.note_block.pling"
+  source: master
+  volume: 1.0
+  pitch: 1.5
+```
+
+The three formats take `<player>` (sender), `<target>` and `<message>`.
+
+Players refuse private messages with `/voxen pm`; `voxen.bypass.pmtoggle` gets through
+anyway. Ignoring someone with `/ignore` also blocks their private messages, and
+`voxen.bypass.ignore` overrides that.
+
+### Social spy
+
+`/voxen spy` with `voxen.socialspy` shows other players' conversations using
+`spy-format`. `notify-monitored: true` warns both sides that someone watched.
+
+<Aside type="caution" title="Spy crosses the network">
+	Every private message is broadcast to the other servers as a spy event, so each server
+	can show it to its own spies. That means PM contents travel over the broker for every
+	message. Keep the broker private to your network.
+</Aside>
+
+## Parties
+
+```yaml title="plugins/Voxen/modules/party.yml"
+enabled: true
+max-members: 8
+invite-expiry: 60s
+```
+
+`enabled: false` turns the system off and removes `/party` after a restart, which is what
+you want when another plugin already handles parties.
+
+Party chat goes through the `party` channel, or the `#` quick prefix from anywhere.
+Membership is stored in the database, so with MySQL a party survives a server hop.
+
+## Emotes
+
+```yaml title="plugins/Voxen/modules/emotes.yml"
+enabled: true
+require-permission: true
+emotes:
+  heart: "❤"
+  star: "★"
+  shrug: "¯\\_(ツ)_/¯"
+  tableflip: "(╯°□°)╯︵ ┻━┻"
+```
+
+Shortcodes between colons turn into real characters, so `:heart:` becomes ❤. The `emotes`
+map is the whole feature: key is the shortcode without colons, value is what it becomes.
+Names may contain `a-z`, `0-9`, `_`, `+` and `-`; anything else is skipped with a warning
+on load.
+
+With `require-permission: true` a player needs `voxen.chat.emote.<name>` for one emote or
+`voxen.chat.emote` for all of them. Set it to `false` and everyone gets everything.
+
+Unknown shortcodes stay exactly as typed, so ordinary text like `1:2:3` is safe.
+
+<Aside type="note">
+	Replacement runs **after** the word filter, so an emote cannot be used to smuggle a
+	blocked word past it.
+</Aside>

@@ -1,0 +1,143 @@
+---
+title: Quick start
+description: From a fresh install to a working channel setup.
+---
+
+import { Steps, Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+This walks through the setup most servers end up with: a global channel everyone talks
+in, a local channel for roleplay range, a staff channel behind a permission, and a word
+filter that actually blocks something.
+
+## Out of the box
+
+After the first start you already have a working chat. `global` is enabled, every player
+joins it, and `!` sends there from any other channel. `local` ships **disabled** so a
+fresh server behaves like vanilla until you decide otherwise.
+
+<Steps>
+
+1. ### Name the server
+
+   `config.yml` — this is what the `<server>` placeholder shows, in chat and across the
+   network.
+
+   ```yaml title="plugins/Voxen/config.yml"
+   server-name: "survival"
+   default-language: en_US
+   quick-chat: true
+   ```
+
+2. ### Set the global format
+
+   Every channel file has its own `format`. Placeholders are listed in
+   [Chat formats](/guides/formats/).
+
+   ```yaml title="plugins/Voxen/channels/global.yml"
+   display-name: "<green>Global</green>"
+   type: global
+   default: true
+   quick-prefix: "!"
+   aliases: [g, global]
+   format: "<gray>[<green>G</green>]</gray> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+   ```
+
+   `<prefix>` and `<suffix>` come from LuckPerms or Vault, so ranks show up without any
+   extra config.
+
+3. ### Turn on local chat
+
+   `local` only reaches players within `radius` blocks. Make it the channel new players
+   talk in and keep global one `!` away.
+
+   ```yaml title="plugins/Voxen/channels/local.yml"
+   enabled: true
+   type: local
+   default: true
+   default-active: true
+   radius: 100
+   empty-warning: true
+   ```
+
+   `empty-warning: true` tells the sender when nobody was in range, which saves a lot of
+   "is chat broken" questions.
+
+   <Aside type="note">
+   	`default` means new players join the channel. `default-active` means it is the one
+   	they talk in. A player can be in several channels but writes to one at a time.
+   </Aside>
+
+4. ### Lock the staff channel
+
+   The permission nodes live in the channel file, not in `plugin.yml`, so you name them
+   yourself.
+
+   ```yaml title="plugins/Voxen/channels/staff.yml"
+   quick-prefix: "@"
+   permissions:
+     read: voxen.channel.staff
+     write: voxen.channel.staff
+     join: voxen.channel.staff
+     manage: voxen.channel.staff.manage
+   ```
+
+   Give your staff group `voxen.channel.staff` and they can read the channel and write to
+   it with `@message` from anywhere.
+
+5. ### Block a few words
+
+   ```yaml title="plugins/Voxen/modules/moderation.yml"
+   cooldown: "2s"
+   filter:
+     enabled: true
+     mode: censor
+     censor-char: "*"
+     words:
+       - darn
+     normalize:
+       leetspeak: true
+       diacritics: true
+       separators: true
+   ```
+
+   With normalization on, `d4rn`, `dąrn` and `d.a.r.n` all hit the same entry. See
+   [Moderation](/configuration/moderation/) for the link filter, slowmode and the chat
+   log.
+
+6. ### Grant colors to a rank
+
+   Players cannot use any formatting until you say so. Give your VIP group exactly what
+   you want it to have:
+
+   ```
+   voxen.chat.tag.color
+   voxen.chat.tag.bold
+   voxen.chat.tag.italic
+   ```
+
+   Not `voxen.chat.tag.*` unless you mean everything. Details and the full node list are
+   in [What players may type](/guides/player-formatting/).
+
+7. ### Apply
+
+   ```
+   /voxen reload
+   ```
+
+   Only command renames under `commands:` need a full restart.
+
+</Steps>
+
+## Where to go next
+
+<CardGrid>
+	<Card title="Going multi-server" icon="random">
+		Switch `storage.yml` to MySQL, set a transport in `integrations.yml`, flip
+		`cross-server: true` on the channels you share.
+		[Cross-server chat](/network/cross-server/)
+	</Card>
+	<Card title="Renaming commands" icon="pencil">
+		Every player command can be renamed and aliased under `commands:` in
+		`config.yml`. [config.yml](/configuration/config/)
+	</Card>
+</CardGrid>

@@ -1,0 +1,72 @@
+---
+title: Storage
+description: SQLite for a single server, MySQL or MariaDB for a network.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+`storage.yml` decides where player data lives: active channel, joined channels, personal
+toggles, language, nickname, ignore list, reply target, mutes, parties and, when enabled,
+the chat log.
+
+<Tabs>
+	<TabItem label="SQLite (default)" icon="seti:db">
+		```yaml title="plugins/Voxen/storage.yml"
+		type: sqlite
+		```
+
+		Nothing else to configure. The database file is created in the plugin folder. Fine
+		for a single server; each server keeps its own copy, so nothing follows players
+		between them.
+	</TabItem>
+	<TabItem label="MySQL / MariaDB" icon="seti:db">
+		```yaml title="plugins/Voxen/storage.yml"
+		type: mysql
+		host: localhost
+		port: 3306
+		database: voxen
+		username: voxen
+		password: "secret"
+		table-prefix: voxen_
+		pool-size: 10
+		```
+
+		`type: mysql` covers MariaDB as well. Use this on a network so settings, nicknames,
+		ignores, mutes and parties are shared.
+	</TabItem>
+</Tabs>
+
+## Tables
+
+Every table is prefixed with `table-prefix`, so several plugins or several networks can
+share one database:
+
+| Table | Holds |
+| --- | --- |
+| `voxen_players` | per-player settings, nickname, reply target |
+| `voxen_ignores` | ignore lists |
+| `voxen_mutes` | active and expired mutes |
+| `voxen_parties` / `voxen_party_members` | parties |
+| `voxen_chat_log` | stored messages, only when history is enabled |
+| `voxen_schema` | the schema version, used for automatic migrations |
+
+Schema updates run on startup. There is nothing to migrate by hand between plugin
+versions.
+
+## Pool size
+
+`pool-size` is the HikariCP connection pool. `10` is right for almost everyone. Voxen does
+its database work on a single background thread, so raising it does not make anything
+faster.
+
+<Aside type="tip" title="Going from one server to many">
+	Switching from SQLite to MySQL starts from an empty database; existing SQLite data is
+	not imported. Do it before the network goes live, or accept that players re-pick their
+	channel and language once.
+</Aside>
+
+## What is not stored
+
+Slowmode, the global chat mute and channel mutes live in memory and are cleared by a
+restart. Mutes on players are stored, and on a network they are also broadcast live. See
+[Cross-server chat](/network/cross-server/).

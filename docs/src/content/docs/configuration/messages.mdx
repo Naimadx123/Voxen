@@ -1,0 +1,74 @@
+---
+title: Messages & languages
+description: Translating every player-facing string and letting players pick a language.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Every text Voxen shows a player lives in `messages/<language>.yml`. `en_US` and `pl_PL`
+ship by default.
+
+## How a player's language is chosen
+
+1. The language they picked with `/lang <language>`, if any.
+2. Their client language, when a matching file exists.
+3. `default-language` from `config.yml`.
+
+`/lang auto` clears the manual choice and goes back to following the client. The console
+always uses `default-language`.
+
+## Adding a language
+
+<Steps>
+
+1. Copy an existing file under the new locale name:
+
+   ```bash
+   cp messages/en_US.yml messages/de_DE.yml
+   ```
+
+2. Translate the values. Keys and placeholders must stay as they are.
+
+3. Run `/voxen reload`. Clients set to German now get the new file, and
+   `/lang de_DE` picks it manually.
+
+</Steps>
+
+## The prefix
+
+The first key in every file is used in front of most plugin messages:
+
+```yaml title="plugins/Voxen/messages/en_US.yml"
+prefix: "<gray>[<aqua>Voxen</aqua>]</gray> "
+```
+
+Set it to an empty string to drop the prefix everywhere at once.
+
+## Placeholders in messages
+
+Each message accepts its own placeholders and they are not interchangeable. A few common
+ones:
+
+| Placeholder | Appears in |
+| --- | --- |
+| `<player>` | anything about a player |
+| `<channel>` | channel messages, already rendered from `display-name` |
+| `<remaining>` | cooldowns and mute expiry |
+| `<reason>` | mute messages |
+| `<amount>` | list headers |
+
+```yaml
+chat-cooldown: "<red>Wait <white><remaining></white> before sending another message."
+muted-player: "<green>Muted <white><player></white> in <white><channel></white>."
+```
+
+<Aside type="caution">
+	Removing a placeholder is fine, inventing one is not: an unknown tag is left in the text
+	verbatim. If a message comes out with a stray `<something>` in it, that is why.
+</Aside>
+
+## Updating
+
+New messages added by a plugin update are appended to every language file on startup, in
+English. Your translations and comments are left alone, so after an update you only have
+to translate the new lines.

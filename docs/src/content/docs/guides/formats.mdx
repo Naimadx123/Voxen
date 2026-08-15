@@ -1,0 +1,101 @@
+---
+title: Chat formats
+description: Placeholders available in channel formats, and how per-group and per-world formats resolve.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Formats are MiniMessage strings. Every channel has a `format`, and can add
+`group-formats`, `world-formats`, `console-format` and `external-format`. All of them
+accept the same placeholders.
+
+## Placeholders
+
+| Placeholder | Value |
+| --- | --- |
+| `<message>` | the message body |
+| `<player>` | the sender's nickname if set, otherwise their real name; hover shows the real name |
+| `<username>` | always the real name |
+| `<display_name>` | the Bukkit display name |
+| `<prefix>` / `<suffix>` | from LuckPerms or Vault |
+| `<group>` | the sender's primary permission group |
+| `<world>` | the sender's world |
+| `<channel>` / `<channel_id>` | channel display name / id |
+| `<server>` | `server-name` from `config.yml` |
+
+<Aside type="note">
+	The real-name hover on `<player>` only exists in chat. From the console there is
+	nothing to hover, so use `/realname <nickname>` instead.
+</Aside>
+
+If PlaceholderAPI is installed, `%papi%` placeholders work in every format. If
+MiniPlaceholders is installed, its `<tag>` style placeholders work too. Plugins can
+register their own with the [Developer API](/api/overview/).
+
+## Which format wins
+
+For each recipient Voxen picks one format, in this order:
+
+1. `world-formats` — an entry matching the sender's world, if present
+2. `group-formats` — an entry matching the sender's permission group name, or a player
+   holding `voxen.chat.format.<key>`
+3. `format` — the channel default
+
+```yaml title="plugins/Voxen/channels/global.yml"
+format: "<gray>[<green>G</green>]</gray> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+group-formats:
+  vip: "<gray>[<green>G</green>]</gray> <gold>[VIP]</gold> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+  admin: "<gray>[<green>G</green>]</gray> <red>[Admin]</red> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+world-formats:
+  the_end: "<gray>[<dark_purple>End</dark_purple>]</gray> <white><player></white><dark_gray>:</dark_gray> <message>"
+```
+
+A player in the `vip` group gets the VIP line everywhere except The End, where the world
+format takes over.
+
+## Console and external formats
+
+`console-format` is what lands in the server log. It is plain text, so keep it short and
+skip the colors:
+
+```yaml
+console-format: "[G] <player>: <message>"
+```
+
+`external-format` is used when the message arrived from **another server** on the network.
+Marking those visibly is usually worth it:
+
+```yaml
+external-format: "<gray>[<aqua><server></aqua>]</gray> <white><player></white><dark_gray>:</dark_gray> <message>"
+```
+
+Without it, remote messages use the normal `format` and look local.
+
+## Sounds
+
+Every channel can play a sound to the people who receive the message:
+
+```yaml
+sound:
+  enabled: true
+  key: "minecraft:block.note_block.hat"
+  source: master
+  volume: 0.6
+  pitch: 1.6
+```
+
+Handy on a staff channel so nobody misses a report. `key` is any Minecraft sound key.
+
+## Item sharing
+
+With `item-share.enabled` in `config.yml` and the `voxen.chat.tag.item` permission, players
+can drop their equipment into a message:
+
+```
+look at this <item>
+new boots <boots>
+```
+
+`<item>`, `<helmet>`, `<chestplate>`, `<leggings>` and `<boots>` render as the item name
+with a hover preview. `item-share.cooldown` limits how often, and any channel can opt out
+with `item-tags: false`.

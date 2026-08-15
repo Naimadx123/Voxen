@@ -1,0 +1,134 @@
+---
+title: API overview
+description: Reading channels, sending chat, adding placeholders and registering your own channels from another plugin.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+Voxen ships a separate `api` module with no dependency on the plugin's internals. Every
+type in it is stable; everything else is not.
+
+## Depending on it
+
+<Steps>
+
+1. Add the API as a `compileOnly` dependency, either the published `:api` module or the
+   plugin jar itself:
+
+   ```kotlin title="build.gradle.kts"
+   dependencies {
+       compileOnly("zone.vao:voxen-api:1.0")
+   }
+   ```
+
+2. Declare Voxen in your plugin descriptor:
+
+   ```yaml title="plugin.yml"
+   depend: [Voxen]
+   ```
+
+   Use `softdepend` instead if your plugin should still load without it.
+
+</Steps>
+
+## Getting the service
+
+<Tabs syncKey="lang">
+	<TabItem label="Java">
+		```java
+		// static facade
+		Collection<ChannelInfo> channels = VoxenApi.channels();
+
+		// or through Bukkit's ServicesManager
+		VoxenService voxen = getServer().getServicesManager().load(VoxenService.class);
+		```
+	</TabItem>
+	<TabItem label="Kotlin">
+		```kotlin
+		val channels = VoxenApi.channels()
+
+		val voxen = server.servicesManager.load(VoxenService::class.java)
+		```
+	</TabItem>
+</Tabs>
+
+The facade throws if Voxen is not loaded yet. `ServicesManager` returns `null` instead,
+which is the friendlier option in a `softdepend` plugin.
+
+## What you can do
+
+### Read channels
+
+```java
+Collection<ChannelInfo> all = VoxenApi.channels();
+ChannelInfo global        = VoxenApi.channel("global");
+ChannelInfo current       = VoxenApi.activeChannel(player);
+```
+
+`ChannelInfo` is an immutable snapshot: `id`, `displayName`, `type`, `enabled`,
+`readOnly`, `crossServer`, `radius`, `worlds`.
+
+### Send chat
+
+```java
+// as the player, through the whole pipeline: permissions, mutes, cooldown, filter
+boolean sent = VoxenApi.sendChannelMessage(player, "global", "hello");
+
+// raw component, skips the pipeline entirely
+VoxenApi.broadcastToChannel("global", Component.text("Server restarting"));
+```
+
+### Check moderation state
+
+```java
+VoxenApi.isMuted(uuid);
+VoxenApi.isMuted(uuid, "global");
+VoxenApi.isIgnoring(source, target);
+```
+
+### Private messages, nicknames, parties
+
+```java
+VoxenApi.sendPrivateMessage(sender, target, "hi");   // PM toggle, ignores, tag permissions
+String nick = VoxenApi.nickname(player);
+VoxenApi.setNickname(player, "<gold>Steve");         // length limits apply, permissions do not
+PartyInfo party = VoxenApi.party(uuid);
+```
+
+<Aside type="caution">
+	`setNickname` deliberately skips permission checks, since your plugin is the one
+	deciding who may do it. Config length limits and the word filter still apply.
+</Aside>
+
+### Add a format placeholder
+
+```java
+VoxenApi.registerPlaceholder("level", p ->
+        Component.text(getLevel(p)));
+```
+
+`<level>` is now usable in any chat format. Return `null` to render nothing. Unregister on
+disable.
+
+### Register your own channel
+
+```java
+VoxenApi.registerChannel(
+        "auction",
+        "<gold>Auction",
+        "<gold>[A] <player> <dark_gray>» <white><message>",
+        sender -> Bukkit.getOnlinePlayers().stream()
+                .filter(this::wantsAuctions)
+                .toList());
+```
+
+The `RecipientProvider` is optional; without one the channel behaves like a normal global
+channel. `registerRecipients` does the same thing for a channel that already exists in
+`channels/`, which is how you bolt a custom audience onto the bundled ones.
+
+Runtime channels are not written to disk and disappear on restart. Register them in
+`onEnable`.
+
+## Events
+
+Two events cover the message lifecycle. See [Events](/api/events/).

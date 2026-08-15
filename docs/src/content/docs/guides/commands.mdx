@@ -1,0 +1,126 @@
+---
+title: Commands & permissions
+description: Every command Voxen registers and the permission nodes behind them.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Names below are the defaults. Every player command can be renamed and aliased under
+`commands:` in [config.yml](/configuration/config/); only `/voxen` always keeps its name.
+
+## Player commands
+
+| Command | Description | Permission |
+| --- | --- | --- |
+| `/msg <player> <text>` (`/tell`, `/whisper`, `/w`) | private message | `voxen.pm.send` |
+| `/r <text>` (`/reply`) | reply to the last conversation | `voxen.pm.send` |
+| `/channel join\|leave\|set\|list` (`/ch`) | manage channels | per channel |
+| `/ignore <player>` | toggle ignoring a player | `voxen.ignore` |
+| `/ignorelist` | list ignored players | `voxen.ignore` |
+| `/party create\|invite\|accept\|deny\|leave\|kick\|transfer\|disband\|chat\|list` | party system | `voxen.party` |
+| `/chattoggle` | hide or show the chat | everyone |
+| `/lang <language\|auto>` | choose the message language | everyone |
+| `/nick <nickname\|reset>` | manage your nickname | `voxen.nick` |
+| `/nick <nickname> <player>` | manage someone's nickname | `voxen.nick.others` |
+| `/realname <nickname>` | find the account behind a nickname | `voxen.realname` |
+| `/filter` | see chat without the word filter | `voxen.filter.toggle` |
+
+Channels also register their own `aliases`, so `/g hello` and `/sc hello` work without
+switching channel.
+
+## Staff commands
+
+| Subcommand | Description | Permission |
+| --- | --- | --- |
+| `/voxen reload` | reload the configuration | `voxen.admin` |
+| `/voxen status` | storage, network and hook status | `voxen.admin` |
+| `/voxen mute <player\|uuid> [time] [channel\|all] [reason]` | mute a player | `voxen.mod.mute` |
+| `/voxen unmute <player\|uuid> [channel\|all]` | lift a mute | `voxen.mod.mute` |
+| `/voxen mutes` | list active mutes | `voxen.mod.mute` |
+| `/voxen muteinfo <player\|uuid>` | one player's mutes | `voxen.mod.mute` |
+| `/voxen mutechat` | mute the whole chat | `voxen.mod.mutechat` |
+| `/voxen mutechannel <channel>` | mute one channel | `voxen.mod.mutechannel` |
+| `/voxen slowmode <channel> <time\|off>` | raise a channel's cooldown live | `voxen.mod.slowmode` |
+| `/voxen history <player\|uuid>` | read stored messages | `voxen.mod.history` |
+| `/voxen chatclear [player]` | clear the chat | `voxen.mod.chatclear` |
+| `/voxen spy` | toggle social spy | `voxen.socialspy` |
+| `/voxen mentions` / `/voxen pm` | personal toggles | everyone |
+
+Durations look like `10m`, `2h`, `7d` or `permanent`. Moderation commands accept a raw
+UUID instead of a name, which works for players who have never joined this server.
+
+## Player permissions
+
+Default: **everyone**.
+
+| Permission | What it allows |
+| --- | --- |
+| `voxen.party` | using the party system |
+| `voxen.ignore` | ignoring other players |
+| `voxen.pm.send` | sending private messages |
+| `voxen.chat.mention` | mentioning players with `@name` |
+| `voxen.chat.tag.item` | sharing held and worn items in chat |
+| `voxen.chat.emote` | every emote shortcode (`voxen.chat.emote.<name>` for one) |
+
+## Staff permissions
+
+Default: **OP**.
+
+| Permission | What it allows |
+| --- | --- |
+| `voxen.admin` | `/voxen reload` and `/voxen status` |
+| `voxen.mod.mute` | muting and unmuting players |
+| `voxen.mod.mutechat` | muting the whole chat |
+| `voxen.mod.mutechannel` | muting single channels |
+| `voxen.mod.slowmode` | changing a channel's slowmode |
+| `voxen.mod.history` | reading stored chat history |
+| `voxen.mod.chatclear` | clearing the chat |
+| `voxen.mod.chatclear.exempt` | keeps chat visible during a global clear |
+| `voxen.mute.exempt` | cannot be muted |
+| `voxen.socialspy` | `/voxen spy`, viewing private messages |
+| `voxen.filter.toggle` | `/filter`, chat without the word filter |
+| `voxen.nick` | setting your own nickname |
+| `voxen.nick.others` | setting other players' nicknames |
+| `voxen.realname` | `/realname`, the account behind a nickname |
+| `voxen.chat.papi` | PlaceholderAPI placeholders in own messages |
+| `voxen.chat.miniplaceholders` | MiniPlaceholders tags in own messages |
+
+<Aside type="caution" title="Why /realname is OP by default">
+	Nicknames exist to hide who someone is. The reverse lookup undoes that, so it starts
+	locked. Grant `voxen.realname` to the ranks that should see through it.
+</Aside>
+
+## Bypasses
+
+Default: **OP**.
+
+| Permission | What it skips |
+| --- | --- |
+| `voxen.bypass.cooldown` | chat cooldowns and slowmode |
+| `voxen.bypass.spam` | the repeated message check |
+| `voxen.bypass.filter` | the blocked word filter |
+| `voxen.bypass.links` | the link and IP filter |
+| `voxen.bypass.mutechat` | the global chat mute |
+| `voxen.bypass.mutechannel` | channel mutes |
+| `voxen.bypass.ignore` | messages reach players who ignore the sender |
+| `voxen.bypass.pmtoggle` | private messages reach players who disabled them |
+| `voxen.bypass.item-cooldown` | the item share cooldown |
+| `voxen.bypass.mention-cooldown` | the mention cooldown |
+
+## Channel permissions
+
+Channel access nodes are defined **per channel** in its own file, so you pick the names:
+
+```yaml title="plugins/Voxen/channels/staff.yml"
+permissions:
+  read: voxen.channel.staff
+  write: voxen.channel.staff
+  join: voxen.channel.staff
+  manage: voxen.channel.staff.manage
+```
+
+`none` means no requirement. Formats under `group-formats` are matched by permission
+group name or by `voxen.chat.format.<key>`.
+
+Formatting permissions (`voxen.chat.tag.*`, `voxen.chat.legacy.*`) have their own page:
+[What players may type](/guides/player-formatting/).

@@ -1,0 +1,51 @@
+---
+title: PlaceholderAPI
+description: Using %papi% placeholders in formats, and reading Voxen state from other plugins.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Both directions work as soon as PlaceholderAPI is installed. Nothing to enable beyond the
+switch in `integrations.yml`:
+
+```yaml title="plugins/Voxen/integrations.yml"
+placeholderapi: true
+```
+
+## Placeholders in formats
+
+Any registered PlaceholderAPI placeholder can be dropped into a chat format:
+
+```yaml title="plugins/Voxen/channels/global.yml"
+format: "%vault_prefix%<player> <dark_gray>»</dark_gray> <message>"
+```
+
+They are resolved per viewer, so a placeholder that depends on who is looking shows the
+right value for each of them.
+
+## Voxen state for other plugins
+
+Voxen publishes its own expansion, so scoreboards, tab lists and holograms can read it:
+
+| Placeholder | Value |
+| --- | --- |
+| `%voxen_channel%` | active channel id |
+| `%voxen_channel_display%` | active channel display name |
+| `%voxen_muted%` | `true` or `false`, global mute state |
+| `%voxen_party%` | party name, or empty |
+| `%voxen_party_leader%` | party leader's name, or empty |
+| `%voxen_language%` | chosen language, or `auto` |
+| `%voxen_mentions%` | mention toggle |
+| `%voxen_pm%` | private message toggle |
+| `%voxen_chat%` | chat toggle |
+
+<Aside type="note">
+	The expansion is registered on startup. `/voxen reload` does not re-register it, so if
+	you flip the switch in `integrations.yml` you need a restart.
+</Aside>
+
+<Aside type="caution" title="Players cannot write these">
+	`%papi%` placeholders in a **player's message** are never expanded. They only work in
+	formats you configure. Player-writable placeholders go through
+	[MiniPlaceholders](/integrations/miniplaceholders/) and their own permission nodes.
+</Aside>

@@ -1,0 +1,71 @@
+---
+title: Introduction
+description: What Voxen is, what it replaces, and how the pieces fit together.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+**Voxen** is a chat plugin for **PaperMC 1.21.8+** and its forks, Folia included. It takes
+over the chat pipeline and gives you channels, private messages, parties, ignoring,
+`@name` mentions, nicknames, item sharing and a full moderation stack.
+
+Everything above works on a single server. Point several servers at one Redis, NATS or
+RabbitMQ broker and chat, private messages, mentions, social spy and mutes cross server
+borders without a proxy-side plugin.
+
+<Aside type="tip" title="No hard dependencies">
+	Kotlin, HikariCP, the database drivers and the broker clients download themselves on
+	first start. Every plugin hook is optional and guarded by a plugin-present check, so a
+	missing PlaceholderAPI or LuckPerms breaks nothing.
+</Aside>
+
+## How a message travels
+
+1. A player types something. If it starts with a channel's **quick prefix** (`!hello`),
+   that channel is used; otherwise it goes to their active channel.
+2. Voxen checks whether they may write there: mutes, chat mute, cooldown, slowmode.
+3. The **link filter** runs, then the **word filter**, then the repeat check.
+4. Emote shortcodes are replaced, mentions are resolved, and the message is rendered
+   with the tags that player is allowed to use.
+5. The channel's `format` builds the final line, and it goes to everyone the channel
+   picks: a radius, a world, a party, a permission, or the whole network.
+
+## Key concepts
+
+<CardGrid>
+	<LinkCard
+		title="Channels"
+		description="One .yml file per channel. The file name is the channel id."
+		href="/guides/channels/"
+	/>
+	<LinkCard
+		title="Chat formats"
+		description="MiniMessage formats with placeholders, per group and per world."
+		href="/guides/formats/"
+	/>
+	<LinkCard
+		title="Moderation"
+		description="Mutes, cooldowns, word and link filters, slowmode, chat log."
+		href="/configuration/moderation/"
+	/>
+	<LinkCard
+		title="Cross-server chat"
+		description="Redis, NATS or RabbitMQ. One config switch per channel."
+		href="/network/cross-server/"
+	/>
+</CardGrid>
+
+## Requirements
+
+| Item | Version |
+| --- | --- |
+| Server | Paper (or a fork) **1.21.8+**. Spigot is not supported |
+| Java | **21** |
+| Storage | SQLite out of the box, MySQL/MariaDB for a network |
+
+Optional hooks: PlaceholderAPI, MiniPlaceholders, Vault, LuckPerms, DiscordSRV,
+EssentialsDiscord, Towny, Factions, mcMMO.
+
+## Downloads
+
+- [GitHub](https://github.com/Naimadx123/Voxen)

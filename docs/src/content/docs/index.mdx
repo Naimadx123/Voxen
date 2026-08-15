@@ -1,0 +1,55 @@
+---
+title: Voxen
+description: Chat plugin for PaperMC 1.21.8+ with channels, private messages, parties, moderation and cross-server chat.
+template: splash
+hero:
+  tagline: One chat plugin for the whole network — channels, moderation and private messages that cross server borders.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Get started
+      link: /start/introduction/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/Naimadx123/Voxen
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+## What is Voxen?
+
+Voxen replaces vanilla chat with **channels** you define in YAML. On top of that it adds
+private messages, parties, ignoring, `@name` mentions, nicknames, item sharing and a
+moderation stack with mutes, cooldowns, a word filter and a link filter. Point every
+server at one Redis, NATS or RabbitMQ broker and chat, private messages and mutes
+follow players across the network.
+
+<CardGrid stagger>
+	<Card title="Channels in YAML" icon="comment">
+		One file per channel. Radius, worlds, permissions, per-group formats, quick
+		prefixes like `!hello` and per-channel cooldowns.
+	</Card>
+	<Card title="Moderation that holds" icon="warning">
+		Mutes, slowmode, a word filter that sees through `d.4.r.n`, a link filter with a
+		domain whitelist and an optional chat log.
+	</Card>
+	<Card title="Cross-server, no proxy plugin" icon="random">
+		Redis, NATS or RabbitMQ. Chat, private messages, mentions, social spy and mutes
+		all travel between servers.
+	</Card>
+	<Card title="Formatting on a leash" icon="approve-check">
+		Every MiniMessage tag is permission gated, down to a single argument, so
+		`<gradient:red:blue>` can be granted without granting the rest.
+	</Card>
+</CardGrid>
+
+## Where to next
+
+<CardGrid>
+	<LinkCard title="Installation" description="Drop the jar in, start the server." href="/start/installation/" />
+	<LinkCard title="Quick start" description="A working channel setup in a few minutes." href="/start/quick-start/" />
+	<LinkCard title="Channels" description="Every field of a channel file, explained." href="/guides/channels/" />
+	<LinkCard title="Cross-server chat" description="Wire the network together." href="/network/cross-server/" />
+</CardGrid>

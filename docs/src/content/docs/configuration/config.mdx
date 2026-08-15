@@ -1,0 +1,99 @@
+---
+title: config.yml
+description: Server name, language, quick chat, chat delivery, item sharing, nicknames and command renaming.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Every key
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `server-name` | `server` | value of the `<server>` placeholder |
+| `default-language` | `en_US` | console language and fallback for players |
+| `quick-chat` | `true` | allows quick prefixes like `!hello` |
+| `chat-delivery` | `system` | how chat reaches players, see below |
+| `item-share.enabled` | `true` | the `<item>`, `<helmet>`, `<chestplate>`, `<leggings>`, `<boots>` tags |
+| `item-share.cooldown` | `10s` | delay between item shares per player, empty disables it |
+| `nicknames.enabled` | `true` | `/nick`, `/realname` and nickname display |
+| `nicknames.min-length` | `3` | minimum visible length, formatting tags excluded |
+| `nicknames.max-length` | `24` | maximum visible length |
+| `nicknames.filter` | `true` | rejects nicknames containing blocked words |
+| `commands.*` | see below | command names and aliases |
+
+## Chat delivery
+
+This is the one setting worth understanding before you go live.
+
+<Tabs>
+	<TabItem label="system (default)">
+		Voxen cancels the chat event and sends its own messages.
+
+		- Per-viewer features work fully: censoring per player, ignore lists, `/chattoggle`,
+		  per-language text.
+		- Messages are not signed, so **vanilla chat reporting is disabled**.
+
+		This is what you want unless you specifically need chat reports.
+	</TabItem>
+	<TabItem label="player">
+		Messages stay signed player chat, rendered through Paper's chat renderer.
+
+		- Vanilla chat reporting and the client's secure chat features keep working.
+		- The signature covers the **originally typed text**. Word filter censoring and
+		  quick prefixes only change what is displayed, so a chat report contains what the
+		  player actually typed, not what everyone saw.
+	</TabItem>
+</Tabs>
+
+## Renaming commands
+
+The first entry is the main name, the rest are aliases:
+
+```yaml title="plugins/Voxen/config.yml"
+commands:
+  message: [priv, szept]
+  reply: [reply, r]
+  channel: [channel, ch]
+  nickname: [nick]
+  real-name: [realname]
+```
+
+`/msg` becomes `/priv` with `/szept` as an alias. Only `/voxen` cannot be renamed.
+
+<Aside type="caution">
+	Command names are registered with Brigadier at startup, so a rename needs a **server
+	restart**, not `/voxen reload`.
+</Aside>
+
+## Nicknames
+
+```yaml
+nicknames:
+  enabled: true
+  min-length: 3
+  max-length: 24
+  filter: true
+```
+
+Length is measured on the **visible** text, so MiniMessage tags do not count against the
+limit. With `filter: true` a nickname containing a word from
+[the moderation word list](/configuration/moderation/) is rejected.
+
+`<player>` in chat formats shows the nickname with the real name on hover. From the
+console there is no hover, so staff use `/realname <nickname>` instead. Setting
+`enabled: false` removes `/nick` and `/realname` after a restart and stops nicknames from
+being displayed.
+
+## Item sharing
+
+```yaml
+item-share:
+  enabled: true
+  cooldown: 10s
+```
+
+Players holding `voxen.chat.tag.item` can write `<item>` to drop their held item into the
+message, with a hover preview. `<helmet>`, `<chestplate>`, `<leggings>` and `<boots>` do
+the same for armor. An empty `cooldown` removes the limit;
+`voxen.bypass.item-cooldown` skips it. Individual channels can refuse item tags with
+`item-tags: false`.

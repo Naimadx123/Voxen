@@ -1,0 +1,95 @@
+---
+title: Installation
+description: Install Voxen from a release jar or build it from source.
+---
+
+import { Steps, Tabs, TabItem, Aside, FileTree } from '@astrojs/starlight/components';
+
+Voxen ships as a single shaded jar with no required dependencies. Libraries it needs
+(Kotlin, HikariCP, database drivers, broker clients) are downloaded on first start.
+
+## Requirements
+
+- **PaperMC 1.21.8+** or a fork. Folia works. Spigot does not.
+- **Java 21** matching your Paper build.
+
+## Install the plugin
+
+<Tabs>
+	<TabItem label="From a release" icon="seti:yml">
+		<Steps>
+		1. Download the latest `Voxen-vX.X.jar` from
+		   [GitHub releases](https://github.com/Naimadx123/Voxen/releases).
+		2. Drop the jar into your server's `plugins/` folder.
+		3. Start the server. Voxen creates `plugins/Voxen/` with every config file.
+		4. Edit the files and run `/voxen reload` to apply them.
+		</Steps>
+	</TabItem>
+	<TabItem label="Build from source" icon="seti:gradle">
+		<Steps>
+		1. Clone the repository:
+		   ```bash
+		   git clone https://github.com/Naimadx123/Voxen.git
+		   cd Voxen
+		   ```
+		2. Build the shaded jar:
+		   ```bash
+		   ./gradlew build
+		   ```
+		3. Grab the result from `build/libs/` and drop it into `plugins/`.
+		</Steps>
+		For a quick test there is also `./gradlew runServer`, which starts a local Paper
+		server with the plugin already installed.
+	</TabItem>
+</Tabs>
+
+## What gets created
+
+<FileTree>
+- plugins/Voxen/
+  - config.yml server name, language, quick chat, item sharing, nicknames, command names
+  - storage.yml SQLite or MySQL
+  - integrations.yml plugin hooks and the cross-server transport
+  - channels/ one file per channel
+    - global.yml
+    - local.yml
+    - world.yml
+    - staff.yml
+    - party.yml
+    - server.yml
+  - modules/
+    - mentions.yml
+    - moderation.yml
+    - private-messages.yml
+    - party.yml
+    - emotes.yml
+    - minimessage-tags.yml
+  - messages/ one file per language
+    - en_US.yml
+    - pl_PL.yml
+</FileTree>
+
+## Updating
+
+New settings and messages are merged into your existing files on startup. Your values and
+your comments stay untouched. The `channels/` folder is left alone entirely, so a channel
+you deleted stays deleted.
+
+<Aside type="caution" title="Command names need a restart">
+	Renaming commands under `commands:` in `config.yml` takes effect on the next server
+	start, because Brigadier registers them once. Everything else applies with
+	`/voxen reload`.
+</Aside>
+
+## Optional integrations
+
+| Plugin | Enables |
+| --- | --- |
+| [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/) | `%papi%` in formats and the `voxen` expansion |
+| [MiniPlaceholders](https://modrinth.com/plugin/miniplaceholders) | other plugins' tags in formats and the `voxen` expansion |
+| [LuckPerms](https://luckperms.net/) / [Vault](https://www.spigotmc.org/resources/vault.34315/) | the `<prefix>`, `<suffix>` and `<group>` placeholders |
+| [DiscordSRV](https://modrinth.com/plugin/discordsrv) / EssentialsDiscord | forwarding a channel to Discord |
+| Towny / Factions / mcMMO | limiting a channel to a town, faction or party |
+
+Every hook can be switched off in `integrations.yml`. Head to the
+[Quick start](/start/quick-start/) next.

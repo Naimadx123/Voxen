@@ -1,0 +1,55 @@
+---
+title: Configuration overview
+description: Which file controls what, and how reloading and updating behave.
+---
+
+import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Everything lives in `plugins/Voxen/`. The files are split by topic so you rarely have to
+touch more than one at a time.
+
+| File | What it controls |
+| --- | --- |
+| `config.yml` | server name, language, quick chat, item sharing, nicknames, command names |
+| `storage.yml` | player data storage: SQLite or MySQL/MariaDB |
+| `integrations.yml` | plugin hooks and the cross-server transport |
+| `channels/*.yml` | one file per chat channel |
+| `modules/mentions.yml` | `@name` mentions |
+| `modules/moderation.yml` | cooldowns, anti-repeat, word filter, link filter, chat log |
+| `modules/private-messages.yml` | private message formats and social spy |
+| `modules/party.yml` | party size and invite expiry |
+| `modules/emotes.yml` | `:heart:` style shortcodes |
+| `modules/minimessage-tags.yml` | which formatting tags players may use |
+| `messages/*.yml` | translations, one file per language |
+
+## Reloading
+
+```
+/voxen reload
+```
+
+Rereads every file above and applies it immediately. Two things are excluded:
+
+- **Command names** under `commands:` register once at startup, so renaming needs a
+  restart.
+- **The MiniPlaceholders and PlaceholderAPI expansions** register once at startup, so a
+  reload does not re-register them.
+
+## Updating the plugin
+
+New settings and messages are merged into your existing files on startup. Your values and
+your comments survive; only genuinely new keys are appended.
+
+<Aside type="note">
+	`channels/` is never touched. New versions do not add fields there, and a channel you
+	deleted stays deleted.
+</Aside>
+
+## Where to go
+
+<CardGrid>
+	<LinkCard title="config.yml" description="Server name, quick chat, nicknames, command renaming." href="/configuration/config/" />
+	<LinkCard title="Moderation" description="Cooldowns, filters, slowmode, chat history." href="/configuration/moderation/" />
+	<LinkCard title="Other modules" description="Mentions, private messages, parties, emotes." href="/configuration/modules/" />
+	<LinkCard title="Storage" description="SQLite for one server, MySQL for a network." href="/configuration/storage/" />
+</CardGrid>

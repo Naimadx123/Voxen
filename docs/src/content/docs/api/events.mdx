@@ -1,0 +1,64 @@
+---
+title: Events
+description: ChatMessageSendEvent and ChatMessageDeliveredEvent.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Two Bukkit events, both in `zone.vao.voxen.event`.
+
+## ChatMessageSendEvent
+
+Fires before delivery. Cancellable, and `content` is mutable, so this is where you rewrite
+or drop a message.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `player` | `Player` | the sender |
+| `channelId` | `String` | channel the message is going to |
+| `content` | `String` | mutable, the message after the filter ran |
+| `recipients` | `MutableSet<Player>` | remove entries to hide the message from someone |
+
+```java
+@EventHandler
+public void onSend(ChatMessageSendEvent event) {
+    if (event.getContent().contains("spoiler")) {
+        event.setCancelled(true);
+        return;
+    }
+    event.getRecipients().removeIf(p -> p.getWorld().equals(nether));
+}
+```
+
+## ChatMessageDeliveredEvent
+
+Fires after delivery. Everything on it is read-only; use it for logging, Discord bridges
+and statistics.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `player` | `Player` | the sender |
+| `channelId` | `String` | channel it went to |
+| `content` | `String` | the plain text |
+| `message` | `Component` | the fully rendered message |
+| `recipients` | `Set<Player>` | who actually received it |
+
+```java
+@EventHandler
+public void onDelivered(ChatMessageDeliveredEvent event) {
+    bridge.forward(PlainTextComponentSerializer.plainText().serialize(event.getMessage()));
+}
+```
+
+<Aside type="caution" title="Check the thread">
+	Both events fire on whichever thread the message came from: **asynchronously** for
+	regular chat, synchronously when a command or the API triggered it. Call
+	`isAsynchronous()` before touching the world or any other Bukkit state.
+</Aside>
+
+<Aside type="note">
+	Both events fire only on the server the message was typed on, and `recipients` only ever
+	contains local players. Messages arriving from elsewhere on the network are already
+	rendered and do not go through the pipeline again, so a network-wide listener sees each
+	message exactly once.
+</Aside>

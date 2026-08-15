@@ -1,0 +1,193 @@
+---
+title: Moderation
+description: Cooldowns, anti-repeat, the word and link filters, slowmode, mutes and the chat log.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Everything on this page lives in `modules/moderation.yml`, except mutes, which are
+commands rather than config.
+
+## The whole file
+
+```yaml title="plugins/Voxen/modules/moderation.yml"
+cooldown: 1s
+
+anti-repeat:
+  enabled: true
+  window-seconds: 30
+  similarity:
+    enabled: false
+    threshold: 0.85
+    history: 3
+
+filter:
+  enabled: true
+  mode: censor
+  censor-char: "*"
+  words: []
+  words-file: ""
+  patterns: []
+  normalize:
+    leetspeak: true
+    diacritics: true
+    separators: true
+
+links:
+  enabled: false
+  mode: block
+  ips: true
+  whitelist:
+    - youtube.com
+    - youtu.be
+
+slowmode:
+  enabled: true
+
+history:
+  enabled: false
+  keep-days: 14
+  entries: 15
+
+chat-clear-lines: 100
+```
+
+## Cooldown and anti-repeat
+
+| Key | Meaning |
+| --- | --- |
+| `cooldown` | minimum delay between any two messages per player, empty disables it |
+| `anti-repeat.enabled` | blocks the same message twice within `window-seconds` |
+| `anti-repeat.similarity.enabled` | also blocks messages that are only slightly changed |
+| `anti-repeat.similarity.threshold` | how alike two messages must be, `0.0` to `1.0` |
+| `anti-repeat.similarity.history` | how many recent messages each new one is compared against |
+
+With similarity off, only an exact repeat counts. With it on, `hi there!` right after
+`hi there` is caught too. Lower the threshold to catch more, at the cost of the occasional
+false positive on short messages. `voxen.bypass.spam` skips the check entirely,
+`voxen.bypass.cooldown` skips the delay.
+
+Channels can have their own `cooldown` on top of the global one, which is the usual way to
+slow down a trade channel without slowing down everything.
+
+## Word filter
+
+| Key | Meaning |
+| --- | --- |
+| `filter.mode` | `block` rejects the message, `censor` masks matches with `censor-char` |
+| `filter.words` | blocked words, matched case-insensitively |
+| `filter.words-file` | extra word list file, one word per line, `#` starts a comment |
+| `filter.patterns` | blocked regex patterns |
+| `filter.normalize.leetspeak` | matches digit and symbol swaps, so `d4rn` and `$hoot` hit |
+| `filter.normalize.diacritics` | strips accents, so `dąrn` and `shoöt` hit |
+| `filter.normalize.separators` | ignores spacing and punctuation, so `d.a.r.n` hits |
+
+`words-file` is a path relative to the plugin folder, which keeps a long list out of the
+YAML:
+
+```yaml
+filter:
+  words-file: "blocked-words.txt"
+```
+
+<Aside type="note" title="Normalization applies to words only">
+	Regex `patterns` always run against the raw message, so write them to match whatever
+	you need. Censoring still masks the original characters, so `d.a.r.n` becomes `*****`.
+</Aside>
+
+In `censor` mode, players with `voxen.filter.toggle` can run `/filter` to see the
+uncensored original. `block` mode rejects messages before they exist, so there is nothing
+to reveal.
+
+## Link filter
+
+| Key | Meaning |
+| --- | --- |
+| `links.enabled` | the link and IP filter |
+| `links.mode` | `block` rejects the message, `censor` masks the link |
+| `links.ips` | also catches bare IPv4 addresses like `1.2.3.4:25565` |
+| `links.whitelist` | domains that stay allowed, subdomains included |
+
+It runs **before** the word filter and has its own bypass, `voxen.bypass.links`, so staff
+can post links while everyone else cannot. Addresses count with or without a scheme, so
+`example.com/thing` is caught. A whitelist entry matches the host and its subdomains:
+`youtube.com` also allows `www.youtube.com` and `m.youtube.com`.
+
+## Slowmode
+
+```
+/voxen slowmode global 10s
+/voxen slowmode global off
+```
+
+Raises a channel's cooldown at runtime. It never makes a channel **faster** than the
+`cooldown` in its own file, it only raises it. `voxen.bypass.cooldown` skips it like any
+other cooldown.
+
+<Aside type="caution">
+	The value lives in memory and applies to the server you ran the command on. On a network
+	run it once per server, and a restart clears it.
+</Aside>
+
+## Mutes
+
+<Steps>
+
+1. Mute someone, optionally on one channel only:
+
+   ```
+   /voxen mute Steve 2h global spamming
+   /voxen mute Steve permanent all
+   ```
+
+2. Check what is active:
+
+   ```
+   /voxen mutes
+   /voxen muteinfo Steve
+   ```
+
+3. Lift it:
+
+   ```
+   /voxen unmute Steve all
+   ```
+
+</Steps>
+
+Durations are `10m`, `2h`, `7d` or `permanent`. A raw UUID works instead of a name, which
+covers players who have never joined this server. `voxen.mute.exempt` makes someone
+unmutable.
+
+`/voxen mutechat` silences everyone at once, `/voxen mutechannel <channel>` silences one
+channel. Both have their own bypass nodes.
+
+On a network, mutes are broadcast to every server the moment they are set. See
+[Cross-server chat](/network/cross-server/).
+
+## Chat history
+
+```yaml
+history:
+  enabled: false
+  keep-days: 14
+  entries: 15
+```
+
+Off by default. When enabled, messages are written to the `chat_log` table after they pass
+the filter, together with the channel and the `server-id` they came from, so on a network
+every server writes into the same log if they share a database.
+
+`/voxen history <player>` shows the newest `entries` messages. Rows older than
+`keep-days` are deleted on startup; `0` keeps them forever.
+
+<Aside type="danger" title="Stored chat is personal data">
+	In some jurisdictions logging chat has legal requirements attached. Check what applies
+	to you before turning this on.
+</Aside>
+
+## Chat clear
+
+`chat-clear-lines` is how many blank lines `/voxen chatclear` pushes. Players with
+`voxen.mod.chatclear.exempt` keep their chat visible during a global clear, so staff do not
+lose context. `/voxen chatclear <player>` clears one person.

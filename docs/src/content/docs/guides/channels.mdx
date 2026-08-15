@@ -1,0 +1,138 @@
+---
+title: Channels
+description: Every field of a channel file, the six channel types, and quick prefixes.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Each file in `channels/` defines one channel. The file name without `.yml` is the channel
+id, so `channels/trade.yml` gives you a channel called `trade`. To add one, copy an
+existing file and change what you need.
+
+The defaults are `global`, `local`, `world`, `staff`, `party` and `server`.
+
+<Aside type="note">
+	`channels/` is the one folder Voxen never touches on update. New plugin versions do not
+	add fields to your channel files and never bring back a channel you deleted.
+</Aside>
+
+## Channel types
+
+| Type | Who hears it |
+| --- | --- |
+| `global` | everyone on the server |
+| `local` | players within `radius` blocks of the sender |
+| `world` | players in the sender's world |
+| `staff` | everyone, in practice locked behind a permission |
+| `party` | the sender's party |
+| `server` | meant for cross-server chat; `cross-server` defaults to `true` here |
+| `custom` | no extra logic, recipients come from permissions alone |
+
+## Every field
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `display-name` | channel id | MiniMessage name shown by `<channel>` |
+| `type` | `custom` | behavior, see above |
+| `enabled` | `true` | disabled channels are ignored entirely |
+| `default` | `false` | new players join this channel automatically |
+| `default-active` | `false` | new players talk in this channel by default |
+| `read-only` | `false` | only channel managers can write |
+| `radius` | `-1` | hearing range in blocks for `local`, `-1` is unlimited |
+| `worlds` | empty | limits the channel to listed worlds, empty means all |
+| `format` | generic | the MiniMessage chat format |
+| `group-formats` | empty | per group formats, by permission group or `voxen.chat.format.<key>` |
+| `world-formats` | empty | per world formats, override everything else |
+| `console-format` | none | separate format for the console log |
+| `external-format` | none | format used when the message came from another server |
+| `aliases` | empty | extra commands that switch to this channel, e.g. `/g` |
+| `quick-prefix` | none | prefix that sends straight here, e.g. `!` |
+| `cooldown` | none | per channel message cooldown, e.g. `3s` |
+| `permissions.read/write/join/manage` | `none` | permission nodes gating access |
+| `empty-warning` | `false` | tells the sender when nobody heard them |
+| `item-tags` | `true` | whether item share tags work here |
+| `scope` | none | limits recipients to a team: `towny`, `factions` or `mcmmo` |
+| `discord` | `false` | forwards messages to DiscordSRV or EssentialsDiscord |
+| `discord-format` | none | how the forwarded message looks on Discord |
+| `cross-server` | `false` | sends messages to other servers over the transport |
+| `sound.*` | disabled | sound played to recipients: `key`, `source`, `volume`, `pitch` |
+
+## Quick prefixes
+
+A channel with a `quick-prefix` can be reached without switching to it. Type the prefix
+followed by the message and it goes straight there:
+
+```
+!hello everyone      → global
+@need a hand here    → staff
+#regrouping at spawn → party
+```
+
+The prefix is any string, not just one character, so `>>` or `!!` work too. When two
+prefixes overlap, the longer one wins, so `!!` and `!` can coexist. The player still needs
+write access to the channel, and there has to be something after the prefix — a lone `!`
+is just a message.
+
+Turn the whole mechanism off with `quick-chat: false` in `config.yml`.
+
+## A full example
+
+```yaml title="plugins/Voxen/channels/trade.yml"
+display-name: "<gold>Trade</gold>"
+type: global
+enabled: true
+default: true
+quick-prefix: "$"
+aliases: [trade, tr]
+cooldown: "30s"
+format: "<gray>[<gold>Trade</gold>]</gray> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+console-format: "[Trade] <player>: <message>"
+permissions:
+  read: none
+  write: none
+  join: none
+  manage: voxen.channel.trade.manage
+item-tags: true
+empty-warning: false
+sound:
+  enabled: false
+  key: ""
+```
+
+A 30 second cooldown on a trade channel is the usual reason to set `cooldown` per channel
+rather than globally. Staff can raise it further at runtime with
+`/voxen slowmode trade 2m`, and `voxen.bypass.cooldown` skips both.
+
+## Team-scoped channels
+
+`scope` narrows recipients to the sender's own group in another plugin:
+
+```yaml
+type: global
+scope: towny
+```
+
+Accepts `towny`, `factions` and `mcmmo`. The channel still applies its own permissions and
+radius on top; scope only removes people who are not on the sender's team.
+
+## Discord forwarding
+
+```yaml
+discord: true
+discord-format: "[<world>] <player> » <message>"
+```
+
+Rendered to plain text, so MiniMessage tags are stripped before it leaves. Empty keeps the
+default: the bare message for DiscordSRV, which formats it with its own config, and
+`name: message` for EssentialsDiscord.
+
+<CardGrid>
+	<Card title="Formats" icon="pencil">
+		Every placeholder available in `format`, plus per-group and per-world overrides.
+		[Chat formats](/guides/formats/)
+	</Card>
+	<Card title="Across servers" icon="random">
+		`cross-server: true` plus a transport in `integrations.yml`.
+		[Cross-server chat](/network/cross-server/)
+	</Card>
+</CardGrid>

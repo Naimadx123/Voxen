@@ -1,0 +1,136 @@
+---
+title: What players may type
+description: MiniMessage tags, legacy color codes and placeholders inside player messages, and the permissions gating each one.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Channel formats are yours; the message body is not. Everything a player writes goes
+through a permission gate before it is parsed, configured in
+`modules/minimessage-tags.yml`.
+
+**Regular players cannot use any formatting until you grant it.** Tags they may not use
+are shown as plain text or removed, depending on `unauthorized-mode`.
+
+## unauthorized-mode
+
+| Mode | What happens to a disallowed tag |
+| --- | --- |
+| `escape` | it stays visible as literal text, e.g. `<red>` |
+| `strip` | it is removed from the message |
+
+<Aside type="caution" title="Nexo and Oraxen force strip">
+	When a plugin that re-parses chat text is installed, `escape` is not safe: the escaped
+	tag survives as plain text and that plugin renders it anyway. Voxen detects Nexo and
+	Oraxen, switches to `strip` automatically and logs a notice on startup.
+
+	Messages sent to other servers always use `strip` semantics, because the sending server
+	cannot know what re-parses chat on the receiving side.
+</Aside>
+
+## Colors and formatting
+
+| Permission | What it unlocks |
+| --- | --- |
+| `voxen.chat.tag.color` | named colors: `<red>`, `<gold>`, `<color:red>` |
+| `voxen.chat.tag.hex` | hex colors: `<#ff0000>`, `<color:#ff0000>` |
+| `voxen.chat.tag.gradient` | `<gradient:...>` |
+| `voxen.chat.tag.rainbow` | `<rainbow>` |
+| `voxen.chat.tag.transition` | `<transition:...>` |
+| `voxen.chat.tag.pride` | `<pride>` flag gradients |
+| `voxen.chat.tag.keybind` | `<key:...>` client keybind names |
+| `voxen.chat.tag.font` | `<font:...>`, disabled by default, needs a resource pack |
+| `voxen.chat.tag.newline` | `<newline>`, disabled by default, fake message risk |
+| `voxen.chat.tag.bold` | `<bold>` |
+| `voxen.chat.tag.italic` | `<italic>` |
+| `voxen.chat.tag.underlined` | `<underlined>` |
+| `voxen.chat.tag.strikethrough` | `<strikethrough>` |
+| `voxen.chat.tag.obfuscated` | `<obfuscated>` |
+| `voxen.chat.tag.hover` | `<hover:...>` |
+| `voxen.chat.tag.click` | `<click:...>`, each action also has its own node |
+| `voxen.chat.tag.insertion` | `<insertion:...>` |
+| `voxen.chat.tag.shadow` | `<shadow:#RRGGBB>` |
+| `voxen.chat.tag.sprite` | `<sprite:...>` item and mob icons, needs MiniMessage 5+ |
+| `voxen.chat.tag.head` | `<head:...>` player heads, needs MiniMessage 5+ |
+| `voxen.chat.tag.translatable` | `<lang:...>`, disabled by default |
+| `voxen.chat.tag.fallback` | `<lang_or:...>`, disabled by default |
+| `voxen.chat.tag.selector` | `<selector:...>`, disabled by default |
+| `voxen.chat.tag.score` | `<score:...>`, disabled by default |
+| `voxen.chat.tag.nbt` | `<nbt:...>`, disabled by default |
+| `voxen.chat.tag.reset` | `<reset>` |
+| `voxen.chat.tag.*` | everything above at once |
+| `voxen.chat.legacy.color` | `&c` style color codes |
+| `voxen.chat.legacy.hex` | `&#ff0000` style hex codes |
+| `voxen.chat.legacy.format` | `&l`, `&o` style format codes |
+| `voxen.chat.legacy.*` | all legacy codes at once |
+
+`<selector>`, `<score>`, `<nbt>`, `<lang>` and `<lang_or>` are disabled in the config by
+default: they read server-side data or let a player imitate another message. Enable them
+in `modules/minimessage-tags.yml` only for ranks you trust.
+
+Legacy codes need `legacy.enabled: true` in `modules/minimessage-tags.yml` on top of the
+permission.
+
+## Gating single arguments
+
+The base node allows every argument of a tag. Base node plus the arguments, with `:`
+replaced by `.`, allows exactly one combination:
+
+```
+voxen.chat.tag.gradient.red.blue
+```
+
+That player can write `<gradient:red:blue>` and nothing else.
+
+The same nodes work as **denials**. Setting one to `false` in LuckPerms blocks that use
+even for someone holding the base node:
+
+```
+voxen.chat.tag.color.red: false
+```
+
+For colors this covers both spellings, `<color:red>` and `<red>`.
+
+<Aside type="danger" title="The wildcard cannot be negated">
+	`voxen.chat.tag.*` is checked directly in code, so negating a single node underneath it
+	has no effect. To grant formatting selectively, list the individual nodes instead of
+	the wildcard.
+</Aside>
+
+If one message contains both a permitted and an unpermitted use of the same tag, that tag
+stays unparsed for the whole message.
+
+## Placeholders in messages
+
+Players can also be allowed to put placeholders in what they type. These are gated the
+same way, down to a single placeholder:
+
+| Permission | Effect |
+| --- | --- |
+| `voxen.chat.papi` | parses every `%papi%` placeholder |
+| `voxen.chat.papi.player_health` | parses only `%player_health%` |
+| `voxen.chat.miniplaceholders` | parses every MiniPlaceholders tag |
+| `voxen.chat.miniplaceholders.luckperms_prefix` | parses only `<luckperms_prefix>` |
+
+Colors coming out of a PlaceholderAPI placeholder additionally need the matching
+`voxen.chat.legacy.*` permission, otherwise the codes are left alone.
+
+## Per-tag config
+
+Under `tags:` in `modules/minimessage-tags.yml` every built-in tag can be disabled, given
+a different permission, aliases, and `blocked-params` — a list of regexes checked against
+the tag's arguments. `click` additionally takes per-action permissions under `actions:`.
+
+`custom-tags:` gates tags rendered by **other** plugins, for example Nexo glyphs:
+
+```yaml title="plugins/Voxen/modules/minimessage-tags.yml"
+custom-tags:
+  glyph:
+    enabled: true
+    permission: voxen.chat.tag.glyph
+```
+
+`voxen.chat.tag.glyph` allows every argument, `voxen.chat.tag.glyph.smile` allows only
+`<glyph:smile>`. Voxen does not render these tags itself, it only decides whether they
+survive in the message. Prefer `strip` here, since an escaped tag may still be picked up
+by whichever plugin renders it.
