@@ -29,12 +29,17 @@ class PrivateMessageService(
     @Volatile
     var scheduleTimeout: ((Long, () -> Unit) -> Unit)? = null
 
-    private class Conversation(val uuid: UUID, val name: String)
     private class Pending(val targetName: String, val message: Component)
 
     private val mm = MiniMessage.miniMessage()
-    private val lastConversation = ConcurrentHashMap<UUID, Conversation>()
     private val pending = ConcurrentHashMap<UUID, Pending>()
+
+    private fun setConversation(playerUuid: UUID, otherUuid: UUID, otherName: String) {
+        val data = playerData.get(playerUuid)
+        data.lastPmUuid = otherUuid.toString()
+        data.lastPmName = otherName
+        playerData.save(data)
+    }
 
     fun send(sender: Player, target: Player, content: String): Boolean {
         val messages = config().messages
@@ -71,8 +76,8 @@ class PrivateMessageService(
         target.sendMessage(mm.deserialize(settings.receiverFormat, *resolvers))
         settings.sound.sound?.let { target.playSound(it) }
 
-        lastConversation[sender.uniqueId] = Conversation(target.uniqueId, target.name)
-        lastConversation[target.uniqueId] = Conversation(sender.uniqueId, sender.name)
+        setConversation(sender.uniqueId, target.uniqueId, target.name)
+        setConversation(target.uniqueId, sender.uniqueId, sender.name)
 
         notifySpies(sender.uniqueId, target.uniqueId, resolvers) {
             if (config().privateMessages.notifyMonitored) {
@@ -139,19 +144,21 @@ class PrivateMessageService(
 
     fun reply(sender: Player, content: String): Boolean {
         val messages = config().messages
-        val last = lastConversation[sender.uniqueId] ?: run {
+        val data = playerData.get(sender.uniqueId)
+        val lastUuid = runCatching { UUID.fromString(data.lastPmUuid) }.getOrNull()
+        val lastName = data.lastPmName
+        if (lastUuid == null || lastName == null) {
             messages.send(sender, "pm-no-reply")
             return false
         }
-        val target = server.getPlayer(last.uuid)
+        val target = server.getPlayer(lastUuid)
         if (target != null) return send(sender, target, content)
-        if (remotePublisher != null) return sendRemote(sender, last.name, content)
+        if (remotePublisher != null) return sendRemote(sender, lastName, content)
         messages.send(sender, "pm-target-offline")
         return false
     }
 
     fun forget(uuid: UUID) {
-        lastConversation.remove(uuid)
         pending.remove(uuid)
     }
 
@@ -181,7 +188,7 @@ class PrivateMessageService(
         )
         target.sendMessage(mm.deserialize(settings.receiverFormat, *resolvers))
         settings.sound.sound?.let { target.playSound(it) }
-        lastConversation[target.uniqueId] = Conversation(senderUuid, senderName)
+        setConversation(target.uniqueId, senderUuid, senderName)
         notifySpies(senderUuid, target.uniqueId, resolvers) {
             if (config().privateMessages.notifyMonitored) config().messages.send(target, "pm-monitored")
         }
@@ -212,7 +219,7 @@ class PrivateMessageService(
         )
         sender.sendMessage(mm.deserialize(settings.senderFormat, *resolvers))
         runCatching { UUID.fromString(ackMessage.targetUuid) }.getOrNull()?.let {
-            lastConversation[sender.uniqueId] = Conversation(it, targetName)
+            setConversation(sender.uniqueId, it, targetName)
         }
     }
 

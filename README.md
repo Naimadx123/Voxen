@@ -352,6 +352,8 @@ All formatting permissions are applied on the sending server: the message is ren
 
 Private messages work across servers too: `/msg <player>` reaches the player on whichever server they are on, `/r` replies back across servers, and the target's PM toggle and ignore list are respected on their server. Tab completion only suggests local players, but any name can be typed. If nobody on the network has the player, the sender gets the not-found message after `timeout-millis`.
 
+The `/r` target is stored in player data, so with a shared MySQL database it follows players between servers and survives relogs. On per-server SQLite each server keeps its own reply target.
+
 Social spy is network wide: every private message is broadcast to the other servers as a spy event, and each server shows it to its local spies using its own `spy-format`. This also means PM contents travel over the broker for every message, so keep the broker private to your network.
 
 ## Storage

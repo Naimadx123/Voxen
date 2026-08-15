@@ -64,6 +64,13 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
             }
             version = 2
         }
+        if (version < 3) {
+            conn.createStatement().use { st ->
+                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN last_pm_uuid VARCHAR(36)")
+                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN last_pm_name VARCHAR(16)")
+            }
+            version = 3
+        }
         conn.createStatement().use { st -> st.executeUpdate("DELETE FROM $schemaTable") }
         conn.prepareStatement("INSERT INTO $schemaTable (version) VALUES (?)").use { ps ->
             ps.setInt(1, version)
@@ -75,7 +82,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
         dataSource.connection.use { conn ->
             conn.prepareStatement(
                 "SELECT active_channel, joined_channels, left_channels, pm_enabled, mentions_enabled, chat_enabled, social_spy, language, " +
-                    "filter_enabled, nickname FROM $playersTable WHERE uuid = ?"
+                    "filter_enabled, nickname, last_pm_uuid, last_pm_name FROM $playersTable WHERE uuid = ?"
             ).use { ps ->
                 ps.setString(1, uuid.toString())
                 ps.executeQuery().use { rs ->
@@ -92,6 +99,8 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                         language = rs.getString(8),
                         filterEnabled = rs.getInt(9) != 0,
                         nickname = rs.getString(10),
+                        lastPmUuid = rs.getString(11),
+                        lastPmName = rs.getString(12),
                     )
                 }
             }
@@ -106,8 +115,8 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
             }
             conn.prepareStatement(
                 "INSERT INTO $playersTable " +
-                    "(uuid, active_channel, joined_channels, left_channels, pm_enabled, mentions_enabled, chat_enabled, social_spy, language, filter_enabled, nickname) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "(uuid, active_channel, joined_channels, left_channels, pm_enabled, mentions_enabled, chat_enabled, social_spy, language, filter_enabled, nickname, last_pm_uuid, last_pm_name) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             ).use { ps ->
                 ps.setString(1, data.uuid.toString())
                 ps.setString(2, data.activeChannel)
@@ -120,6 +129,8 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                 ps.setString(9, data.language)
                 ps.setInt(10, if (data.filterEnabled) 1 else 0)
                 ps.setString(11, data.nickname)
+                ps.setString(12, data.lastPmUuid)
+                ps.setString(13, data.lastPmName)
                 ps.executeUpdate()
             }
         }
