@@ -45,3 +45,4 @@ commands:
   language: [language, lang]
   filter: [filter]
   nickname: [nick, nickname]
+  real-name: [realname]

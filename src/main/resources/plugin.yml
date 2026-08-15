@@ -57,6 +57,9 @@ permissions:
   voxen.nick.others:
     description: Allows setting other players' nicknames.
     default: op
+  voxen.realname:
+    description: Allows looking up who is behind a nickname with /realname.
+    default: op
   voxen.party:
     description: Allows using the party system.
     default: true

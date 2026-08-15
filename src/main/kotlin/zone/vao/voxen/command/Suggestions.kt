@@ -15,6 +15,16 @@ object CommandSuggestions {
         return builder.buildFuture()
     }
 
+    fun nicknames(plugin: Voxen, builder: SuggestionsBuilder): CompletableFuture<Suggestions> {
+        val input = builder.remaining.lowercase()
+        plugin.server.onlinePlayers
+            .mapNotNull { plugin.playerDataService.get(it.uniqueId).nickname }
+            .map { plugin.contentRenderer.plain(it) }
+            .filter { it.isNotEmpty() && it.lowercase().startsWith(input) }
+            .forEach(builder::suggest)
+        return builder.buildFuture()
+    }
+
     fun channels(plugin: Voxen, builder: SuggestionsBuilder, extra: List<String> = emptyList()): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
         (plugin.channelService.channels().keys + extra)

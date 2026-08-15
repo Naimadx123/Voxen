@@ -357,6 +357,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             register(commands.filter, "Toggle the chat filter for yourself") { ToggleCommands.buildFilterToggle(this, it) }
             if (configManager.config.nicknames.enabled) {
                 register(commands.nickname, "Manage nicknames") { NickCommand.build(this, it) }
+                register(commands.realName, "Look up who is using a nickname") { NickCommand.buildRealName(this, it) }
             }
             if (configManager.config.party.enabled) {
                 register(commands.party, "Manage your party") { PartyCommand.build(this, it) }

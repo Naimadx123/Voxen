@@ -17,6 +17,7 @@ object NickCommand {
 
     const val PERMISSION = "voxen.nick"
     const val PERMISSION_OTHERS = "voxen.nick.others"
+    const val PERMISSION_REALNAME = "voxen.realname"
 
     fun build(plugin: Voxen, name: String): LiteralCommandNode<CommandSourceStack> =
         Commands.literal(name)
@@ -33,6 +34,42 @@ object NickCommand {
                     )
             )
             .build()
+
+    fun buildRealName(plugin: Voxen, name: String): LiteralCommandNode<CommandSourceStack> =
+        Commands.literal(name)
+            .requires { it.sender.hasPermission(PERMISSION_REALNAME) }
+            .then(
+                Commands.argument("nickname", StringArgumentType.greedyString())
+                    .suggests { _, builder -> CommandSuggestions.nicknames(plugin, builder) }
+                    .executes { ctx -> realName(plugin, ctx.source.sender, StringArgumentType.getString(ctx, "nickname")) }
+            )
+            .build()
+
+    private fun realName(plugin: Voxen, sender: CommandSender, input: String): Int {
+        val messages = plugin.messages()
+        if (!plugin.configManager.config.nicknames.enabled) {
+            messages.send(sender, "nickname-disabled")
+            return Command.SINGLE_SUCCESS
+        }
+        val query = input.trim()
+        val matches = plugin.server.onlinePlayers.filter { plainNickname(plugin, it).equals(query, ignoreCase = true) }
+        if (matches.isEmpty()) {
+            messages.send(sender, "realname-none", Placeholder.unparsed("nickname", query))
+            return Command.SINGLE_SUCCESS
+        }
+        for (match in matches) {
+            messages.send(
+                sender,
+                "realname-found",
+                Placeholder.unparsed("nickname", plainNickname(plugin, match).orEmpty()),
+                Placeholder.unparsed("player", match.name),
+            )
+        }
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun plainNickname(plugin: Voxen, player: Player): String? =
+        plugin.playerDataService.get(player.uniqueId).nickname?.let { plugin.contentRenderer.plain(it) }
 
     private fun show(plugin: Voxen, sender: CommandSender): Int {
         val messages = plugin.messages()

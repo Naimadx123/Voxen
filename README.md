@@ -71,7 +71,7 @@ The finished jar lands in `build/libs/`. For a quick test there is also `./gradl
 | `chat-delivery` | `system` | how chat reaches players, see below |
 | `item-share.enabled` | `true` | the `<item>`, `<helmet>`, `<chestplate>`, `<leggings>`, `<boots>` chat tags |
 | `item-share.cooldown` | `10s` | delay between item shares per player, empty disables it |
-| `nicknames.enabled` | `true` | the `/nick` command and nickname display |
+| `nicknames.enabled` | `true` | the `/nick` and `/realname` commands and nickname display |
 | `nicknames.min-length` | `3` | minimum visible nickname length, formatting tags excluded |
 | `nicknames.max-length` | `24` | maximum visible nickname length |
 | `nicknames.filter` | `true` | rejects nicknames containing words blocked by the moderation word filter |
@@ -136,7 +136,7 @@ Available in `format`, `group-formats`, `world-formats`, `console-format` and `e
 | Placeholder | Value |
 |-------------|-------|
 | `<message>` | the message body |
-| `<player>` | the sender's nickname if set, otherwise their real name; hover shows the real name |
+| `<player>` | the sender's nickname if set, otherwise their real name; hover shows the real name. The hover only exists in chat, so from the console use `/realname <nickname>` instead |
 | `<username>` | always the real name |
 | `<display_name>` | the Bukkit display name |
 | `<prefix>` / `<suffix>` | from LuckPerms or Vault |
@@ -254,6 +254,7 @@ Names below are defaults; see [config.yml](#configyml) for renaming.
 | `/lang <language\|auto>` | choose the message language | everyone |
 | `/nick <nickname\|reset>` | manage your nickname | `voxen.nick` |
 | `/nick <nickname> <player>` | manage someone's nickname | `voxen.nick.others` |
+| `/realname <nickname>` | find the account behind a nickname | `voxen.realname` |
 | `/filter` | see chat without the word filter | `voxen.filter.toggle` |
 
 ### Staff (`/voxen ...`)
@@ -306,6 +307,7 @@ Mute durations look like `10m`, `2h`, `7d` or `permanent`. Moderation commands a
 | `voxen.filter.toggle` | `/filter`, seeing chat without the word filter |
 | `voxen.nick` | setting your own nickname |
 | `voxen.nick.others` | setting other players' nicknames |
+| `voxen.realname` | `/realname`, finding the account behind a nickname |
 | `voxen.chat.papi` | PlaceholderAPI placeholders parsed in own chat messages (`voxen.chat.papi.<placeholder>` for single ones) |
 | `voxen.chat.miniplaceholders` | MiniPlaceholders tags parsed in own chat messages (`voxen.chat.miniplaceholders.<tag>` for single ones) |
 

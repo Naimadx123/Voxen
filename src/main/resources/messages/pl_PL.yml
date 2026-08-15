@@ -6,7 +6,7 @@ no-permission: "<red>Nie masz uprawnień do tej komendy."
 player-not-found: "<red>Nie znaleziono gracza <white><player></white>."
 invalid-duration: "<red>Nieprawidłowy czas <white><value></white>. Użyj wartości typu 10m, 2h, 7d albo 'permanent'."
 
-help: "<aqua>Komendy Voxen:</aqua><newline><gray>/channel join|leave|set|list</gray> - zarządzanie kanałami<newline><gray>/msg, /reply</gray> - wiadomości prywatne<newline><gray>/ignore, /ignorelist</gray> - ignorowanie graczy<newline><gray>/party</gray> - system drużyn<newline><gray>/chattoggle</gray> - ukryj lub pokaż czat<newline><gray>/language <lang></gray> - wybór języka<newline><gray>/nick <pseudonim|reset></gray> - zarządzanie pseudonimem<newline><gray>/filter</gray> - przełącz filtr czatu dla siebie<newline><gray>/voxen mentions|pm|spy</gray> - przełączniki osobiste<newline><gray>/voxen reload|status|mute|unmute|mutes|muteinfo|mutechat|mutechannel|chatclear</gray> - administracja"
+help: "<aqua>Komendy Voxen:</aqua><newline><gray>/channel join|leave|set|list</gray> - zarządzanie kanałami<newline><gray>/msg, /reply</gray> - wiadomości prywatne<newline><gray>/ignore, /ignorelist</gray> - ignorowanie graczy<newline><gray>/party</gray> - system drużyn<newline><gray>/chattoggle</gray> - ukryj lub pokaż czat<newline><gray>/language <lang></gray> - wybór języka<newline><gray>/nick <pseudonim|reset></gray> - zarządzanie pseudonimem<newline><gray>/realname <pseudonim></gray> - sprawdź, kto używa pseudonimu<newline><gray>/filter</gray> - przełącz filtr czatu dla siebie<newline><gray>/voxen mentions|pm|spy</gray> - przełączniki osobiste<newline><gray>/voxen reload|status|mute|unmute|mutes|muteinfo|mutechat|mutechannel|chatclear</gray> - administracja"
 
 status-header: "<aqua>Voxen</aqua> <gray>v<version></gray>"
 status-line: "<gray>  <key>: <white><value>"
@@ -110,6 +110,8 @@ nickname-length: "<red>Pseudonim musi mieć od <white><min></white> do <white><m
 nickname-disabled: "<red>Pseudonimy są wyłączone na tym serwerze."
 nickname-blocked: "<red>Ten pseudonim zawiera zablokowane słowa."
 nickname-hover: "<gray>Prawdziwy nick: <white><player></white>"
+realname-found: "<gray><white><nickname></white> to <white><player></white>."
+realname-none: "<red>Żaden gracz online nie używa pseudonimu <white><nickname></white>."
 
 item-empty: "<gray><italic>nic</italic></gray>"
 item-share-cooldown: "<red>Poczekaj <white><remaining></white> przed ponownym pokazaniem przedmiotu."

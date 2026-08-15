@@ -6,7 +6,7 @@ no-permission: "<red>You don't have permission to use this command."
 player-not-found: "<red>Player <white><player></white> was not found."
 invalid-duration: "<red>Invalid duration <white><value></white>. Use values like 10m, 2h, 7d or 'permanent'."
 
-help: "<aqua>Voxen commands:</aqua><newline><gray>/channel join|leave|set|list</gray> - manage channels<newline><gray>/msg, /reply</gray> - private messages<newline><gray>/ignore, /ignorelist</gray> - ignore players<newline><gray>/party</gray> - party system<newline><gray>/chattoggle</gray> - hide or show chat<newline><gray>/language <lang></gray> - choose your language<newline><gray>/nick <nickname|reset></gray> - manage your nickname<newline><gray>/filter</gray> - toggle the chat filter for yourself<newline><gray>/voxen mentions|pm|spy</gray> - personal toggles<newline><gray>/voxen reload|status|mute|unmute|mutes|muteinfo|mutechat|mutechannel|chatclear</gray> - administration"
+help: "<aqua>Voxen commands:</aqua><newline><gray>/channel join|leave|set|list</gray> - manage channels<newline><gray>/msg, /reply</gray> - private messages<newline><gray>/ignore, /ignorelist</gray> - ignore players<newline><gray>/party</gray> - party system<newline><gray>/chattoggle</gray> - hide or show chat<newline><gray>/language <lang></gray> - choose your language<newline><gray>/nick <nickname|reset></gray> - manage your nickname<newline><gray>/realname <nickname></gray> - find out who uses a nickname<newline><gray>/filter</gray> - toggle the chat filter for yourself<newline><gray>/voxen mentions|pm|spy</gray> - personal toggles<newline><gray>/voxen reload|status|mute|unmute|mutes|muteinfo|mutechat|mutechannel|chatclear</gray> - administration"
 
 status-header: "<aqua>Voxen</aqua> <gray>v<version></gray>"
 status-line: "<gray>  <key>: <white><value>"
@@ -110,6 +110,8 @@ nickname-length: "<red>Nicknames must be <white><min></white> to <white><max></w
 nickname-disabled: "<red>Nicknames are disabled on this server."
 nickname-blocked: "<red>This nickname contains blocked words."
 nickname-hover: "<gray>Real name: <white><player></white>"
+realname-found: "<gray><white><nickname></white> is <white><player></white>."
+realname-none: "<red>No online player uses the nickname <white><nickname></white>."
 
 item-empty: "<gray><italic>nothing</italic></gray>"
 item-share-cooldown: "<red>Wait <white><remaining></white> before sharing an item again."

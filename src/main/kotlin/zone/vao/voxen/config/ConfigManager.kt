@@ -463,6 +463,7 @@ class ConfigManager(
         language = names(section, "language", listOf("language", "lang")),
         filter = names(section, "filter", listOf("filter")),
         nickname = names(section, "nickname", listOf("nick", "nickname")),
+        realName = names(section, "real-name", listOf("realname")),
     )
 
     private fun names(section: ConfigurationSection?, key: String, defaults: List<String>): List<String> {
