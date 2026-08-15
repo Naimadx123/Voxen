@@ -1,0 +1,14 @@
+enabled: true
+
+# How a mention is shown to the mentioned player; <player> is their name.
+highlight: "<yellow>@<player></yellow>"
+
+# Minimum delay between mentions per sender (empty = disabled).
+cooldown: 5s
+
+sound:
+  enabled: true
+  key: "minecraft:entity.experience_orb.pickup"
+  source: master
+  volume: 1.0
+  pitch: 1.2

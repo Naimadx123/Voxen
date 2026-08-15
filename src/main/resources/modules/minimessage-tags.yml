@@ -1,0 +1,118 @@
+# What happens with tags a player is not allowed to use:
+# escape - shown as plain text, strip - removed from the message.
+# When a plugin that re-parses chat text is installed (Nexo, Oraxen), escaped
+# tags would render anyway, so Voxen switches to strip automatically.
+unauthorized-mode: escape
+
+# Legacy '&' color codes and '&#RRGGBB' hex codes, gated by
+# voxen.chat.legacy.color, voxen.chat.legacy.hex and voxen.chat.legacy.format.
+legacy:
+  enabled: true
+
+# Each tag can be disabled, given a custom permission, aliases and
+# blocked-params (regex checked against the tag arguments).
+# click actions can require extra permissions per action.
+tags:
+  color:
+    enabled: true
+    permission: voxen.chat.tag.color
+  hex:
+    enabled: true
+    permission: voxen.chat.tag.hex
+  gradient:
+    enabled: true
+    permission: voxen.chat.tag.gradient
+    blocked-params: []
+  rainbow:
+    enabled: true
+    permission: voxen.chat.tag.rainbow
+  transition:
+    enabled: true
+    permission: voxen.chat.tag.transition
+  pride:
+    enabled: true
+    permission: voxen.chat.tag.pride
+  keybind:
+    enabled: true
+    permission: voxen.chat.tag.keybind
+  bold:
+    enabled: true
+    permission: voxen.chat.tag.bold
+  italic:
+    enabled: true
+    permission: voxen.chat.tag.italic
+  underlined:
+    enabled: true
+    permission: voxen.chat.tag.underlined
+  strikethrough:
+    enabled: true
+    permission: voxen.chat.tag.strikethrough
+  obfuscated:
+    enabled: true
+    permission: voxen.chat.tag.obfuscated
+  hover:
+    enabled: false
+    permission: voxen.chat.tag.hover
+  click:
+    enabled: false
+    permission: voxen.chat.tag.click
+    actions:
+      run_command: voxen.chat.tag.click.run-command
+      suggest_command: voxen.chat.tag.click.suggest-command
+      open_url: voxen.chat.tag.click.open-url
+      copy_to_clipboard: voxen.chat.tag.click.copy-to-clipboard
+  insertion:
+    enabled: false
+    permission: voxen.chat.tag.insertion
+  shadow:
+    enabled: true
+    permission: voxen.chat.tag.shadow
+  font:
+    enabled: false
+    permission: voxen.chat.tag.font
+  newline:
+    enabled: false
+    permission: voxen.chat.tag.newline
+  reset:
+    enabled: true
+    permission: voxen.chat.tag.reset
+  # Item and mob sprites / player heads in chat. They need a server version
+  # that ships them (MiniMessage 5+); on older versions they stay plain text.
+  sprite:
+    enabled: true
+    permission: voxen.chat.tag.sprite
+  head:
+    enabled: true
+    permission: voxen.chat.tag.head
+  # The tags below read server-side data or can imitate other messages.
+  # They are disabled by default; enable them only for ranks you trust.
+  translatable:
+    enabled: false
+    permission: voxen.chat.tag.translatable
+  fallback:
+    enabled: false
+    permission: voxen.chat.tag.fallback
+  selector:
+    enabled: false
+    permission: voxen.chat.tag.selector
+  score:
+    enabled: false
+    permission: voxen.chat.tag.score
+  nbt:
+    enabled: false
+    permission: voxen.chat.tag.nbt
+
+# Tags added by other plugins (Nexo, Oraxen etc.) that Voxen does not render
+# itself. The base permission allows every argument; 'permission + .argument'
+# allows a single one, e.g. voxen.chat.tag.glyph.smile allows only <glyph:smile>.
+# Unauthorized tags follow 'unauthorized-mode'; 'strip' is safer here, because
+# an escaped tag may still be picked up by the plugin that renders it.
+custom-tags: {}
+#  glyph:
+#    enabled: true
+#    permission: voxen.chat.tag.glyph
+#    aliases: []
+#    blocked-params: []
+#  shift:
+#    enabled: true
+#    permission: voxen.chat.tag.shift

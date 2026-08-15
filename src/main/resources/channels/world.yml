@@ -1,0 +1,8 @@
+display-name: "<aqua>World</aqua>"
+type: world
+enabled: true
+default: true
+aliases: [wc, worldchat]
+cooldown: ""
+format: "<gray>[<aqua>W</aqua> <white><world></white>]</gray> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+console-format: "[W] (<world>) <player>: <message>"

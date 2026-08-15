@@ -1,0 +1,45 @@
+# The name shown by the <server> placeholder in chat formats.
+server-name: "server"
+
+# Language used for the console and as a fallback (messages/<language>.yml must exist).
+default-language: en_US
+
+# Allows sending a message straight to a channel with its quick prefix, e.g. "!hello".
+quick-chat: true
+
+# How chat reaches players.
+# system - Voxen sends its own messages: per-viewer features work fully and
+#          vanilla chat reporting is disabled. Recommended.
+# player - messages stay signed player chat rendered through Paper's chat
+#          renderer: vanilla chat reporting and the client's secure chat
+#          features keep working, but reports carry the original typed text,
+#          so censoring and quick prefixes only affect what is displayed.
+chat-delivery: system
+
+# The <item>, <helmet>, <chestplate>, <leggings> and <boots> chat tags.
+item-share:
+  enabled: true
+  cooldown: 10s # empty = no cooldown
+
+# Nicknames set with /nick. The <player> placeholder in chat formats shows the
+# nickname (with the real name on hover); <username> always shows the real name.
+# Lengths are counted on the visible text, formatting tags excluded.
+nicknames:
+  enabled: true
+  min-length: 3
+  max-length: 24
+
+# Command names; the first entry is the main name, the rest are aliases.
+# Rename them freely, e.g. "message: [priv, szept]" turns /msg into /priv and /szept.
+# /voxen always keeps its name. Changing these requires a server restart.
+commands:
+  message: [msg, tell, whisper, w]
+  reply: [reply, r]
+  channel: [channel, ch]
+  ignore: [ignore]
+  ignore-list: [ignorelist]
+  party: [party]
+  chat-toggle: [chattoggle]
+  language: [language, lang]
+  filter: [filter]
+  nickname: [nick, nickname]

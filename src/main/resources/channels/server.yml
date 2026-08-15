@@ -1,0 +1,9 @@
+display-name: "<light_purple>Network</light_purple>"
+type: server
+enabled: true
+default: false
+cross-server: true
+aliases: [servchat]
+cooldown: ""
+format: "<gray>[<light_purple><server></light_purple>]</gray> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+console-format: "[NET] <player>: <message>"

@@ -1,0 +1,12 @@
+display-name: "<yellow>Local</yellow>"
+type: local
+enabled: false
+default: false
+default-active: true
+radius: 100
+empty-warning: true
+aliases: [l, local]
+cooldown: ""
+format: "<gray>[<yellow>L</yellow>]</gray> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+console-format: "[L] (<world>) <player>: <message>"
+item-tags: true

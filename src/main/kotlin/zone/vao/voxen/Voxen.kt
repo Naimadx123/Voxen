@@ -1,0 +1,354 @@
+package zone.vao.voxen
+
+import com.mojang.brigadier.tree.LiteralCommandNode
+import io.papermc.paper.command.brigadier.CommandSourceStack
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
+import org.bukkit.entity.Player
+import zone.vao.voxen.channel.Channel
+import zone.vao.voxen.channel.ChannelService
+import zone.vao.voxen.chat.ChatListener
+import zone.vao.voxen.chat.ChatService
+import zone.vao.voxen.chat.FormatService
+import zone.vao.voxen.command.ChannelCommand
+import zone.vao.voxen.command.IgnoreCommand
+import zone.vao.voxen.command.MessageCommand
+import zone.vao.voxen.command.NickCommand
+import zone.vao.voxen.command.PartyCommand
+import zone.vao.voxen.command.ToggleCommands
+import zone.vao.voxen.command.VoxenCommand
+import zone.vao.voxen.config.ConfigManager
+import zone.vao.voxen.config.Messages
+import zone.vao.voxen.hook.HookManager
+import zone.vao.voxen.ignore.IgnoreService
+import zone.vao.voxen.mention.MentionService
+import zone.vao.voxen.moderation.MuteService
+import zone.vao.voxen.moderation.SpamGuard
+import zone.vao.voxen.moderation.WordFilter
+import zone.vao.voxen.network.BrokerMessage
+import zone.vao.voxen.network.BrokerService
+import zone.vao.voxen.party.PartyService
+import zone.vao.voxen.pm.PrivateMessageService
+import zone.vao.voxen.storage.PlayerDataService
+import zone.vao.voxen.storage.StorageConfig
+import zone.vao.voxen.storage.StorageFactory
+import zone.vao.voxen.storage.StorageType
+import zone.vao.voxen.tags.ContentRenderer
+import java.util.UUID
+
+@Suppress("UnstableApiUsage")
+class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
+
+    lateinit var configManager: ConfigManager
+        private set
+    lateinit var playerDataService: PlayerDataService
+        private set
+    lateinit var ignoreService: IgnoreService
+        private set
+    lateinit var muteService: MuteService
+        private set
+    lateinit var partyService: PartyService
+        private set
+    lateinit var hookManager: HookManager
+        private set
+    lateinit var channelService: ChannelService
+        private set
+    lateinit var formatService: FormatService
+        private set
+    lateinit var contentRenderer: ContentRenderer
+        private set
+    lateinit var chatService: ChatService
+        private set
+    lateinit var privateMessageService: PrivateMessageService
+        private set
+    lateinit var brokerService: BrokerService
+        private set
+
+    private val componentCodec = GsonComponentSerializer.gson()
+    private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+
+    override fun onEnable() {
+        configManager = ConfigManager(this) { player ->
+            if (::playerDataService.isInitialized) playerDataService.cached(player.uniqueId)?.language else null
+        }
+        configManager.load()
+
+        playerDataService = PlayerDataService(this)
+        server.pluginManager.registerEvents(playerDataService, this)
+        playerDataService.attach(createStorage())
+
+        ignoreService = IgnoreService(playerDataService)
+        server.pluginManager.registerEvents(ignoreService, this)
+        ignoreService.loadOnline(server.onlinePlayers.map { it.uniqueId })
+
+        muteService = MuteService(playerDataService)
+        muteService.load()
+
+        partyService = PartyService(server, playerDataService) { configManager.config.party }
+        partyService.load()
+
+        hookManager = HookManager(this)
+        hookManager.load(configManager.config.integrations)
+
+        channelService = ChannelService(
+            server,
+            { configManager.config },
+            playerDataService,
+            ignoreService,
+            partyService,
+            hookManager.teams,
+        )
+        contentRenderer = ContentRenderer { configManager.config.tags }
+        formatService = FormatService(hookManager, { configManager.config }) { player ->
+            if (!configManager.config.nicknames.enabled) null
+            else playerDataService.get(player.uniqueId).nickname?.let { nick ->
+                contentRenderer.render(nick, player::hasPermission).hoverEvent(
+                    configManager.config.messages.line(
+                        player, "nickname-hover",
+                        Placeholder.unparsed("player", player.name),
+                    )
+                )
+            }
+        }
+        val spamGuard = SpamGuard({ configManager.config.moderation })
+        val wordFilter = WordFilter { configManager.config.moderation }
+        val mentionService = MentionService({ configManager.config.mentions }, playerDataService)
+        chatService = ChatService(
+            server,
+            { configManager.config },
+            channelService,
+            formatService,
+            contentRenderer,
+            muteService,
+            spamGuard,
+            wordFilter,
+            mentionService,
+            playerDataService,
+            hookManager,
+        )
+        privateMessageService = PrivateMessageService(
+            server,
+            { configManager.config },
+            playerDataService,
+            ignoreService,
+            contentRenderer,
+        )
+        server.pluginManager.registerEvents(ChatListener(chatService) { configManager.config.chatDelivery }, this)
+
+        brokerService = BrokerService(this) { configManager.config.network }
+        chatService.remotePublisher = { channel, player, component, content ->
+            brokerService.publish(
+                BrokerMessage(
+                    id = UUID.randomUUID().toString(),
+                    server = configManager.config.network.serverId,
+                    channel = channel.id,
+                    sender = player.name,
+                    component = componentCodec.serialize(component),
+                    content = content.ifEmpty { null },
+                    mm = miniMessageCodec.serialize(component),
+                )
+            )
+        }
+        brokerService.onChatMessage = { message ->
+            val component = message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
+                ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()
+            if (component != null && message.channel != null) {
+                chatService.deliverRemote(message.channel, component, message.content)
+            }
+        }
+        brokerService.start()
+
+        VoxenApi.init(this)
+        server.servicesManager.register(VoxenService::class.java, this, this, org.bukkit.plugin.ServicePriority.Normal)
+        registerPlaceholders()
+        registerCommands()
+
+        logger.info("Voxen enabled — ${configManager.config.channels.count { it.value.enabled }} channel(s) loaded.")
+    }
+
+    override fun onDisable() {
+        if (::brokerService.isInitialized) brokerService.shutdown()
+        if (::playerDataService.isInitialized) playerDataService.shutdown()
+        VoxenApi.shutdown()
+    }
+
+    override fun reload() {
+        configManager.load()
+        hookManager.load(configManager.config.integrations)
+        muteService.load()
+        partyService.load()
+        brokerService.start()
+        refreshClientCommands()
+    }
+
+    fun messages(): Messages = configManager.config.messages
+
+    override fun channels(): Collection<ChannelInfo> =
+        channelService.channels().values.map(::info)
+
+    override fun channel(id: String): ChannelInfo? =
+        channelService.channel(id)?.let(::info)
+
+    override fun activeChannel(player: Player): ChannelInfo? =
+        channelService.activeChannel(player)?.let(::info)
+
+    override fun sendChannelMessage(player: Player, channelId: String, content: String): Boolean {
+        val channel = channelService.channel(channelId) ?: return false
+        return chatService.send(player, channel, content)
+    }
+
+    override fun broadcastToChannel(channelId: String, message: Component): Boolean {
+        val channel = channelService.channel(channelId) ?: return false
+        if (!channel.enabled) return false
+        return chatService.broadcast(channel, message)
+    }
+
+    override fun isMuted(uuid: UUID): Boolean = muteService.isMuted(uuid, null)
+
+    override fun isMuted(uuid: UUID, channelId: String): Boolean = muteService.isMuted(uuid, channelId)
+
+    override fun isIgnoring(source: UUID, target: UUID): Boolean = ignoreService.isIgnoring(source, target)
+
+    override fun sendPrivateMessage(sender: Player, target: Player, content: String): Boolean =
+        privateMessageService.send(sender, target, content)
+
+    override fun nickname(player: Player): String? = playerDataService.get(player.uniqueId).nickname
+
+    override fun setNickname(player: Player, nickname: String?): Boolean {
+        val config = configManager.config.nicknames
+        if (!config.enabled) return false
+        if (nickname != null) {
+            val visible = contentRenderer.plain(nickname)
+            if (visible.length < config.minLength || visible.length > config.maxLength) return false
+        }
+        val data = playerDataService.get(player.uniqueId)
+        data.nickname = nickname
+        playerDataService.save(data)
+        return true
+    }
+
+    override fun party(member: UUID): PartyInfo? = partyService.partyOf(member)?.let {
+        PartyInfo(id = it.id, name = it.name, leader = it.leader, members = it.members)
+    }
+
+    override fun registerPlaceholder(name: String, placeholder: FormatPlaceholder): Boolean =
+        formatService.registerPlaceholder(name, placeholder)
+
+    override fun unregisterPlaceholder(name: String) {
+        formatService.unregisterPlaceholder(name)
+    }
+
+    override fun registerChannel(id: String, displayName: String, format: String, recipients: RecipientProvider?): Boolean {
+        if (!channelService.registerApiChannel(id, displayName, format)) return false
+        recipients?.let { channelService.registerRecipients(id, it) }
+        return true
+    }
+
+    override fun unregisterChannel(id: String): Boolean = channelService.unregisterApiChannel(id)
+
+    override fun registerRecipients(channelId: String, provider: RecipientProvider): Boolean =
+        channelService.registerRecipients(channelId, provider)
+
+    override fun unregisterRecipients(channelId: String) {
+        channelService.unregisterRecipients(channelId)
+    }
+
+    private fun info(channel: Channel): ChannelInfo = ChannelInfo(
+        id = channel.id,
+        displayName = channel.displayName,
+        type = channel.type.name.lowercase(),
+        enabled = channel.enabled,
+        readOnly = channel.readOnly,
+        crossServer = channel.crossServer,
+        radius = channel.radius,
+        worlds = channel.worlds,
+    )
+
+    private fun createStorage(): zone.vao.voxen.storage.PlayerStorage {
+        val config = configManager.config.storage
+        return runCatching { StorageFactory.create(this, config) }.getOrElse { first ->
+            logger.warning("Failed to initialise ${config.type.name.lowercase()} storage (${first.message}); falling back to SQLite.")
+            StorageFactory.create(
+                this,
+                StorageConfig(
+                    type = StorageType.SQLITE,
+                    host = config.host,
+                    port = config.port,
+                    database = config.database,
+                    username = "",
+                    password = "",
+                    tablePrefix = config.tablePrefix,
+                    poolSize = 1,
+                ),
+            )
+        }
+    }
+
+    private fun refreshClientCommands() {
+        for (player in server.onlinePlayers) {
+            player.scheduler.run(this, { player.updateCommands() }, null)
+        }
+    }
+
+    private fun registerPlaceholders() {
+        if (!configManager.config.integrations.placeholderApi) return
+        if (!server.pluginManager.isPluginEnabled("PlaceholderAPI")) return
+        runCatching {
+            val expansion = Class.forName("zone.vao.voxen.hook.VoxenExpansion")
+                .getConstructor(Voxen::class.java)
+                .newInstance(this)
+            expansion.javaClass.getMethod("register").invoke(expansion)
+        }.onFailure { logger.warning("Failed to register the PlaceholderAPI expansion: ${it.message}") }
+    }
+
+    private fun registerCommands() {
+        val commands = configManager.config.commands
+        val channels = configManager.config.channels
+        lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
+            val registrar = event.registrar()
+            val reserved = mutableSetOf("voxen")
+            registrar.register(VoxenCommand.build(this), "Voxen chat administration", listOf())
+
+            fun register(names: List<String>, description: String, build: (String) -> LiteralCommandNode<CommandSourceStack>) {
+                val primary = names.firstOrNull()?.lowercase() ?: return
+                if (!reserved.add(primary)) {
+                    logger.warning("Command '/$primary' clashes with another Voxen command; skipping it.")
+                    return
+                }
+                val aliases = names.drop(1).map { it.lowercase() }.filter { reserved.add(it) }
+                registrar.register(build(primary), description, aliases)
+            }
+
+            register(commands.message, "Send a private message") { MessageCommand.buildMessage(this, it) }
+            register(commands.reply, "Reply to the last private message") { MessageCommand.buildReply(this, it) }
+            register(commands.channel, "Manage your chat channels") { ChannelCommand.build(this, it) }
+            register(commands.ignore, "Ignore or unignore a player") { IgnoreCommand.buildIgnore(this, it) }
+            register(commands.ignoreList, "List ignored players") { IgnoreCommand.buildIgnoreList(this, it) }
+            register(commands.chatToggle, "Toggle chat visibility") { ToggleCommands.buildChatToggle(this, it) }
+            register(commands.language, "Choose your Voxen language") { ToggleCommands.buildLanguage(this, it) }
+            register(commands.filter, "Toggle the chat filter for yourself") { ToggleCommands.buildFilterToggle(this, it) }
+            if (configManager.config.nicknames.enabled) {
+                register(commands.nickname, "Manage nicknames") { NickCommand.build(this, it) }
+            }
+            if (configManager.config.party.enabled) {
+                register(commands.party, "Manage your party") { PartyCommand.build(this, it) }
+            }
+
+            for (channel in channels.values) {
+                if (!channel.enabled) continue
+                for (alias in channel.aliases) {
+                    if (!reserved.add(alias)) {
+                        logger.warning("Channel '${channel.id}' alias '/$alias' clashes with another Voxen command; skipping it.")
+                        continue
+                    }
+                    registrar.register(
+                        ChannelCommand.buildAlias(this, alias, channel.id),
+                        "Talk in the '${channel.id}' channel",
+                    )
+                }
+            }
+        }
+    }
+}

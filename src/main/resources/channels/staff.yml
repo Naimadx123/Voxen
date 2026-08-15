@@ -1,0 +1,21 @@
+display-name: "<red>Staff</red>"
+type: staff
+enabled: true
+default: true
+quick-prefix: "@"
+aliases: [sc, staffchat]
+cooldown: ""
+format: "<dark_gray>[<red>Staff</red>]</dark_gray> <white><player></white> <dark_gray>»</dark_gray> <gray><message></gray>"
+console-format: "[Staff] <player>: <message>"
+permissions:
+  read: voxen.channel.staff
+  write: voxen.channel.staff
+  join: voxen.channel.staff
+  manage: voxen.channel.staff.manage
+item-tags: true
+sound:
+  enabled: true
+  key: "minecraft:block.note_block.hat"
+  source: master
+  volume: 0.6
+  pitch: 1.6

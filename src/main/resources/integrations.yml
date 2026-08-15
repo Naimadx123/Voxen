@@ -1,0 +1,37 @@
+# Every hook is optional; missing plugins are skipped without errors.
+placeholderapi: true
+miniplaceholders: true
+luckperms: true
+vault-chat: true
+discordsrv: true
+essentials-discord: true
+towny: true
+factions: true
+mcmmo: true
+
+# Cross-server chat for channels with 'cross-server: true'.
+# transport: none, redis, nats or rabbitmq. 'none' keeps Voxen in single-server mode.
+network:
+  transport: none
+  server-id: server-1
+  reconnect-seconds: 5
+  timeout-millis: 5000
+  redis:
+    host: localhost
+    port: 6379
+    username: ""
+    password: ""
+    ssl: false
+    channel: "voxen:chat"
+  nats:
+    url: "nats://localhost:4222"
+    username: ""
+    password: ""
+    subject: "voxen.chat"
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: "/"
+    exchange: "voxen.chat"

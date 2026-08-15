@@ -1,0 +1,4 @@
+# Disable if another party plugin is used; the /party command disappears after a restart.
+enabled: true
+max-members: 8
+invite-expiry: 60s

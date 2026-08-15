@@ -1,0 +1,31 @@
+display-name: "<green>Global</green>"
+type: global
+enabled: true
+default: true
+default-active: false
+quick-prefix: "!"
+aliases: [g, global]
+cooldown: ""
+format: "<gray>[<green>G</green>]</gray> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+console-format: "[G] <player>: <message>"
+# Separate formats per rank. Keys match the LuckPerms group name or players
+# with the permission voxen.chat.format.<key>. Uncomment to use:
+group-formats: {}
+#  vip: "<gray>[<green>G</green>]</gray> <gold>[VIP]</gold> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+#  admin: "<gray>[<green>G</green>]</gray> <red>[Admin]</red> <prefix><white><player></white><suffix><dark_gray>:</dark_gray> <message>"
+world-formats: {}
+permissions:
+  read: none
+  write: none
+  join: none
+  manage: voxen.channel.global.manage
+item-tags: true
+discord: true
+# How the message looks on Discord (plain text, MiniMessage tags are stripped).
+# Empty = just the message for DiscordSRV, "name: message" for EssentialsDiscord.
+discord-format: ""
+# discord-format: "[<world>] <player> » <message>"
+cross-server: false
+sound:
+  enabled: false
+  key: ""

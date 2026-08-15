@@ -1,0 +1,9 @@
+display-name: "<gold>Party</gold>"
+type: party
+enabled: true
+default: false
+quick-prefix: "#"
+aliases: [pc, partychat]
+cooldown: ""
+format: "<gray>[<gold>Party</gold>]</gray> <white><player></white><dark_gray>:</dark_gray> <message>"
+console-format: "[Party] <player>: <message>"

@@ -1,0 +1,9 @@
+# Player data storage. sqlite needs no configuration; mysql/mariadb use the fields below.
+type: sqlite
+host: localhost
+port: 3306
+database: voxen
+username: root
+password: ""
+table-prefix: voxen_
+pool-size: 10

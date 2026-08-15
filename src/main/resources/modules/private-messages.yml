@@ -1,0 +1,15 @@
+enabled: true
+
+sender-format: "<gray>[<gold>You</gold> → <gold><target></gold>]</gray> <white><message></white>"
+receiver-format: "<gray>[<gold><player></gold> → <gold>You</gold>]</gray> <white><message></white>"
+spy-format: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>"
+
+# Tells both players that a moderator with social spy saw the message.
+notify-monitored: false
+
+sound:
+  enabled: true
+  key: "minecraft:block.note_block.pling"
+  source: master
+  volume: 1.0
+  pitch: 1.5

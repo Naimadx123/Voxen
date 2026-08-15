@@ -1,0 +1,138 @@
+name: Voxen
+version: '${version}'
+
+folia-supported: true
+main: zone.vao.voxen.Voxen
+api-version: '1.21'
+load: POSTWORLD
+author: "Naimad (dc: 4g0)"
+softdepend: [PlaceholderAPI, MiniPlaceholders, Vault, LuckPerms, DiscordSRV, EssentialsDiscord, Towny, Factions, mcMMO]
+
+libraries:
+  - "org.jetbrains.kotlin:kotlin-stdlib:${kotlinVersion}"
+  - "com.zaxxer:HikariCP:${hikariVersion}"
+  - "org.xerial:sqlite-jdbc:${sqliteVersion}"
+  - "com.mysql:mysql-connector-j:${mysqlVersion}"
+  - "redis.clients:jedis:${jedisVersion}"
+  - "io.nats:jnats:${natsVersion}"
+  - "com.rabbitmq:amqp-client:${amqpVersion}"
+
+permissions:
+  voxen.admin:
+    description: Allows reloading Voxen and viewing its status.
+    default: op
+  voxen.mod.mute:
+    description: Allows muting and unmuting players.
+    default: op
+  voxen.mod.mutechat:
+    description: Allows muting the whole chat.
+    default: op
+  voxen.mod.mutechannel:
+    description: Allows muting single channels.
+    default: op
+  voxen.mod.chatclear:
+    description: Allows clearing the chat.
+    default: op
+  voxen.mod.chatclear.exempt:
+    description: Keeps the chat visible during a global chat clear.
+    default: op
+  voxen.mute.exempt:
+    description: Protects against being muted.
+    default: op
+  voxen.socialspy:
+    description: Allows toggling the private message spy.
+    default: op
+  voxen.filter.toggle:
+    description: Allows toggling the word filter off for yourself with /filter.
+    default: op
+  voxen.nick:
+    description: Allows setting your own nickname with /nick.
+    default: op
+  voxen.nick.others:
+    description: Allows setting other players' nicknames.
+    default: op
+  voxen.party:
+    description: Allows using the party system.
+    default: true
+  voxen.ignore:
+    description: Allows ignoring other players.
+    default: true
+  voxen.pm.send:
+    description: Allows sending private messages.
+    default: true
+  voxen.chat.mention:
+    description: Allows mentioning players with @name.
+    default: true
+  voxen.chat.tag.item:
+    description: Allows sharing held and worn items in chat.
+    default: true
+  voxen.chat.papi:
+    description: Parses every PlaceholderAPI placeholder in this player's chat messages. Single placeholders can be granted with voxen.chat.papi.<placeholder>.
+    default: op
+  voxen.chat.miniplaceholders:
+    description: Parses every MiniPlaceholders tag in this player's chat messages. Single tags can be granted with voxen.chat.miniplaceholders.<tag>.
+    default: op
+  voxen.bypass.cooldown:
+    description: Bypasses chat cooldowns.
+    default: op
+  voxen.bypass.spam:
+    description: Bypasses the repeated message check.
+    default: op
+  voxen.bypass.filter:
+    description: Bypasses the blocked word filter.
+    default: op
+  voxen.bypass.mutechat:
+    description: Allows chatting while the chat is globally muted.
+    default: op
+  voxen.bypass.mutechannel:
+    description: Allows chatting in muted channels.
+    default: op
+  voxen.bypass.ignore:
+    description: Messages reach players even when they ignore the sender.
+    default: op
+  voxen.bypass.pmtoggle:
+    description: Private messages reach players who disabled them.
+    default: op
+  voxen.bypass.item-cooldown:
+    description: Bypasses the item share cooldown.
+    default: op
+  voxen.bypass.mention-cooldown:
+    description: Bypasses the mention cooldown.
+    default: op
+  voxen.chat.legacy.*:
+    description: Grants every legacy '&' formatting permission.
+    default: op
+    children:
+      voxen.chat.legacy.color: true
+      voxen.chat.legacy.hex: true
+      voxen.chat.legacy.format: true
+  voxen.chat.tag.*:
+    description: Grants every MiniMessage tag permission.
+    default: op
+    children:
+      voxen.chat.tag.color: true
+      voxen.chat.tag.hex: true
+      voxen.chat.tag.gradient: true
+      voxen.chat.tag.rainbow: true
+      voxen.chat.tag.transition: true
+      voxen.chat.tag.pride: true
+      voxen.chat.tag.keybind: true
+      voxen.chat.tag.font: true
+      voxen.chat.tag.newline: true
+      voxen.chat.tag.bold: true
+      voxen.chat.tag.italic: true
+      voxen.chat.tag.underlined: true
+      voxen.chat.tag.strikethrough: true
+      voxen.chat.tag.obfuscated: true
+      voxen.chat.tag.hover: true
+      voxen.chat.tag.click: true
+      voxen.chat.tag.insertion: true
+      voxen.chat.tag.shadow: true
+      voxen.chat.tag.sprite: true
+      voxen.chat.tag.head: true
+      voxen.chat.tag.translatable: true
+      voxen.chat.tag.fallback: true
+      voxen.chat.tag.selector: true
+      voxen.chat.tag.score: true
+      voxen.chat.tag.nbt: true
+      voxen.chat.tag.reset: true

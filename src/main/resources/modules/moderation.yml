@@ -1,0 +1,18 @@
+# Minimum delay between any two chat messages per player (empty = disabled).
+cooldown: 1s
+
+# Blocks sending the exact same message twice within the window.
+anti-repeat:
+  enabled: true
+  window-seconds: 30
+
+# Blocked words and regex patterns. mode: block (reject the message) or censor (mask matches).
+filter:
+  enabled: true
+  mode: censor
+  censor-char: "*"
+  words: []
+  patterns: []
+
+# How many blank lines /voxen chatclear sends.
+chat-clear-lines: 100
