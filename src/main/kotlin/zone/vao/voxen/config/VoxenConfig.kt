@@ -37,4 +37,5 @@ data class NicknamesConfig(
     val enabled: Boolean,
     val minLength: Int,
     val maxLength: Int,
+    val filter: Boolean,
 )

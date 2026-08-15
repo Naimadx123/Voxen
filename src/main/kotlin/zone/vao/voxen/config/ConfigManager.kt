@@ -57,6 +57,7 @@ class ConfigManager(
                 enabled = main.getBoolean("nicknames.enabled", true),
                 minLength = main.getInt("nicknames.min-length", 3).coerceAtLeast(1),
                 maxLength = main.getInt("nicknames.max-length", 24).coerceAtLeast(1),
+                filter = main.getBoolean("nicknames.filter", true),
             ),
         )
     }

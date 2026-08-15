@@ -65,6 +65,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
     lateinit var brokerService: BrokerService
         private set
+    lateinit var wordFilter: WordFilter
+        private set
 
     private val componentCodec = GsonComponentSerializer.gson()
     private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
@@ -113,7 +115,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             }
         }
         val spamGuard = SpamGuard({ configManager.config.moderation })
-        val wordFilter = WordFilter { configManager.config.moderation }
+        wordFilter = WordFilter { configManager.config.moderation }
         val mentionService = MentionService({ configManager.config.mentions }, playerDataService)
         chatService = ChatService(
             server,
@@ -237,6 +239,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         if (nickname != null) {
             val visible = contentRenderer.plain(nickname)
             if (visible.length < config.minLength || visible.length > config.maxLength) return false
+            if (config.filter && wordFilter.check(visible) != WordFilter.Result.Clean) return false
         }
         val data = playerDataService.get(player.uniqueId)
         data.nickname = nickname

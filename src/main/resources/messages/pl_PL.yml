@@ -98,6 +98,7 @@ nickname-set-other: "<green>Ustawiono pseudonim gracza <white><player></white> n
 nickname-reset-other: "<green>Usunięto pseudonim gracza <white><player></white>."
 nickname-length: "<red>Pseudonim musi mieć od <white><min></white> do <white><max></white> znaków."
 nickname-disabled: "<red>Pseudonimy są wyłączone na tym serwerze."
+nickname-blocked: "<red>Ten pseudonim zawiera zablokowane słowa."
 nickname-hover: "<gray>Prawdziwy nick: <white><player></white>"
 
 item-empty: "<gray><italic>nic</italic></gray>"

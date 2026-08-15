@@ -98,6 +98,7 @@ nickname-set-other: "<green>Set <white><player></white>'s nickname to <white><ni
 nickname-reset-other: "<green>Removed <white><player></white>'s nickname."
 nickname-length: "<red>Nicknames must be <white><min></white> to <white><max></white> characters long."
 nickname-disabled: "<red>Nicknames are disabled on this server."
+nickname-blocked: "<red>This nickname contains blocked words."
 nickname-hover: "<gray>Real name: <white><player></white>"
 
 item-empty: "<gray><italic>nothing</italic></gray>"

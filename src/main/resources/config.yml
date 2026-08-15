@@ -28,6 +28,8 @@ nicknames:
   enabled: true
   min-length: 3
   max-length: 24
+  # Rejects nicknames containing words blocked by the moderation word filter.
+  filter: true
 
 # Command names; the first entry is the main name, the rest are aliases.
 # Rename them freely, e.g. "message: [priv, szept]" turns /msg into /priv and /szept.

@@ -73,6 +73,7 @@ The finished jar lands in `build/libs/`. For a quick test there is also `./gradl
 | `nicknames.enabled` | `true` | the `/nick` command and nickname display |
 | `nicknames.min-length` | `3` | minimum visible nickname length, formatting tags excluded |
 | `nicknames.max-length` | `24` | maximum visible nickname length |
+| `nicknames.filter` | `true` | rejects nicknames containing words blocked by the moderation word filter |
 | `commands.*` | see below | command names and aliases |
 
 Every player command can be renamed under `commands:`. The first entry is the main name, the rest are aliases:

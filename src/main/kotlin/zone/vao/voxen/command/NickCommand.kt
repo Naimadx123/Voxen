@@ -10,6 +10,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
+import zone.vao.voxen.moderation.WordFilter
 
 @Suppress("UnstableApiUsage")
 object NickCommand {
@@ -93,6 +94,10 @@ object NickCommand {
                 Placeholder.unparsed("min", config.minLength.toString()),
                 Placeholder.unparsed("max", config.maxLength.toString()),
             )
+            return Command.SINGLE_SUCCESS
+        }
+        if (config.filter && plugin.wordFilter.check(visible) != WordFilter.Result.Clean) {
+            messages.send(sender, "nickname-blocked")
             return Command.SINGLE_SUCCESS
         }
         data.nickname = input
