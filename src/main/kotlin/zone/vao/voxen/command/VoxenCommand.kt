@@ -129,6 +129,17 @@ object VoxenCommand {
                     )
             )
             .then(
+                permLiteral("slowmode", "voxen.mod.slowmode")
+                    .then(
+                        Commands.argument("channel", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.channels(plugin, builder) }
+                            .then(
+                                Commands.argument("time", StringArgumentType.word())
+                                    .executes { ctx -> slowmode(plugin, ctx) }
+                            )
+                    )
+            )
+            .then(
                 permLiteral("chatclear", "voxen.mod.chatclear")
                     .executes { ctx -> chatClear(plugin, ctx.source.sender, null) }
                     .then(
@@ -333,6 +344,38 @@ object VoxenCommand {
                 )
             )
         }
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun slowmode(plugin: Voxen, ctx: CommandContext<CommandSourceStack>): Int {
+        val sender = ctx.source.sender
+        val messages = plugin.messages()
+        if (!plugin.configManager.config.moderation.slowmodeEnabled) {
+            messages.send(sender, "slowmode-disabled")
+            return Command.SINGLE_SUCCESS
+        }
+        val input = arg(ctx, "channel")
+        val channel = plugin.channelService.channel(input) ?: run {
+            messages.send(sender, "channel-not-found", Placeholder.unparsed("channel", input))
+            return Command.SINGLE_SUCCESS
+        }
+        val time = arg(ctx, "time")
+        val millis = when {
+            time == "0" || time.equals("off", true) || time.equals("none", true) -> 0L
+            else -> Durations.parseMillis(time) ?: run {
+                messages.send(sender, "invalid-duration", Placeholder.unparsed("value", time))
+                return Command.SINGLE_SUCCESS
+            }
+        }
+        plugin.muteService.setSlowmode(channel.id, millis)
+        val key = if (millis > 0) "slowmode-on" else "slowmode-off"
+        val placeholders = arrayOf(
+            Placeholder.parsed("channel", channel.displayName),
+            Placeholder.unparsed("time", Durations.humanize(millis)),
+        )
+        val readers = plugin.channelService.readers(channel)
+        for (reader in readers) messages.send(reader, key, *placeholders)
+        if (readers.none { it.uniqueId == (sender as? Player)?.uniqueId }) messages.send(sender, key, *placeholders)
         return Command.SINGLE_SUCCESS
     }
 

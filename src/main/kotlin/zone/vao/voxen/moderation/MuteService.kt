@@ -18,6 +18,7 @@ class MuteService(
         private set
 
     private val mutedChannels = ConcurrentHashMap.newKeySet<String>()
+    private val slowmodes = ConcurrentHashMap<String, Long>()
     private val mutes = ConcurrentHashMap<UUID, MutableList<MuteEntry>>()
 
     fun load() {
@@ -43,6 +44,12 @@ class MuteService(
     }
 
     fun isChannelMuted(channelId: String): Boolean = channelId.lowercase() in mutedChannels
+
+    fun setSlowmode(channelId: String, millis: Long) {
+        if (millis > 0) slowmodes[channelId.lowercase()] = millis else slowmodes -= channelId.lowercase()
+    }
+
+    fun slowmode(channelId: String): Long = slowmodes[channelId.lowercase()] ?: 0L
 
     fun mute(entry: MuteEntry) {
         applyMute(entry)

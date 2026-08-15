@@ -130,7 +130,7 @@ class ChatService(
         when (val result = spamGuard.check(
             uuid = player.uniqueId,
             channelId = channel.id,
-            channelCooldownMillis = channel.cooldownMillis,
+            channelCooldownMillis = maxOf(channel.cooldownMillis, slowmodeFor(channel)),
             content = rawContent,
             bypassCooldown = player.hasPermission(BYPASS_COOLDOWN),
             bypassRepeat = player.hasPermission(BYPASS_SPAM),
@@ -285,6 +285,9 @@ class ChatService(
             if (allowed) hooks.applyPlaceholders(player, match.value).replace('§', '&') else match.value
         }
     }
+
+    private fun slowmodeFor(channel: Channel): Long =
+        if (config().moderation.slowmodeEnabled) mutes.slowmode(channel.id) else 0L
 
     private fun isMentioned(out: Outgoing, recipient: Player): Boolean =
         out.mentionsAllowed && recipient.uniqueId != out.player.uniqueId &&

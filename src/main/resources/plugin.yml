@@ -30,6 +30,9 @@ permissions:
   voxen.mod.mutechannel:
     description: Allows muting single channels.
     default: op
+  voxen.mod.slowmode:
+    description: Allows changing a channel's slowmode.
+    default: op
   voxen.mod.history:
     description: Allows reading a player's stored chat history.
     default: op

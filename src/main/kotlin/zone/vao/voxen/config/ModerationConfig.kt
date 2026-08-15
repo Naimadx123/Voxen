@@ -15,6 +15,7 @@ data class ModerationConfig(
     val normalizeLeet: Boolean = true,
     val normalizeDiacritics: Boolean = true,
     val normalizeSeparators: Boolean = true,
+    val slowmodeEnabled: Boolean = true,
     val historyEnabled: Boolean = false,
     val historyKeepDays: Int = 14,
     val historyEntries: Int = 15,

@@ -22,6 +22,11 @@ filter:
     diacritics: true
     separators: true
 
+# Lets staff raise a channel's cooldown on the fly with /voxen slowmode <channel> <time>.
+# The setting is not saved, so a restart clears it.
+slowmode:
+  enabled: true
+
 # Stores sent messages so staff can read them back with /voxen history <player>.
 history:
   enabled: false
