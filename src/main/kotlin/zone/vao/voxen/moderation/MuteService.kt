@@ -153,6 +153,12 @@ class MuteService(
 
     fun isMuted(uuid: UUID, channelId: String?): Boolean = activeMute(uuid, channelId) != null
 
+    fun mutesFor(uuid: UUID): List<MuteEntry> {
+        val list = mutes[uuid] ?: return emptyList()
+        val now = System.currentTimeMillis()
+        return synchronized(list) { list.filterNot { it.expired(now) } }
+    }
+
     fun activeMutes(): List<MuteEntry> {
         val now = System.currentTimeMillis()
         return mutes.values.flatMap { list -> synchronized(list) { list.filterNot { it.expired(now) } } }

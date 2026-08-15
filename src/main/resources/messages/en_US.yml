@@ -6,7 +6,7 @@ no-permission: "<red>You don't have permission to use this command."
 player-not-found: "<red>Player <white><player></white> was not found."
 invalid-duration: "<red>Invalid duration <white><value></white>. Use values like 10m, 2h, 7d or 'permanent'."
 
-help: "<aqua>Voxen commands:</aqua><newline><gray>/channel join|leave|set|list</gray> - manage channels<newline><gray>/msg, /reply</gray> - private messages<newline><gray>/ignore, /ignorelist</gray> - ignore players<newline><gray>/party</gray> - party system<newline><gray>/chattoggle</gray> - hide or show chat<newline><gray>/language <lang></gray> - choose your language<newline><gray>/nick <nickname|reset></gray> - manage your nickname<newline><gray>/filter</gray> - toggle the chat filter for yourself<newline><gray>/voxen mentions|pm|spy</gray> - personal toggles<newline><gray>/voxen reload|status|mute|unmute|mutes|mutechat|mutechannel|chatclear</gray> - administration"
+help: "<aqua>Voxen commands:</aqua><newline><gray>/channel join|leave|set|list</gray> - manage channels<newline><gray>/msg, /reply</gray> - private messages<newline><gray>/ignore, /ignorelist</gray> - ignore players<newline><gray>/party</gray> - party system<newline><gray>/chattoggle</gray> - hide or show chat<newline><gray>/language <lang></gray> - choose your language<newline><gray>/nick <nickname|reset></gray> - manage your nickname<newline><gray>/filter</gray> - toggle the chat filter for yourself<newline><gray>/voxen mentions|pm|spy</gray> - personal toggles<newline><gray>/voxen reload|status|mute|unmute|mutes|muteinfo|mutechat|mutechannel|chatclear</gray> - administration"
 
 status-header: "<aqua>Voxen</aqua> <gray>v<version></gray>"
 status-line: "<gray>  <key>: <white><value>"
@@ -39,6 +39,7 @@ muted-player: "<green>Muted <white><player></white> in <white><channel></white> 
 unmuted-player: "<green>Unmuted <white><player></white>."
 not-muted: "<red><player> is not muted."
 mute-exempt: "<red><player> cannot be muted."
+muteinfo-header: "<aqua>Mutes of <white><player></white>:"
 mute-list-empty: "<gray>There are no active mutes."
 mute-list-header: "<aqua>Active mutes (<amount>):"
 mute-list-entry: "<gray>  <white><player></white> in <white><channel></white> by <white><moderator></white> - <reason> (expires: <remaining>)"

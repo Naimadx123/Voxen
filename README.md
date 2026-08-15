@@ -236,6 +236,7 @@ Names below are defaults; see [config.yml](#configyml) for renaming.
 | `mute <player\|uuid> [time] [channel\|all] [reason]` | mute a player | `voxen.mod.mute` |
 | `unmute <player\|uuid> [channel\|all]` | lift a mute | `voxen.mod.mute` |
 | `mutes` | list active mutes | `voxen.mod.mute` |
+| `muteinfo <player\|uuid>` | check one player's mutes | `voxen.mod.mute` |
 | `mutechat` | mute the whole chat | `voxen.mod.mutechat` |
 | `mutechannel <channel>` | mute one channel | `voxen.mod.mutechannel` |
 | `chatclear [player]` | clear the chat | `voxen.mod.chatclear` |

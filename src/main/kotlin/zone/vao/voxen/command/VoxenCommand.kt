@@ -63,6 +63,14 @@ object VoxenCommand {
                     )
             )
             .then(
+                permLiteral("muteinfo", "voxen.mod.mute")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .executes { ctx -> muteInfo(plugin, ctx) }
+                    )
+            )
+            .then(
                 permLiteral("unmute", "voxen.mod.mute")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
@@ -280,6 +288,40 @@ object VoxenCommand {
             ),
         )
         online?.let { messages.send(it, "you-were-muted", Placeholder.unparsed("reason", reason ?: messages.raw(it, "mute-no-reason"))) }
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun muteInfo(plugin: Voxen, ctx: CommandContext<CommandSourceStack>): Int {
+        val sender = ctx.source.sender
+        val messages = plugin.messages()
+        val name = arg(ctx, "player")
+        val target = resolve(plugin, name) ?: run {
+            messages.send(sender, "player-not-found", Placeholder.unparsed("player", name))
+            return Command.SINGLE_SUCCESS
+        }
+        val mutes = plugin.muteService.mutesFor(target.first)
+        if (mutes.isEmpty()) {
+            messages.send(sender, "not-muted", Placeholder.unparsed("player", target.second))
+            return Command.SINGLE_SUCCESS
+        }
+        messages.send(sender, "muteinfo-header", Placeholder.unparsed("player", target.second))
+        for (mute in mutes) {
+            sender.sendMessage(
+                messages.line(
+                    sender,
+                    "mute-list-entry",
+                    Placeholder.unparsed("player", mute.playerName),
+                    Placeholder.unparsed("channel", mute.channel ?: "all"),
+                    Placeholder.unparsed("moderator", mute.moderator),
+                    Placeholder.unparsed("reason", mute.reason ?: messages.raw(sender, "mute-no-reason")),
+                    Placeholder.unparsed(
+                        "remaining",
+                        mute.expiresAt?.let { Durations.humanize(it - System.currentTimeMillis()) }
+                            ?: messages.raw(sender, "mute-permanent"),
+                    ),
+                )
+            )
+        }
         return Command.SINGLE_SUCCESS
     }
 

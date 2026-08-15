@@ -6,7 +6,7 @@ no-permission: "<red>Nie masz uprawnień do tej komendy."
 player-not-found: "<red>Nie znaleziono gracza <white><player></white>."
 invalid-duration: "<red>Nieprawidłowy czas <white><value></white>. Użyj wartości typu 10m, 2h, 7d albo 'permanent'."
 
-help: "<aqua>Komendy Voxen:</aqua><newline><gray>/channel join|leave|set|list</gray> - zarządzanie kanałami<newline><gray>/msg, /reply</gray> - wiadomości prywatne<newline><gray>/ignore, /ignorelist</gray> - ignorowanie graczy<newline><gray>/party</gray> - system drużyn<newline><gray>/chattoggle</gray> - ukryj lub pokaż czat<newline><gray>/language <lang></gray> - wybór języka<newline><gray>/nick <pseudonim|reset></gray> - zarządzanie pseudonimem<newline><gray>/filter</gray> - przełącz filtr czatu dla siebie<newline><gray>/voxen mentions|pm|spy</gray> - przełączniki osobiste<newline><gray>/voxen reload|status|mute|unmute|mutes|mutechat|mutechannel|chatclear</gray> - administracja"
+help: "<aqua>Komendy Voxen:</aqua><newline><gray>/channel join|leave|set|list</gray> - zarządzanie kanałami<newline><gray>/msg, /reply</gray> - wiadomości prywatne<newline><gray>/ignore, /ignorelist</gray> - ignorowanie graczy<newline><gray>/party</gray> - system drużyn<newline><gray>/chattoggle</gray> - ukryj lub pokaż czat<newline><gray>/language <lang></gray> - wybór języka<newline><gray>/nick <pseudonim|reset></gray> - zarządzanie pseudonimem<newline><gray>/filter</gray> - przełącz filtr czatu dla siebie<newline><gray>/voxen mentions|pm|spy</gray> - przełączniki osobiste<newline><gray>/voxen reload|status|mute|unmute|mutes|muteinfo|mutechat|mutechannel|chatclear</gray> - administracja"
 
 status-header: "<aqua>Voxen</aqua> <gray>v<version></gray>"
 status-line: "<gray>  <key>: <white><value>"
@@ -39,6 +39,7 @@ muted-player: "<green>Wyciszono <white><player></white> na kanale <white><channe
 unmuted-player: "<green>Odciszono <white><player></white>."
 not-muted: "<red><player> nie ma wyciszenia."
 mute-exempt: "<red><player> nie może zostać wyciszony(-a)."
+muteinfo-header: "<aqua>Wyciszenia gracza <white><player></white>:"
 mute-list-empty: "<gray>Brak aktywnych wyciszeń."
 mute-list-header: "<aqua>Aktywne wyciszenia (<amount>):"
 mute-list-entry: "<gray>  <white><player></white> na <white><channel></white> przez <white><moderator></white> - <reason> (wygasa: <remaining>)"
