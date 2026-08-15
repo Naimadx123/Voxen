@@ -22,6 +22,7 @@ import zone.vao.voxen.command.VoxenCommand
 import zone.vao.voxen.config.ConfigManager
 import zone.vao.voxen.config.Messages
 import zone.vao.voxen.hook.HookManager
+import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
 import zone.vao.voxen.mention.MentionService
 import zone.vao.voxen.moderation.MuteService
@@ -319,14 +320,19 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     }
 
     private fun registerPlaceholders() {
-        if (!configManager.config.integrations.placeholderApi) return
-        if (!server.pluginManager.isPluginEnabled("PlaceholderAPI")) return
-        runCatching {
-            val expansion = Class.forName("zone.vao.voxen.hook.VoxenExpansion")
-                .getConstructor(Voxen::class.java)
-                .newInstance(this)
-            expansion.javaClass.getMethod("register").invoke(expansion)
-        }.onFailure { logger.warning("Failed to register the PlaceholderAPI expansion: ${it.message}") }
+        val integrations = configManager.config.integrations
+        if (integrations.placeholderApi && server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
+            runCatching {
+                val expansion = Class.forName("zone.vao.voxen.hook.VoxenExpansion")
+                    .getConstructor(Voxen::class.java)
+                    .newInstance(this)
+                expansion.javaClass.getMethod("register").invoke(expansion)
+            }.onFailure { logger.warning("Failed to register the PlaceholderAPI expansion: ${it.message}") }
+        }
+        if (integrations.miniPlaceholders && server.pluginManager.isPluginEnabled("MiniPlaceholders")) {
+            runCatching { VoxenTags.register(this) }
+                .onFailure { logger.warning("Failed to register the MiniPlaceholders expansion: ${it.message}") }
+        }
     }
 
     private fun registerCommands() {

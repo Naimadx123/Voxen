@@ -18,7 +18,8 @@ Chat plugin for Paper 1.21.8+ servers. Channels, private messages, parties, igno
 12. [Cross-server chat](#cross-server-chat)
 13. [Storage](#storage)
 14. [PlaceholderAPI](#placeholderapi)
-15. [Developer API](#developer-api)
+15. [MiniPlaceholders](#miniplaceholders)
+16. [Developer API](#developer-api)
 
 ## Requirements
 
@@ -423,6 +424,26 @@ Both directions work when PlaceholderAPI is installed:
 | `%voxen_party_leader%` | party leader's name or empty |
 | `%voxen_language%` | chosen language or `auto` |
 | `%voxen_mentions%` / `%voxen_pm%` / `%voxen_chat%` | personal toggle states |
+
+## MiniPlaceholders
+
+The same state is published as a MiniPlaceholders expansion when that plugin is installed, so any plugin using MiniMessage can write `<voxen_channel>` and get the reader's active channel. The tags are audience tags and resolve to nothing for non-players.
+
+| Tag | Value |
+|-----|-------|
+| `<voxen_channel>` | active channel id |
+| `<voxen_channel_display>` | active channel display name |
+| `<voxen_muted>` | `true`/`false`, global mute state |
+| `<voxen_party>` | party name or empty |
+| `<voxen_party_leader>` | party leader's name or empty |
+| `<voxen_language>` | chosen language or `auto` |
+| `<voxen_nickname>` | nickname without formatting, real name when none is set |
+| `<voxen_server>` | `server-name` from config.yml |
+| `<voxen_mentions>` / `<voxen_pm>` / `<voxen_chat>` | personal toggle states |
+
+The `miniplaceholders` switch in `integrations.yml` covers both directions: it decides whether Voxen reads other plugins' tags in chat and whether it publishes its own. Registration happens once on startup, so a `/voxen reload` does not re-register the expansion.
+
+Letting players write these tags in chat still needs `voxen.chat.miniplaceholders` or `voxen.chat.miniplaceholders.voxen_channel` for a single one.
 
 ## Developer API
 
