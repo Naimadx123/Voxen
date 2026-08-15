@@ -61,7 +61,7 @@ class PrivateMessageService(
             return false
         }
 
-        val message = renderer.render(content, sender::hasPermission)
+        val message = renderer.render(content, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
             Placeholder.unparsed("player", sender.name),
@@ -98,7 +98,7 @@ class PrivateMessageService(
             messages.send(sender, "pm-self")
             return false
         }
-        val message = renderer.render(content, sender::hasPermission)
+        val message = renderer.render(content, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
         pending[sender.uniqueId] = Pending(targetName, message)
         val flags = buildList {
             if (sender.hasPermission(BYPASS_TOGGLE)) add("pmtoggle")

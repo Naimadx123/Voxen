@@ -106,5 +106,5 @@ object NickCommand {
     }
 
     private fun nicknamePlaceholder(plugin: Voxen, owner: Player, nickname: String) =
-        Placeholder.component("nickname", plugin.contentRenderer.render(nickname, owner::hasPermission))
+        Placeholder.component("nickname", plugin.contentRenderer.render(nickname, owner::hasPermission, isPermissionSet = owner::isPermissionSet))
 }

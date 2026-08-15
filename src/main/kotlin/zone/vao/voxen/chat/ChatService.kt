@@ -175,12 +175,12 @@ class ChatService(
             listOfNotNull(hooks.miniPlaceholders?.gated(player) { name ->
                 player.hasPermission(MINI_PERMISSION) || player.hasPermission("$MINI_PERMISSION.$name")
             })
-        val message = renderer.render(content, player::hasPermission, extraResolvers)
+        val message = renderer.render(content, player::hasPermission, extraResolvers, isPermissionSet = player::isPermissionSet)
         val format = formats.formatFor(channel, player)
         val formatted = formats.render(format, player, channel, message)
         val unfiltered = uncensored
             ?.takeIf { finalRecipients.any(::seesUnfiltered) }
-            ?.let { formats.render(format, player, channel, renderer.render(it, player::hasPermission, extraResolvers)) }
+            ?.let { formats.render(format, player, channel, renderer.render(it, player::hasPermission, extraResolvers, isPermissionSet = player::isPermissionSet)) }
 
         val mentionedNames = if (config().mentions.enabled) mentions.mentionedNames(content) else emptySet()
         val mentionsAllowed = mentionedNames.isNotEmpty() &&
@@ -188,7 +188,7 @@ class ChatService(
             mentions.tryUse(player)
 
         val networkFormatted = if (channel.crossServer && config().tags.mode == TagsConfig.UnauthorizedMode.ESCAPE) {
-            val stripped = renderer.render(content, player::hasPermission, extraResolvers, TagsConfig.UnauthorizedMode.STRIP)
+            val stripped = renderer.render(content, player::hasPermission, extraResolvers, TagsConfig.UnauthorizedMode.STRIP, player::isPermissionSet)
             formats.render(format, player, channel, stripped)
         } else {
             null

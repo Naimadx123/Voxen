@@ -104,7 +104,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         formatService = FormatService(hookManager, { configManager.config }) { player ->
             if (!configManager.config.nicknames.enabled) null
             else playerDataService.get(player.uniqueId).nickname?.let { nick ->
-                contentRenderer.render(nick, player::hasPermission).hoverEvent(
+                contentRenderer.render(nick, player::hasPermission, isPermissionSet = player::isPermissionSet).hoverEvent(
                     configManager.config.messages.line(
                         player, "nickname-hover",
                         Placeholder.unparsed("player", player.name),

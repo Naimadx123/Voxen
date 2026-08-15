@@ -22,6 +22,7 @@ class ContentRenderer(
         hasPermission: (String) -> Boolean,
         extraResolvers: List<TagResolver> = emptyList(),
         modeOverride: TagsConfig.UnauthorizedMode? = null,
+        isPermissionSet: (String) -> Boolean = { false },
     ): Component {
         val config = tagsConfig()
         val mode = modeOverride ?: config.mode
@@ -35,6 +36,7 @@ class ContentRenderer(
             )
         }
         raw = escapeBlockedParams(raw, config)
+        raw = escapeNegatedArgs(raw, config, mode, hasPermission, isPermissionSet)
         raw = filterCustomTags(raw, config, mode, hasPermission)
 
         val allowColor = permitted(config, "color", hasPermission)
@@ -142,6 +144,37 @@ class ContentRenderer(
         if (hasPermission(rule.permission) || hasPermission(TAG_WILDCARD)) return true
         val first = args.substringBefore(':').trim().lowercase()
         return first.isNotEmpty() && hasPermission("${rule.permission}.$first")
+    }
+
+    private fun escapeNegatedArgs(
+        raw: String,
+        config: TagsConfig,
+        mode: TagsConfig.UnauthorizedMode,
+        hasPermission: (String) -> Boolean,
+        isPermissionSet: (String) -> Boolean,
+    ): String {
+        if (!raw.contains('<')) return raw
+        fun negated(node: String) = isPermissionSet(node) && !hasPermission(node)
+        fun blocked(match: String) = if (mode == TagsConfig.UnauthorizedMode.STRIP) "" else "\\$match"
+        var result = raw
+        for (rule in config.rules.values + config.custom.values) {
+            val aliases = rule.names() + if (rule.name == "color") listOf("colour", "c") else emptyList()
+            val names = aliases.joinToString("|") { Regex.escape(it) }
+            val pattern = Regex("(?<!\\\\)<(?:$names):([^>]*)>", RegexOption.IGNORE_CASE)
+            result = pattern.replace(result) { match ->
+                val node = "${rule.permission}.${match.groupValues[1].trim().lowercase().replace(':', '.')}"
+                if (negated(node)) blocked(match.value) else match.value
+            }
+            if (rule.name == "color") {
+                val deniedColors = NamedTextColor.NAMES.keys().filter { negated("${rule.permission}.$it") }
+                if (deniedColors.isNotEmpty()) {
+                    val colorNames = deniedColors.joinToString("|") { Regex.escape(it) }
+                    val direct = Regex("(?<!\\\\)</?(?:$colorNames)>", RegexOption.IGNORE_CASE)
+                    result = direct.replace(result) { match -> blocked(match.value) }
+                }
+            }
+        }
+        return result
     }
 
     private fun escapeBlockedParams(raw: String, config: TagsConfig): String {

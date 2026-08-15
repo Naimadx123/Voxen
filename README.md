@@ -330,6 +330,8 @@ The `<selector>`, `<score>`, `<nbt>`, `<lang>` and `<lang_or>` tags are disabled
 
 Tag arguments can be permission-gated as well: the tag's base node allows every argument, and the base node plus the arguments (with `:` replaced by `.`) allows one combination. For example `voxen.chat.tag.gradient.red.blue` lets a player use exactly `<gradient:red:blue>` and nothing else. If a message contains both a permitted and an unpermitted use of the same tag, the tag stays unparsed in that whole message.
 
+Argument nodes also work as denials: setting one explicitly to `false` (e.g. `voxen.chat.tag.color.red: false` in LuckPerms) blocks that use even for players holding the base node or the wildcard. For colors this covers both forms, `<color:red>` and `<red>`.
+
 To grant formatting selectively, use the individual nodes rather than the wildcard. The wildcard is checked directly in code, so negating a single node in a permission plugin has no effect on players who hold `voxen.chat.tag.*`. A tag can also be given a different permission or disabled for everyone in `modules/minimessage-tags.yml`.
 
 ### Channels and formats
