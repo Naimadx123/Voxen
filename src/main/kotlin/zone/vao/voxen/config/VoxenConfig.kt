@@ -20,6 +20,7 @@ data class VoxenConfig(
     val storage: StorageConfig,
     val commands: CommandNames,
     val nicknames: NicknamesConfig,
+    val emotes: EmotesConfig,
     val chatDelivery: ChatDelivery,
 )
 

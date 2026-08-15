@@ -35,6 +35,7 @@ class ConfigManager(
         val privateMessages = YamlConfiguration.loadConfiguration(file("modules/private-messages.yml"))
         val tags = YamlConfiguration.loadConfiguration(file("modules/minimessage-tags.yml"))
         val party = YamlConfiguration.loadConfiguration(file("modules/party.yml"))
+        val emotes = YamlConfiguration.loadConfiguration(file("modules/emotes.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -48,6 +49,7 @@ class ConfigManager(
             privateMessages = parsePrivateMessages(privateMessages),
             tags = parseTags(tags),
             party = parseParty(party),
+            emotes = parseEmotes(emotes),
             integrations = parseIntegrations(integrations),
             network = parseNetwork(integrations.getConfigurationSection("network")),
             storage = parseStorage(storage),
@@ -364,6 +366,26 @@ class ConfigManager(
         )
     }
 
+    private fun parseEmotes(yaml: YamlConfiguration): EmotesConfig {
+        val section = yaml.getConfigurationSection("emotes")
+        val emotes = buildMap {
+            for (key in section?.getKeys(false).orEmpty()) {
+                val name = key.trim().lowercase()
+                val value = section?.getString(key)?.ifEmpty { null } ?: continue
+                if (!name.matches(EMOTE_NAME)) {
+                    plugin.logger.warning("modules/emotes.yml: '$key' may only contain [a-z0-9_+-]; skipping it.")
+                    continue
+                }
+                put(name, value)
+            }
+        }
+        return EmotesConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            requirePermission = yaml.getBoolean("require-permission", true),
+            emotes = emotes,
+        )
+    }
+
     private fun parseIntegrations(yaml: YamlConfiguration): IntegrationsConfig = IntegrationsConfig(
         placeholderApi = yaml.getBoolean("placeholderapi", true),
         miniPlaceholders = yaml.getBoolean("miniplaceholders", true),
@@ -475,12 +497,14 @@ class ConfigManager(
             "modules/private-messages.yml",
             "modules/minimessage-tags.yml",
             "modules/party.yml",
+            "modules/emotes.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )
         val DEFAULT_CHANNELS = listOf("global.yml", "local.yml", "world.yml", "server.yml", "staff.yml", "party.yml")
         val REPARSING_PLUGINS = listOf("Nexo", "Oraxen")
         val VALID_SCOPES = setOf("towny", "factions", "mcmmo")
+        val EMOTE_NAME = Regex("[a-z0-9_+-]{1,32}")
         const val CHANNELS_DIR = "channels"
         const val MESSAGES_DIR = "messages"
     }

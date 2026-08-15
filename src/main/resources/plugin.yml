@@ -72,6 +72,9 @@ permissions:
   voxen.chat.tag.item:
     description: Allows sharing held and worn items in chat.
     default: true
+  voxen.chat.emote:
+    description: Allows using every emote shortcode. Single emotes can be granted with voxen.chat.emote.<name>.
+    default: true
   voxen.chat.papi:
     description: Parses every PlaceholderAPI placeholder in this player's chat messages. Single placeholders can be granted with voxen.chat.papi.<placeholder>.
     default: op

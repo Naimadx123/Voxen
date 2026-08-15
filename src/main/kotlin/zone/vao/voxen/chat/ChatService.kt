@@ -176,6 +176,10 @@ class ChatService(
             }
         }
 
+        val emotes = config().emotes
+        content = emotes.apply(content, player::hasPermission)
+        uncensored = uncensored?.let { emotes.apply(it, player::hasPermission) }
+
         val recipients = channels.recipients(player, channel)
         val event = ChatMessageSendEvent(player, channel.id, content, recipients)
         server.pluginManager.callEvent(event)

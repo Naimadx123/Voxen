@@ -1,0 +1,27 @@
+# Turns shortcodes like :heart: into real characters.
+enabled: true
+
+# When true a player needs voxen.chat.emote.<name> for a single emote,
+# or voxen.chat.emote for all of them. Set to false to let everyone use them.
+require-permission: true
+
+# Shortcode without the colons on the left, whatever it turns into on the right.
+emotes:
+  heart: "❤"
+  star: "★"
+  music: "♪"
+  note: "♫"
+  check: "✔"
+  cross: "✖"
+  arrow: "➜"
+  skull: "☠"
+  sun: "☀"
+  cloud: "☁"
+  umbrella: "☂"
+  snow: "❄"
+  peace: "☮"
+  yinyang: "☯"
+  smile: "☺"
+  sad: "☹"
+  shrug: "¯\\_(ツ)_/¯"
+  tableflip: "(╯°□°)╯︵ ┻━┻"

@@ -57,6 +57,7 @@ The finished jar lands in `build/libs/`. For a quick test there is also `./gradl
 | `modules/moderation.yml` | cooldowns, anti-repeat, word filter, chat clear |
 | `modules/private-messages.yml` | private message formats and social spy |
 | `modules/party.yml` | party size and invite expiry |
+| `modules/emotes.yml` | `:heart:` style shortcodes |
 | `modules/minimessage-tags.yml` | which formatting tags players may use |
 | `messages/*.yml` | translations, one file per language |
 
@@ -204,6 +205,12 @@ In `censor` mode, players with `voxen.filter.toggle` can run `/filter` to see th
 
 `enabled` turns the whole system off (the `/party` command disappears after a restart), `max-members` caps the size, `invite-expiry` is how long an invitation stays valid. Party chat goes through the `party` channel or the `#` quick prefix.
 
+### Emotes (`modules/emotes.yml`)
+
+Shortcodes written between colons turn into real characters, so `:heart:` becomes ❤. The `emotes` section is the whole map: the key is the shortcode without the colons, the value is what it turns into. Names may contain `a-z`, `0-9`, `_`, `+` and `-`.
+
+With `require-permission: true` a player needs `voxen.chat.emote.<name>` for one emote or `voxen.chat.emote` for all of them. Set it to `false` and every emote works for everyone. Unknown shortcodes stay as typed, so normal text like `1:2:3` is safe. Replacement runs after the word filter, so an emote cannot smuggle a blocked word past it.
+
 ### MiniMessage tags (`modules/minimessage-tags.yml`)
 
 Controls which formatting players may use in messages. `unauthorized-mode` decides what happens to tags a player is not allowed to use: `escape` shows them as plain text, `strip` removes them.
@@ -280,6 +287,7 @@ Mute durations look like `10m`, `2h`, `7d` or `permanent`. Moderation commands a
 | `voxen.pm.send` | sending private messages |
 | `voxen.chat.mention` | mentioning players with `@name` |
 | `voxen.chat.tag.item` | sharing held and worn items in chat |
+| `voxen.chat.emote` | using every emote shortcode (`voxen.chat.emote.<name>` for a single one) |
 
 ### Staff and personal toggles (default: OP)
 
