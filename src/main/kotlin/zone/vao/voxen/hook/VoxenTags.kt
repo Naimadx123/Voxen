@@ -32,8 +32,8 @@ object VoxenTags {
         "pm" to { player -> plugin.playerDataService.get(player.uniqueId).pmEnabled.toString() },
         "chat" to { player -> plugin.playerDataService.get(player.uniqueId).chatEnabled.toString() },
         "nickname" to { player ->
-            plugin.playerDataService.get(player.uniqueId).nickname
-                ?.let { plugin.contentRenderer.plain(it) } ?: player.name
+            plugin.playerDataService.get(player.uniqueId)
+                .plainNickname(plugin.contentRenderer::plain) ?: player.name
         },
         "server" to { _ -> plugin.configManager.config.serverName },
     )

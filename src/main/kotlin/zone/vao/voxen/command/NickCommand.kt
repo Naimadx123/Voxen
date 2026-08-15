@@ -69,7 +69,7 @@ object NickCommand {
     }
 
     private fun plainNickname(plugin: Voxen, player: Player): String? =
-        plugin.playerDataService.get(player.uniqueId).nickname?.let { plugin.contentRenderer.plain(it) }
+        plugin.playerDataService.get(player.uniqueId).plainNickname(plugin.contentRenderer::plain)
 
     private fun show(plugin: Voxen, sender: CommandSender): Int {
         val messages = plugin.messages()

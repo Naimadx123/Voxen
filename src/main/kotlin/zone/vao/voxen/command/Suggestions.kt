@@ -18,8 +18,7 @@ object CommandSuggestions {
     fun nicknames(plugin: Voxen, builder: SuggestionsBuilder): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
         plugin.server.onlinePlayers
-            .mapNotNull { plugin.playerDataService.get(it.uniqueId).nickname }
-            .map { plugin.contentRenderer.plain(it) }
+            .mapNotNull { plugin.playerDataService.get(it.uniqueId).plainNickname(plugin.contentRenderer::plain) }
             .filter { it.isNotEmpty() && it.lowercase().startsWith(input) }
             .forEach(builder::suggest)
         return builder.buildFuture()

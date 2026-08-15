@@ -21,6 +21,18 @@ class PlayerData(
     val joinedChannels: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { addAll(joinedChannels) }
     val leftChannels: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { addAll(leftChannels) }
 
+    @Volatile private var plainSource: String? = null
+    @Volatile private var plainValue: String = ""
+
+    fun plainNickname(render: (String) -> String): String? {
+        val current = nickname ?: return null
+        if (current != plainSource) {
+            plainValue = render(current)
+            plainSource = current
+        }
+        return plainValue
+    }
+
     companion object {
         fun fresh(uuid: UUID): PlayerData =
             PlayerData(
