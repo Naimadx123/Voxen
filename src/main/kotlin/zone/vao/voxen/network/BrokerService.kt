@@ -81,7 +81,7 @@ class BrokerService(
             if (seen.containsKey(id)) return
             seen[id] = true
         }
-        if (message.type == TYPE_PM || message.type == TYPE_PM_ACK) {
+        if (message.type == TYPE_PM || message.type == TYPE_PM_ACK || message.type == TYPE_PM_SPY) {
             onPmMessage?.invoke(message)
             return
         }
@@ -96,5 +96,6 @@ class BrokerService(
     companion object {
         const val TYPE_PM = "pm"
         const val TYPE_PM_ACK = "pm_ack"
+        const val TYPE_PM_SPY = "pm_spy"
     }
 }

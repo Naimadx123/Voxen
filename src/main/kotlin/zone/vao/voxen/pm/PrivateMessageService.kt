@@ -80,6 +80,7 @@ class PrivateMessageService(
                 messages.send(target, "pm-monitored")
             }
         }
+        broadcastSpy(sender.name, sender.uniqueId, target.name, target.uniqueId, message)
         return true
     }
 
@@ -132,6 +133,7 @@ class PrivateMessageService(
         when (message.type) {
             BrokerService.TYPE_PM -> handleRequest(message)
             BrokerService.TYPE_PM_ACK -> handleAck(message)
+            BrokerService.TYPE_PM_SPY -> handleSpy(message)
         }
     }
 
@@ -183,6 +185,7 @@ class PrivateMessageService(
         notifySpies(senderUuid, target.uniqueId, resolvers) {
             if (config().privateMessages.notifyMonitored) config().messages.send(target, "pm-monitored")
         }
+        broadcastSpy(senderName, senderUuid, target.name, target.uniqueId, message)
         ack(request, target, "ok")
     }
 
@@ -211,9 +214,37 @@ class PrivateMessageService(
         runCatching { UUID.fromString(ackMessage.targetUuid) }.getOrNull()?.let {
             lastConversation[sender.uniqueId] = Conversation(it, targetName)
         }
-        notifySpies(sender.uniqueId, null, resolvers) {
-            if (config().privateMessages.notifyMonitored) messages.send(sender, "pm-monitored")
-        }
+    }
+
+    private fun handleSpy(spyMessage: BrokerMessage) {
+        val settings = config().privateMessages
+        if (!settings.enabled) return
+        val message = runCatching { mm.deserialize(spyMessage.mm ?: return) }.getOrNull() ?: return
+        val resolvers = arrayOf<TagResolver>(
+            Placeholder.component("message", message),
+            Placeholder.unparsed("player", spyMessage.sender ?: return),
+            Placeholder.unparsed("target", spyMessage.target ?: return),
+        )
+        val senderUuid = runCatching { UUID.fromString(spyMessage.senderUuid) }.getOrNull()
+        val targetUuid = runCatching { UUID.fromString(spyMessage.targetUuid) }.getOrNull()
+        notifySpies(senderUuid, targetUuid, resolvers) {}
+    }
+
+    private fun broadcastSpy(senderName: String, senderUuid: UUID, targetName: String, targetUuid: UUID, message: Component) {
+        remotePublisher?.invoke(
+            BrokerMessage(
+                id = UUID.randomUUID().toString(),
+                server = null,
+                channel = null,
+                sender = senderName,
+                component = null,
+                mm = mm.serialize(message),
+                type = BrokerService.TYPE_PM_SPY,
+                target = targetName,
+                senderUuid = senderUuid.toString(),
+                targetUuid = targetUuid.toString(),
+            )
+        )
     }
 
     private fun ack(request: BrokerMessage, target: Player, status: String) {
@@ -233,7 +264,7 @@ class PrivateMessageService(
         )
     }
 
-    private fun notifySpies(senderId: UUID, targetId: UUID?, resolvers: Array<TagResolver>, onSpied: () -> Unit) {
+    private fun notifySpies(senderId: UUID?, targetId: UUID?, resolvers: Array<TagResolver>, onSpied: () -> Unit) {
         val settings = config().privateMessages
         val spies = server.onlinePlayers.filter { spy ->
             spy.uniqueId != senderId && spy.uniqueId != targetId &&
