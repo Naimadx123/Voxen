@@ -165,6 +165,9 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 |-----|---------|
 | `cooldown` | minimum delay between any two messages per player, empty disables it |
 | `anti-repeat.enabled` | blocks sending the same message twice within `window-seconds` |
+| `anti-repeat.similarity.enabled` | also blocks messages that are only slightly changed |
+| `anti-repeat.similarity.threshold` | how alike two messages must be to count as a repeat, `0.0` to `1.0` |
+| `anti-repeat.similarity.history` | how many recent messages each new one is compared against |
 | `filter.enabled` | the word filter |
 | `filter.mode` | `block` rejects the message, `censor` masks matches with `censor-char` |
 | `filter.words` | list of blocked words, matched case-insensitively |

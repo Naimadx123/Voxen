@@ -5,6 +5,13 @@ cooldown: 1s
 anti-repeat:
   enabled: true
   window-seconds: 30
+  # Also catches slightly changed repeats like "hi there" after "hi there!".
+  # threshold: how alike two messages must be, from 0.0 to 1.0.
+  # history: how many recent messages to compare against.
+  similarity:
+    enabled: false
+    threshold: 0.85
+    history: 3
 
 # Blocked words and regex patterns. mode: block (reject the message) or censor (mask matches).
 filter:

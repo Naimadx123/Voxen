@@ -15,11 +15,12 @@ class SpamGuard(
         data object Repeat : Result
     }
 
+    private data class Recent(val normalized: String, val at: Long)
+
     private data class State(
         val lastGlobalAt: Long,
         val lastPerChannelAt: Map<String, Long>,
-        val lastNormalized: String?,
-        val lastNormalizedAt: Long,
+        val recent: List<Recent>,
     )
 
     private val states = ConcurrentHashMap<UUID, State>()
@@ -49,17 +50,19 @@ class SpamGuard(
         }
 
         val normalized = normalize(content)
-        if (!bypassRepeat && config.repeatEnabled && state?.lastNormalized == normalized &&
-            (config.repeatWindowMillis <= 0 || now - state.lastNormalizedAt <= config.repeatWindowMillis)
-        ) {
-            return Result.Repeat
+        val recent = state?.recent.orEmpty().filter { inWindow(it, now, config.repeatWindowMillis) }
+        if (!bypassRepeat && config.repeatEnabled) {
+            if (recent.any { it.normalized == normalized }) return Result.Repeat
+            if (config.similarityEnabled && recent.any { similarity(it.normalized, normalized) >= config.similarityThreshold }) {
+                return Result.Repeat
+            }
         }
 
+        val keep = if (config.repeatEnabled && config.similarityEnabled) config.similarityHistory else 1
         states[uuid] = State(
             lastGlobalAt = now,
             lastPerChannelAt = (state?.lastPerChannelAt.orEmpty()) + (channelId to now),
-            lastNormalized = normalized,
-            lastNormalizedAt = now,
+            recent = (listOf(Recent(normalized, now)) + recent).take(keep),
         )
         return Result.Ok
     }
@@ -74,4 +77,29 @@ class SpamGuard(
 
     private fun normalize(content: String): String =
         content.trim().lowercase().replace(Regex("\\s+"), " ")
+
+    private fun inWindow(entry: Recent, now: Long, windowMillis: Long): Boolean =
+        windowMillis <= 0 || now - entry.at <= windowMillis
+
+    private fun similarity(left: String, right: String): Double {
+        val longest = maxOf(left.length, right.length)
+        if (longest == 0) return 1.0
+        return 1.0 - distance(left, right).toDouble() / longest
+    }
+
+    private fun distance(left: String, right: String): Int {
+        var previous = IntArray(right.length + 1) { it }
+        var current = IntArray(right.length + 1)
+        for (i in 1..left.length) {
+            current[0] = i
+            for (j in 1..right.length) {
+                val substitution = previous[j - 1] + if (left[i - 1] == right[j - 1]) 0 else 1
+                current[j] = minOf(current[j - 1] + 1, previous[j] + 1, substitution)
+            }
+            val swap = previous
+            previous = current
+            current = swap
+        }
+        return previous[right.length]
+    }
 }
