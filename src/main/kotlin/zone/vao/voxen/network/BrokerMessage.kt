@@ -14,4 +14,6 @@ data class BrokerMessage(
     val targetUuid: String? = null,
     val status: String? = null,
     val flags: String? = null,
+    val expiresAt: Long? = null,
+    val createdAt: Long? = null,
 )

@@ -364,6 +364,7 @@ class ConfigManager(
         serverId = section?.getString("server-id")?.trim()?.ifEmpty { null } ?: "server-1",
         reconnectSeconds = (section?.getLong("reconnect-seconds", 5L) ?: 5L).coerceAtLeast(1L),
         timeoutMillis = (section?.getLong("timeout-millis", 5000L) ?: 5000L).coerceAtLeast(500L),
+        syncMutes = section?.getBoolean("sync-mutes", true) ?: true,
         redis = NetworkConfig.Redis(
             host = section?.getString("redis.host") ?: "localhost",
             port = section?.getInt("redis.port", 6379) ?: 6379,

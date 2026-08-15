@@ -20,6 +20,9 @@ class BrokerService(
     @Volatile
     var onPmMessage: ((BrokerMessage) -> Unit)? = null
 
+    @Volatile
+    var onModerationMessage: ((BrokerMessage) -> Unit)? = null
+
     private val gson = Gson()
     private val io = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "voxen-network").apply { isDaemon = true }
@@ -85,6 +88,10 @@ class BrokerService(
             onPmMessage?.invoke(message)
             return
         }
+        if (message.type == TYPE_MUTE || message.type == TYPE_UNMUTE) {
+            onModerationMessage?.invoke(message)
+            return
+        }
         if (message.channel.isNullOrEmpty() || message.component.isNullOrEmpty()) return
         onChatMessage?.invoke(message)
     }
@@ -97,5 +104,7 @@ class BrokerService(
         const val TYPE_PM = "pm"
         const val TYPE_PM_ACK = "pm_ack"
         const val TYPE_PM_SPY = "pm_spy"
+        const val TYPE_MUTE = "mute"
+        const val TYPE_UNMUTE = "unmute"
     }
 }

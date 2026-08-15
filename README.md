@@ -357,6 +357,8 @@ The `/r` target is stored in player data, so with a shared MySQL database it fol
 
 Social spy is network wide: every private message is broadcast to the other servers as a spy event, and each server shows it to its local spies using its own `spy-format`. This also means PM contents travel over the broker for every message, so keep the broker private to your network.
 
+Mutes are network wide as well: `/voxen mute` and `unmute` take effect on every server immediately. Controlled by `network.sync-mutes` in `integrations.yml` (enabled by default). With shared MySQL, mutes also survive restarts on all servers; with per-server SQLite each server keeps its own copy from the moment it received the broadcast.
+
 ## Storage
 
 `storage.yml` selects where player data (channels, toggles, nicknames, ignores, mutes, parties) is kept:

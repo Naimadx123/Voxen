@@ -5,6 +5,7 @@ data class NetworkConfig(
     val serverId: String,
     val reconnectSeconds: Long,
     val timeoutMillis: Long,
+    val syncMutes: Boolean,
     val redis: Redis,
     val nats: Nats,
     val rabbit: Rabbit,

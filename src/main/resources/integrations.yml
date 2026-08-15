@@ -16,6 +16,8 @@ network:
   server-id: server-1
   reconnect-seconds: 5
   timeout-millis: 5000
+  # Broadcasts mutes and unmutes to the other servers as they happen.
+  sync-mutes: true
   redis:
     host: localhost
     port: 6379
