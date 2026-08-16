@@ -18,6 +18,7 @@ data class ModerationConfig(
     val normalizeLeet: Boolean = true,
     val normalizeDiacritics: Boolean = true,
     val normalizeSeparators: Boolean = true,
+    val normalizeRepeated: Boolean = true,
     val linksEnabled: Boolean = false,
     val linkMode: FilterMode = FilterMode.BLOCK,
     val linkIps: Boolean = true,
@@ -27,7 +28,19 @@ data class ModerationConfig(
     val historyKeepDays: Int = 14,
     val historyEntries: Int = 15,
 ) {
-    val wordIndex: Map<Char, List<String>> by lazy { blockedWords.groupBy { it.first() } }
+    val wordIndex: Map<Char, List<String>> by lazy {
+        val words = if (normalizeRepeated) blockedWords.map(::collapseRuns).distinct() else blockedWords
+        words.groupBy { it.first() }
+    }
+
+    private fun collapseRuns(word: String): String {
+        val builder = StringBuilder(word.length)
+        for (ch in word) {
+            if (builder.isNotEmpty() && builder.last() == ch) continue
+            builder.append(ch)
+        }
+        return builder.toString()
+    }
 
     enum class FilterMode {
         BLOCK,

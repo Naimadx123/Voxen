@@ -23,11 +23,14 @@ filter:
   # The path is relative to the plugin folder, e.g. "blocked-words.txt".
   words-file: ""
   patterns: []
-  # Catches bypass attempts like "d4rn", "d.a.r.n" or "dąrn". Applies to words only, not patterns.
+  # Catches bypass attempts like "d4rn", "d.a.r.n", "dąrn" or "daaarn".
+  # Applies to words only, not patterns.
+  # repeated collapses runs of the same letter, so "aa" and "aaa" both count as "a".
   normalize:
     leetspeak: true
     diacritics: true
     separators: true
+    repeated: true
 
 # Blocks links and IP addresses. mode: block (reject the message) or censor (mask the link).
 # Anything on the whitelist is allowed, including its subdomains.

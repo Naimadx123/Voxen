@@ -32,6 +32,7 @@ filter:
     leetspeak: true
     diacritics: true
     separators: true
+    repeated: true
 
 links:
   enabled: false
@@ -81,6 +82,7 @@ slow down a trade channel without slowing down everything.
 | `filter.normalize.leetspeak` | matches digit and symbol swaps, so `d4rn` and `$hoot` hit |
 | `filter.normalize.diacritics` | strips accents, so `dąrn` and `shoöt` hit |
 | `filter.normalize.separators` | ignores spacing and punctuation, so `d.a.r.n` hits |
+| `filter.normalize.repeated` | collapses runs of the same letter, so `daaarrn` hits |
 
 `words-file` is a path relative to the plugin folder, which keeps a long list out of the
 YAML:
@@ -94,6 +96,25 @@ filter:
 	Regex `patterns` always run against the raw message, so write them to match whatever
 	you need. Censoring still masks the original characters, so `d.a.r.n` becomes `*****`.
 </Aside>
+
+`repeated` also collapses the words you listed, so `daarn` in the list and `darn` in a
+message match each other. The price is the occasional false positive on words that legitimately
+double a letter, since `pass` is compared as `pas`. Turn it off if that bites.
+
+### Endings are not handled for you
+
+Matching is on substrings, not whole words, so a listed word catches anything containing
+it: `darn` also hits `darned` and `goddarn`. It does not work backwards, though, so a full
+form like `darned` misses the plain `darn`. List the **stem** and every ending follows.
+
+```yaml
+filter:
+  words:
+    - darn      # darn, darned, darning
+```
+
+This matters most in inflected languages, where one word has a dozen endings. One stem
+covers them all.
 
 In `censor` mode, players with `voxen.filter.toggle` can run `/filter` to see the
 uncensored original. `block` mode rejects messages before they exist, so there is nothing

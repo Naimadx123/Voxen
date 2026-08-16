@@ -178,6 +178,7 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `filter.normalize.leetspeak` | matches digit and symbol swaps, so `d4rn` and `$hoot` still hit the word list |
 | `filter.normalize.diacritics` | strips accents, so `dąrn` and `shoöt` still hit the word list |
 | `filter.normalize.separators` | ignores spacing and punctuation inside a word, so `d.a.r.n` still hits the word list |
+| `filter.normalize.repeated` | collapses runs of the same letter, so `daaarrn` still hits the word list |
 | `links.enabled` | the link and IP filter |
 | `links.mode` | `block` rejects the message, `censor` masks the link |
 | `links.ips` | also catches bare IPv4 addresses like `1.2.3.4:25565` |

@@ -238,6 +238,7 @@ class ConfigManager(
             normalizeLeet = yaml.getBoolean("filter.normalize.leetspeak", true),
             normalizeDiacritics = yaml.getBoolean("filter.normalize.diacritics", true),
             normalizeSeparators = yaml.getBoolean("filter.normalize.separators", true),
+            normalizeRepeated = yaml.getBoolean("filter.normalize.repeated", true),
             linksEnabled = yaml.getBoolean("links.enabled", false),
             linkMode = ModerationConfig.FilterMode.from(yaml.getString("links.mode")),
             linkIps = yaml.getBoolean("links.ips", true),

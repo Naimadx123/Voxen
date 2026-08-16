@@ -83,7 +83,11 @@ class WordFilter(
     }
 
     private fun normalize(lower: String, config: ModerationConfig): Normalized? {
-        if (!config.normalizeLeet && !config.normalizeDiacritics && !config.normalizeSeparators) return null
+        if (!config.normalizeLeet && !config.normalizeDiacritics &&
+            !config.normalizeSeparators && !config.normalizeRepeated
+        ) {
+            return null
+        }
         val builder = StringBuilder(lower.length)
         val map = IntArray(lower.length)
         var length = 0
@@ -92,6 +96,7 @@ class WordFilter(
             if (config.normalizeLeet) LEET[ch]?.let { ch = it }
             if (config.normalizeDiacritics && ch.code > 127) ch = stripDiacritic(ch)
             if (config.normalizeSeparators && !ch.isLetterOrDigit()) continue
+            if (config.normalizeRepeated && length > 0 && builder[length - 1] == ch) continue
             builder.append(ch)
             map[length++] = i
         }
