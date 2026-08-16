@@ -242,6 +242,7 @@ class ConfigManager(
             linksEnabled = yaml.getBoolean("links.enabled", false),
             linkMode = ModerationConfig.FilterMode.from(yaml.getString("links.mode")),
             linkIps = yaml.getBoolean("links.ips", true),
+            linkObfuscated = yaml.getBoolean("links.obfuscated", true),
             linkWhitelist = yaml.getStringList("links.whitelist")
                 .mapNotNull { it.trim().lowercase().removePrefix("*.").ifEmpty { null } }
                 .toSet(),

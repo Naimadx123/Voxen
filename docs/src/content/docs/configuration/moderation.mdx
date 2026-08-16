@@ -131,7 +131,14 @@ to reveal.
 | `links.enabled` | the link and IP filter |
 | `links.mode` | `block` rejects the message, `censor` masks the link |
 | `links.ips` | also catches bare IPv4 addresses like `1.2.3.4:25565` |
+| `links.obfuscated` | also catches `play,server,pl`, where a comma or apostrophe stands in for the dot |
 | `links.whitelist` | domains that stay allowed, subdomains included |
+
+`obfuscated` covers the usual dodge of writing `play,server,pl` or `play'server'pl` instead
+of dots. To keep normal sentences out of it, a match has to end in something that really
+looks like a domain ending (`com`, `pl`, `gg`, `xyz` and the rest of the common list) and
+start with at least three characters, so `hello, world` and `no,it isn't` pass. The
+`whitelist` applies here too.
 
 It runs **before** the word filter and has its own bypass, `voxen.bypass.links`, so staff
 can post links while everyone else cannot. Addresses count with or without a scheme, so

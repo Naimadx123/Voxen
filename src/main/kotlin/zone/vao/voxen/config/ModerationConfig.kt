@@ -22,6 +22,7 @@ data class ModerationConfig(
     val linksEnabled: Boolean = false,
     val linkMode: FilterMode = FilterMode.BLOCK,
     val linkIps: Boolean = true,
+    val linkObfuscated: Boolean = true,
     val linkWhitelist: Set<String> = emptySet(),
     val slowmodeEnabled: Boolean = true,
     val historyEnabled: Boolean = false,

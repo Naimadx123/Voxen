@@ -38,6 +38,10 @@ links:
   enabled: false
   mode: block
   ips: true
+  # Also catches addresses written with a comma or apostrophe instead of a dot,
+  # like "play,server,pl". Only endings that look like a real domain count,
+  # so "hello, world" stays fine.
+  obfuscated: true
   whitelist:
     - youtube.com
     - youtu.be

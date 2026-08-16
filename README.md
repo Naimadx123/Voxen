@@ -182,6 +182,7 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `links.enabled` | the link and IP filter |
 | `links.mode` | `block` rejects the message, `censor` masks the link |
 | `links.ips` | also catches bare IPv4 addresses like `1.2.3.4:25565` |
+| `links.obfuscated` | also catches `play,server,pl`, where a comma or apostrophe stands in for the dot; only real-looking domain endings count, so `hello, world` passes |
 | `links.whitelist` | domains that stay allowed, subdomains included |
 | `slowmode.enabled` | lets staff raise a channel's cooldown with `/voxen slowmode` |
 | `history.enabled` | stores every sent message so staff can read it back with `/voxen history` |

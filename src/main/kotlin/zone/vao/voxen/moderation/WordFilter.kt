@@ -46,11 +46,18 @@ class WordFilter(
 
     fun checkLinks(content: String): Result {
         val config = moderation()
-        if (!config.linksEnabled || !content.contains('.')) return Result.Clean
+        if (!config.linksEnabled) return Result.Clean
+        if (!content.any { it == '.' || (config.linkObfuscated && it in SEPARATORS) }) return Result.Clean
 
         val ranges = mutableListOf<IntRange>()
         for (match in URL.findAll(content)) {
             if (!isWhitelisted(match.value, config.linkWhitelist)) ranges += match.range
+        }
+        if (config.linkObfuscated) {
+            for (match in OBFUSCATED.findAll(content)) {
+                val dotted = match.value.map { if (it in SEPARATORS) '.' else it }.joinToString("")
+                if (!isWhitelisted(dotted, config.linkWhitelist)) ranges += match.range
+            }
         }
         if (config.linkIps) {
             for (match in IP.findAll(content)) ranges += match.range
@@ -114,5 +121,11 @@ class WordFilter(
         val SPECIAL = mapOf('ł' to 'l', 'ø' to 'o', 'đ' to 'd', 'æ' to 'a', 'ß' to 's')
         val URL = Regex("""(?:[a-z][a-z0-9+.-]*://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?(?:/\S*)?""", RegexOption.IGNORE_CASE)
         val IP = Regex("""\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?\b""")
+        const val SEPARATORS = ",;'`·•"
+        val TLDS = "com|net|org|info|biz|shop|store|online|site|live|fun|top|xyz|app|dev|gg|io|me|tv|cc|eu|pl|de|uk|us|ru|cz|sk|nl|fr|es|it"
+        val OBFUSCATED = Regex(
+            """\b[a-z0-9][a-z0-9-]{2,}(?:[,;'`·•][a-z0-9][a-z0-9-]*)*[,;'`·•](?:$TLDS)\b(?::\d{1,5})?(?:/\S*)?""",
+            RegexOption.IGNORE_CASE,
+        )
     }
 }
