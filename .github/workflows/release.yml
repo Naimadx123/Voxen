@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean build -Pversion=${{ steps.version.outputs.version }} --stacktrace
+
+      - name: Upload snapshot artifact
+        if: ${{ endsWith(steps.version.outputs.version, '-SNAPSHOT') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Voxen-v${{ steps.version.outputs.version }}
+          path: build/libs/Voxen-v${{ steps.version.outputs.version }}.jar
+          if-no-files-found: error
+
+      - name: Create release
+        if: ${{ !endsWith(steps.version.outputs.version, '-SNAPSHOT') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Voxen ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: build/libs/Voxen-v${{ steps.version.outputs.version }}.jar
