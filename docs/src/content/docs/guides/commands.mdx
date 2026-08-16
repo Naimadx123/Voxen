@@ -21,12 +21,18 @@ Names below are the defaults. Every player command can be renamed and aliased un
 | `/chattoggle` | hide or show the chat | everyone |
 | `/lang <language\|auto>` | choose the message language | everyone |
 | `/nick <nickname\|reset>` | manage your nickname | `voxen.nick` |
-| `/nick <nickname> <player>` | manage someone's nickname | `voxen.nick.others` |
+| `/nick <nickname\|reset> <player>` | manage someone's nickname | `voxen.nick.others` |
 | `/realname <nickname>` | find the account behind a nickname | `voxen.realname` |
 | `/filter` | see chat without the word filter | `voxen.filter.toggle` |
 
 Channels also register their own `aliases`, so `/g hello` and `/sc hello` work without
 switching channel.
+
+<Aside type="note" title="Clearing a nickname">
+	`reset` (or `off`) goes where the nickname goes, so removing someone else's is
+	`/nick reset Steve`, not `/nick Steve reset`. The target has to be online. Both of you
+	get told about it.
+</Aside>
 
 ## Staff commands
 

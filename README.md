@@ -254,7 +254,7 @@ Names below are defaults; see [config.yml](#configyml) for renaming.
 | `/chattoggle` | hide or show the chat | everyone |
 | `/lang <language\|auto>` | choose the message language | everyone |
 | `/nick <nickname\|reset>` | manage your nickname | `voxen.nick` |
-| `/nick <nickname> <player>` | manage someone's nickname | `voxen.nick.others` |
+| `/nick <nickname\|reset> <player>` | manage someone's nickname | `voxen.nick.others` |
 | `/realname <nickname>` | find the account behind a nickname | `voxen.realname` |
 | `/filter` | see chat without the word filter | `voxen.filter.toggle` |
 
