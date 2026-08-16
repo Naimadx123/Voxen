@@ -6,19 +6,14 @@ import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
+import org.bstats.bukkit.Metrics
 import org.bukkit.entity.Player
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
 import zone.vao.voxen.chat.ChatListener
 import zone.vao.voxen.chat.ChatService
 import zone.vao.voxen.chat.FormatService
-import zone.vao.voxen.command.ChannelCommand
-import zone.vao.voxen.command.IgnoreCommand
-import zone.vao.voxen.command.MessageCommand
-import zone.vao.voxen.command.NickCommand
-import zone.vao.voxen.command.PartyCommand
-import zone.vao.voxen.command.ToggleCommands
-import zone.vao.voxen.command.VoxenCommand
+import zone.vao.voxen.command.*
 import zone.vao.voxen.config.ConfigManager
 import zone.vao.voxen.config.Messages
 import zone.vao.voxen.hook.HookManager
@@ -38,7 +33,7 @@ import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.tags.ContentRenderer
 import zone.vao.voxen.util.UpdateChecker
-import java.util.UUID
+import java.util.*
 
 @Suppress("UnstableApiUsage")
 class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
@@ -188,6 +183,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         val updateChecker = UpdateChecker(this)
         server.pluginManager.registerEvents(updateChecker, this)
         updateChecker.start()
+
+        Metrics(this, 33423)
 
         logger.info("Voxen enabled — ${configManager.config.channels.count { it.value.enabled }} channel(s) loaded.")
     }

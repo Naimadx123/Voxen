@@ -31,6 +31,7 @@ dependencies {
     compileOnly("io.nats:jnats:$natsVersion")
     compileOnly("com.rabbitmq:amqp-client:$amqpVersion")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    implementation("org.bstats:bstats-bukkit:3.2.1")
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
@@ -69,6 +70,7 @@ tasks {
             exclude(dependency("org.jetbrains.kotlin:.*:.*"))
             exclude(dependency("org.jetbrains:annotations:.*"))
         }
+        relocate("org.bstats", "${project.group}.voxen.thirdparties.bstats")
     }
 
     build {
