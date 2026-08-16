@@ -2,7 +2,7 @@ display-name: "<green>Global</green>"
 type: global
 enabled: true
 default: true
-default-active: false
+default-active: true
 quick-prefix: "!"
 aliases: [g, global]
 cooldown: ""

@@ -2,7 +2,7 @@ display-name: "<yellow>Local</yellow>"
 type: local
 enabled: false
 default: false
-default-active: true
+default-active: false
 radius: 100
 empty-warning: true
 aliases: [l, local]
