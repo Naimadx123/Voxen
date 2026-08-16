@@ -174,3 +174,22 @@ tag handled by `unauthorized-mode`, so it either shows up as plain text or disap
 	The value is parsed with the full tag set, not the player's. Whatever you put in there
 	renders, so treat it as something only you write.
 </Aside>
+
+### Outside chat
+
+Other plugins never ask Voxen what `<xp>` means, so the tag stays raw in a tablist or a
+sidebar. The same rules are therefore exposed through both placeholder systems:
+
+| Where | Syntax |
+| --- | --- |
+| PlaceholderAPI | `%voxen_tag_xp%` |
+| MiniPlaceholders | `<voxen_tag:xp>` |
+
+Both go through the same permission check as the chat tag, so a player without the node
+gets nothing back. PlaceholderAPI has no way to return a component, so that one is
+serialized to legacy `§` codes; MiniPlaceholders returns the real component.
+
+<Aside type="note">
+	Aliases work here too, and the name is case insensitive. A tag that does not exist,
+	is disabled, or is not permitted resolves to an empty string.
+</Aside>

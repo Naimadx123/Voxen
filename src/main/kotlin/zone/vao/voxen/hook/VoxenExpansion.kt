@@ -1,8 +1,10 @@
 package zone.vao.voxen.hook
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
+import zone.vao.voxen.tags.Replacements
 
 class VoxenExpansion(private val plugin: Voxen) : PlaceholderExpansion() {
 
@@ -16,6 +18,15 @@ class VoxenExpansion(private val plugin: Voxen) : PlaceholderExpansion() {
 
     override fun onPlaceholderRequest(player: Player?, params: String): String? {
         if (player == null) return null
+        if (params.startsWith(TAG_PREFIX, ignoreCase = true)) {
+            val component = Replacements.component(
+                plugin.hookManager,
+                plugin.configManager.config.tags,
+                player,
+                params.substring(TAG_PREFIX.length),
+            ) ?: return ""
+            return LegacyComponentSerializer.legacySection().serialize(component)
+        }
         return when (params.lowercase()) {
             "channel" -> plugin.channelService.activeChannel(player)?.id ?: ""
             "channel_display" -> plugin.channelService.activeChannel(player)?.displayName ?: ""
@@ -30,5 +41,9 @@ class VoxenExpansion(private val plugin: Voxen) : PlaceholderExpansion() {
             "similarity_threshold" -> plugin.configManager.config.moderation.similarityThresholdPercent
             else -> null
         }
+    }
+
+    private companion object {
+        const val TAG_PREFIX = "tag_"
     }
 }

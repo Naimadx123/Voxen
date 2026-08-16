@@ -131,6 +131,8 @@ custom-tags: {}
 # require-permission - false lets everyone use the tag, no node needed.
 # aliases            - other names for the same tag.
 # A player without the permission sees the tag handled by 'unauthorized-mode'.
+# Outside chat the same tags are available as %voxen_tag_<name>% (PlaceholderAPI)
+# and <voxen_tag:<name>> (MiniPlaceholders), so tablists and sidebars can use them.
 replacements: {}
 #  xp:
 #    enabled: true

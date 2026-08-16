@@ -1,7 +1,6 @@
 package zone.vao.voxen.chat
 
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -22,6 +21,7 @@ import zone.vao.voxen.moderation.WordFilter
 import zone.vao.voxen.storage.ChatLogEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.tags.Replacements
 import zone.vao.voxen.util.Durations
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -44,7 +44,6 @@ class ChatService(
     var remotePublisher: ((Channel, Player, Component, String) -> Unit)? = null
 
     private val plain = PlainTextComponentSerializer.plainText()
-    private val mm = MiniMessage.miniMessage()
     private val lastItemShare = ConcurrentHashMap<UUID, Long>()
 
     class Outgoing(
@@ -344,16 +343,10 @@ class ChatService(
         val replacements = config().tags.replacements
         if (replacements.isEmpty() || !content.contains('<')) return emptyList()
         return replacements.values.mapNotNull { rule ->
-            if (!rule.enabled || rule.value.isEmpty()) return@mapNotNull null
-            if (rule.requirePermission &&
-                !player.hasPermission(rule.permission) &&
-                !player.hasPermission(ContentRenderer.TAG_WILDCARD)
-            ) {
-                return@mapNotNull null
-            }
+            if (!Replacements.permitted(rule, player)) return@mapNotNull null
             val used = rule.names().filter { content.contains("<$it>", ignoreCase = true) }
             if (used.isEmpty()) return@mapNotNull null
-            val rendered = mm.deserialize(hooks.applyPlaceholders(player, rule.value))
+            val rendered = Replacements.render(hooks, rule, player)
             TagResolver.resolver(used.map { Placeholder.component(it, rendered) })
         }
     }

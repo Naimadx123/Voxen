@@ -2,8 +2,10 @@ package zone.vao.voxen.hook
 
 import io.github.miniplaceholders.api.Expansion
 import io.github.miniplaceholders.api.utils.TagsUtils
+import net.kyori.adventure.text.minimessage.tag.Tag
 import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
+import zone.vao.voxen.tags.Replacements
 
 object VoxenTags {
 
@@ -14,6 +16,17 @@ object VoxenTags {
                 val player = audience as? Player ?: return@audiencePlaceholder TagsUtils.EMPTY_TAG
                 TagsUtils.staticTag(value(player))
             }
+        }
+        builder.audiencePlaceholder("tag") { audience, queue, _ ->
+            val player = audience as? Player ?: return@audiencePlaceholder TagsUtils.EMPTY_TAG
+            if (!queue.hasNext()) return@audiencePlaceholder TagsUtils.EMPTY_TAG
+            val component = Replacements.component(
+                plugin.hookManager,
+                plugin.configManager.config.tags,
+                player,
+                queue.pop().value(),
+            ) ?: return@audiencePlaceholder TagsUtils.EMPTY_TAG
+            Tag.selfClosingInserting(component)
         }
         builder.build().register()
     }
