@@ -37,6 +37,7 @@ import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.UpdateChecker
 import java.util.UUID
 
 @Suppress("UnstableApiUsage")
@@ -183,6 +184,10 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         server.servicesManager.register(VoxenService::class.java, this, this, org.bukkit.plugin.ServicePriority.Normal)
         registerPlaceholders()
         registerCommands()
+
+        val updateChecker = UpdateChecker(this)
+        server.pluginManager.registerEvents(updateChecker, this)
+        updateChecker.start()
 
         logger.info("Voxen enabled — ${configManager.config.channels.count { it.value.enabled }} channel(s) loaded.")
     }

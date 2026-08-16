@@ -142,3 +142,5 @@ party-no-invite: "<red>Nie masz oczekującego zaproszenia."
 party-target-in-party: "<red>Ten gracz jest już w drużynie."
 party-invalid-name: "<red>Nazwa drużyny może zawierać tylko litery, cyfry, '-' i '_' (maks. 32 znaki)."
 party-channel-missing: "<red>Brak skonfigurowanego kanału drużyny."
+
+update-available: "<gradient:#00d4ff:#7b5cff><bold>Voxen <latest></bold></gradient> <gray>jest już dostępna, masz <red><current></red>. <aqua><url>"

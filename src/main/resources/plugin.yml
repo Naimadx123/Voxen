@@ -84,6 +84,9 @@ permissions:
   voxen.chat.miniplaceholders:
     description: Parses every MiniPlaceholders tag in this player's chat messages. Single tags can be granted with voxen.chat.miniplaceholders.<tag>.
     default: op
+  voxen.update:
+    description: Receives a notice on join when a newer Voxen release is out.
+    default: op
   voxen.bypass.cooldown:
     description: Bypasses chat cooldowns.
     default: op

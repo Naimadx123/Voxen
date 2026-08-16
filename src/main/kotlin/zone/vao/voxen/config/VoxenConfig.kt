@@ -22,6 +22,12 @@ data class VoxenConfig(
     val nicknames: NicknamesConfig,
     val emotes: EmotesConfig,
     val chatDelivery: ChatDelivery,
+    val updateChecker: UpdateCheckerConfig,
+)
+
+data class UpdateCheckerConfig(
+    val enabled: Boolean,
+    val notify: Boolean,
 )
 
 enum class ChatDelivery {

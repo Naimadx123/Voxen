@@ -31,6 +31,13 @@ nicknames:
   # Rejects nicknames containing words blocked by the moderation word filter.
   filter: true
 
+# Checks https://github.com/Naimadx123/Voxen/releases once on startup and logs when a
+# newer version is out. Nothing is downloaded or installed.
+# notify: also tells players with voxen.update when they join.
+update-checker:
+  enabled: true
+  notify: true
+
 # Command names; the first entry is the main name, the rest are aliases.
 # Rename them freely, e.g. "message: [priv, szept]" turns /msg into /priv and /szept.
 # /voxen always keeps its name. Changing these requires a server restart.

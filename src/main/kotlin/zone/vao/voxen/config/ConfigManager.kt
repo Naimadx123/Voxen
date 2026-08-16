@@ -61,6 +61,10 @@ class ConfigManager(
                 maxLength = main.getInt("nicknames.max-length", 24).coerceAtLeast(1),
                 filter = main.getBoolean("nicknames.filter", true),
             ),
+            updateChecker = UpdateCheckerConfig(
+                enabled = main.getBoolean("update-checker.enabled", true),
+                notify = main.getBoolean("update-checker.notify", true),
+            ),
         )
     }
 

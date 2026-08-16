@@ -142,3 +142,5 @@ party-no-invite: "<red>You have no pending party invitation."
 party-target-in-party: "<red>That player is already in a party."
 party-invalid-name: "<red>Party names may only contain letters, digits, '-' and '_' (max 32 chars)."
 party-channel-missing: "<red>No party channel is configured."
+
+update-available: "<gradient:#00d4ff:#7b5cff><bold>Voxen <latest></bold></gradient> <gray>is out, you are running <red><current></red>. <aqua><url>"

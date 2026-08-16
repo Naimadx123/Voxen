@@ -19,6 +19,8 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 | `nicknames.min-length` | `3` | minimum visible length, formatting tags excluded |
 | `nicknames.max-length` | `24` | maximum visible length |
 | `nicknames.filter` | `true` | rejects nicknames containing blocked words |
+| `update-checker.enabled` | `true` | checks GitHub for a newer release on startup |
+| `update-checker.notify` | `true` | also tells players with `voxen.update` when they join |
 | `commands.*` | see below | command names and aliases |
 
 ## Chat delivery
@@ -83,6 +85,24 @@ limit. With `filter: true` a nickname containing a word from
 console there is no hover, so staff use `/realname <nickname>` instead. Setting
 `enabled: false` removes `/nick` and `/realname` after a restart and stops nicknames from
 being displayed.
+
+## Update checker
+
+```yaml
+update-checker:
+  enabled: true
+  notify: true
+```
+
+One request to the GitHub releases API when the server starts, off the main thread. If the
+newest tag is higher than the running version it goes into the console, and players holding
+`voxen.update` get the `update-available` message shortly after they join. Nothing is ever
+downloaded or installed, and a failed request is silent.
+
+<Aside type="note">
+	Pre-release suffixes are ignored in the comparison, so `1.0-SNAPSHOT` is treated as
+	`1.0` and will not report itself as out of date.
+</Aside>
 
 ## Item sharing
 
