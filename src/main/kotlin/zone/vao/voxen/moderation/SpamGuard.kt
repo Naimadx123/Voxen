@@ -13,6 +13,7 @@ class SpamGuard(
         data object Ok : Result
         data class Cooldown(val remainingMillis: Long) : Result
         data object Repeat : Result
+        data object Flood : Result
     }
 
     private data class Recent(val normalized: String, val at: Long)
@@ -49,6 +50,8 @@ class SpamGuard(
             }
         }
 
+        if (!bypassRepeat && config.floodEnabled && isFlood(content, config)) return Result.Flood
+
         val normalized = normalize(content)
         val recent = state?.recent.orEmpty().filter { inWindow(it, now, config.repeatWindowMillis) }
         if (!bypassRepeat && config.repeatEnabled) {
@@ -73,6 +76,26 @@ class SpamGuard(
 
     fun clear() {
         states.clear()
+    }
+
+    private fun isFlood(content: String, config: ModerationConfig): Boolean {
+        if (config.floodMaxRun > 0) {
+            var run = 1
+            for (i in 1 until content.length) {
+                if (content[i] == content[i - 1] && !content[i].isWhitespace()) {
+                    run++
+                    if (run > config.floodMaxRun) return true
+                } else {
+                    run = 1
+                }
+            }
+        }
+        if (config.floodMaxWordLength > 0) {
+            for (word in content.split(WHITESPACE)) {
+                if (word.length > config.floodMaxWordLength && word.none { it in LINKISH }) return true
+            }
+        }
+        return false
     }
 
     private fun normalize(content: String): String =
@@ -107,5 +130,6 @@ class SpamGuard(
 
     private companion object {
         val WHITESPACE = Regex("\\s+")
+        const val LINKISH = ".:/"
     }
 }

@@ -13,6 +13,15 @@ anti-repeat:
     threshold: 0.85
     history: 3
 
+# Blocks messages that are just noise, like "aaaaaaaaaaaa" or a wall of random keys.
+# max-run: how many identical characters in a row are still allowed.
+# max-word-length: longest allowed word; anything containing '.', ':' or '/' is left
+# to the link filter instead. 0 turns a check off.
+anti-flood:
+  enabled: true
+  max-run: 8
+  max-word-length: 30
+
 # Blocked words and regex patterns. mode: block (reject the message) or censor (mask matches).
 filter:
   enabled: true

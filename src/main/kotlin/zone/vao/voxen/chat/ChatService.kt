@@ -147,6 +147,10 @@ class ChatService(
                 )
                 return null
             }
+            SpamGuard.Result.Flood -> {
+                messages.send(player, "chat-flood")
+                return null
+            }
             SpamGuard.Result.Ok -> Unit
         }
 

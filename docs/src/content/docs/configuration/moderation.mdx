@@ -21,6 +21,11 @@ anti-repeat:
     threshold: 0.85
     history: 3
 
+anti-flood:
+  enabled: true
+  max-run: 8
+  max-word-length: 30
+
 filter:
   enabled: true
   mode: censor
@@ -74,6 +79,30 @@ slow down a trade channel without slowing down everything.
 The `chat-repeat` message gets `<threshold>`, the configured percentage, so players can see
 how close is too close. The same value is available anywhere else as
 `%voxen_similarity_threshold%` or `<voxen_similarity_threshold>`.
+
+## Anti-flood
+
+| Key | Meaning |
+| --- | --- |
+| `anti-flood.enabled` | rejects messages that are only noise |
+| `anti-flood.max-run` | how many identical characters in a row are still allowed |
+| `anti-flood.max-word-length` | longest allowed word, `0` turns the check off |
+
+This is the one that stops `aaaaaaaaaaaaaaaaaaaa` and a wall of mashed keys. Two checks,
+both cheap and both aimed at message **shape**, not content:
+
+- a run of more than `max-run` of the same character. `hellooooo` and `aaaaaaaa` still pass
+  at the default of 8, `aaaaaaaaa` does not.
+- a single word longer than `max-word-length`. Normal sentences have spaces, keyboard mash
+  does not. Words containing `.`, `:` or `/` are skipped so links keep going to the link
+  filter, where the whitelist can let them through.
+
+`voxen.bypass.spam` skips it, same as anti-repeat.
+
+<Aside type="note" title="Random characters with spaces">
+	`kj sdf wer oiu` is not caught, since nothing about it looks different from a short
+	sentence. Repeat it and anti-repeat picks it up instead.
+</Aside>
 
 ## Word filter
 

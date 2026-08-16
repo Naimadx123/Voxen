@@ -170,6 +170,9 @@ Typing `@name` highlights the message for that player and plays a sound. `highli
 | `anti-repeat.similarity.enabled` | also blocks messages that are only slightly changed |
 | `anti-repeat.similarity.threshold` | how alike two messages must be to count as a repeat, `0.0` to `1.0` |
 | `anti-repeat.similarity.history` | how many recent messages each new one is compared against |
+| `anti-flood.enabled` | rejects noise like `aaaaaaaaaaaa` or a wall of mashed keys |
+| `anti-flood.max-run` | how many identical characters in a row are still allowed |
+| `anti-flood.max-word-length` | longest allowed word; words containing `.`, `:` or `/` are left to the link filter, `0` turns the check off |
 | `filter.enabled` | the word filter |
 | `filter.mode` | `block` rejects the message, `censor` masks matches with `censor-char` |
 | `filter.words` | list of blocked words, matched case-insensitively |
