@@ -134,3 +134,43 @@ custom-tags:
 `<glyph:smile>`. Voxen does not render these tags itself, it only decides whether they
 survive in the message. Prefer `strip` here, since an escaped tag may still be picked up
 by whichever plugin renders it.
+
+## Your own tags
+
+`replacements:` is for tags you invent. A player types `<xp>` and Voxen swaps it for
+whatever `value` says:
+
+```yaml title="plugins/Voxen/modules/minimessage-tags.yml"
+replacements:
+  xp:
+    enabled: true
+    value: "<gray>[<gold>%island_xp% XP<gray>]"
+    permission: voxen.chat.tag.xp
+    require-permission: true
+    aliases: [exp]
+  ping:
+    enabled: true
+    value: "<gray>(<green>%player_ping%ms<gray>)"
+    require-permission: false
+```
+
+The value is MiniMessage and its PlaceholderAPI placeholders are filled in for the player
+who typed the tag, so everyone gets their own numbers. Tag names are case insensitive,
+`<XP>` and `<xp>` are the same tag.
+
+| Key | Effect |
+| --- | --- |
+| `enabled` | turns the tag off without deleting it |
+| `value` | what the tag becomes, MiniMessage plus placeholders |
+| `permission` | who may use it, defaults to `voxen.chat.tag.<name>` |
+| `require-permission` | `false` opens the tag to everyone |
+| `aliases` | other names for the same tag |
+
+`voxen.chat.tag.*` covers every tag at once, and a negated node in LuckPerms
+(`- voxen.chat.tag.xp`) takes a single one back. A player without the permission gets the
+tag handled by `unauthorized-mode`, so it either shows up as plain text or disappears.
+
+<Aside type="caution">
+	The value is parsed with the full tag set, not the player's. Whatever you put in there
+	renders, so treat it as something only you write.
+</Aside>

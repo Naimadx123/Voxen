@@ -1,6 +1,7 @@
 package zone.vao.voxen.chat
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -43,6 +44,7 @@ class ChatService(
     var remotePublisher: ((Channel, Player, Component, String) -> Unit)? = null
 
     private val plain = PlainTextComponentSerializer.plainText()
+    private val mm = MiniMessage.miniMessage()
     private val lastItemShare = ConcurrentHashMap<UUID, Long>()
 
     class Outgoing(
@@ -197,6 +199,7 @@ class ChatService(
         val finalRecipients = event.recipients.filter { it.isOnline }
 
         val extraResolvers = itemResolvers(player, channel, content) +
+            replacementResolvers(player, content) +
             Placeholder.unparsed("server", config().serverName) +
             listOfNotNull(hooks.miniPlaceholders?.gated(player) { name ->
                 player.hasPermission(MINI_PERMISSION) || player.hasPermission("$MINI_PERMISSION.$name")
@@ -334,6 +337,24 @@ class ChatService(
             listOf(ItemTags.resolvers(player, emptyLabel))
         } else {
             emptyList()
+        }
+    }
+
+    private fun replacementResolvers(player: Player, content: String): List<TagResolver> {
+        val replacements = config().tags.replacements
+        if (replacements.isEmpty() || !content.contains('<')) return emptyList()
+        return replacements.values.mapNotNull { rule ->
+            if (!rule.enabled || rule.value.isEmpty()) return@mapNotNull null
+            if (rule.requirePermission &&
+                !player.hasPermission(rule.permission) &&
+                !player.hasPermission(ContentRenderer.TAG_WILDCARD)
+            ) {
+                return@mapNotNull null
+            }
+            val used = rule.names().filter { content.contains("<$it>", ignoreCase = true) }
+            if (used.isEmpty()) return@mapNotNull null
+            val rendered = mm.deserialize(hooks.applyPlaceholders(player, rule.value))
+            TagResolver.resolver(used.map { Placeholder.component(it, rendered) })
         }
     }
 

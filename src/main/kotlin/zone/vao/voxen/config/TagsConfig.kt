@@ -7,6 +7,7 @@ data class TagsConfig(
     val legacyEnabled: Boolean,
     val rules: Map<String, TagRule>,
     val custom: Map<String, TagRule> = emptyMap(),
+    val replacements: Map<String, TagRule> = emptyMap(),
 ) {
     enum class UnauthorizedMode {
         STRIP,
@@ -25,6 +26,8 @@ data class TagsConfig(
         val aliases: List<String>,
         val blockedParams: List<Pattern>,
         val actionPermissions: Map<String, String>,
+        val value: String = "",
+        val requirePermission: Boolean = true,
     ) {
         fun names(): List<String> = listOf(name) + aliases
     }

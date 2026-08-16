@@ -120,3 +120,25 @@ custom-tags: {}
 #  shift:
 #    enabled: true
 #    permission: voxen.chat.tag.shift
+
+# Your own tags. A player writes <xp> and it turns into whatever 'value' says.
+# The value is MiniMessage and PlaceholderAPI placeholders in it are filled in for
+# the player who typed the tag, so it can show their own stats.
+# enabled            - turns the tag off without deleting it.
+# permission         - who may use it. Defaults to voxen.chat.tag.<name>;
+#                      voxen.chat.tag.* covers every tag at once. A negated node
+#                      (- voxen.chat.tag.xp in LuckPerms) takes it away again.
+# require-permission - false lets everyone use the tag, no node needed.
+# aliases            - other names for the same tag.
+# A player without the permission sees the tag handled by 'unauthorized-mode'.
+replacements: {}
+#  xp:
+#    enabled: true
+#    value: "<gray>[<gold>%player_level% XP<gray>]"
+#    permission: voxen.chat.tag.xp
+#    require-permission: true
+#    aliases: [exp]
+#  ping:
+#    enabled: true
+#    value: "<gray>(<green>%player_ping%ms<gray>)"
+#    require-permission: false

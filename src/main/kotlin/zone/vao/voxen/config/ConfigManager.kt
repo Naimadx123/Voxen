@@ -312,6 +312,7 @@ class ConfigManager(
         legacyEnabled = yaml.getBoolean("legacy.enabled", true),
         rules = parseTagSection(yaml, "tags"),
         custom = parseTagSection(yaml, "custom-tags"),
+        replacements = parseTagSection(yaml, "replacements"),
     )
 
     private fun resolveUnauthorizedMode(yaml: YamlConfiguration): TagsConfig.UnauthorizedMode {
@@ -356,6 +357,8 @@ class ConfigManager(
                                     ?.let { put(action.lowercase(), it) }
                             }
                         },
+                        value = rule.getString("value").orEmpty(),
+                        requirePermission = rule.getBoolean("require-permission", true),
                     ),
                 )
             }

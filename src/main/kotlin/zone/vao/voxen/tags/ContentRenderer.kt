@@ -125,7 +125,7 @@ class ContentRenderer(
         hasPermission: (String) -> Boolean,
     ): String {
         var result = raw
-        for (rule in config.custom.values) {
+        for (rule in config.custom.values + config.replacements.values) {
             val names = rule.names().joinToString("|") { Regex.escape(it) }
             val pattern = Regex("(?<!\\\\)</?(?:$names)(?::([^>]*))?>", RegexOption.IGNORE_CASE)
             result = pattern.replace(result) { match ->
@@ -141,6 +141,7 @@ class ContentRenderer(
 
     private fun customPermitted(rule: TagsConfig.TagRule, args: String, hasPermission: (String) -> Boolean): Boolean {
         if (!rule.enabled) return false
+        if (!rule.requirePermission) return true
         if (hasPermission(rule.permission) || hasPermission(TAG_WILDCARD)) return true
         val first = args.substringBefore(':').trim().lowercase()
         return first.isNotEmpty() && hasPermission("${rule.permission}.$first")
@@ -157,7 +158,7 @@ class ContentRenderer(
         fun negated(node: String) = isPermissionSet(node) && !hasPermission(node)
         fun blocked(match: String) = if (mode == TagsConfig.UnauthorizedMode.STRIP) "" else "\\$match"
         var result = raw
-        for (rule in config.rules.values + config.custom.values) {
+        for (rule in config.rules.values + config.custom.values + config.replacements.values) {
             val aliases = rule.names() + if (rule.name == "color") listOf("colour", "c") else emptyList()
             val names = aliases.joinToString("|") { Regex.escape(it) }
             val pattern = Regex("(?<!\\\\)<(?:$names):([^>]*)>", RegexOption.IGNORE_CASE)
@@ -179,7 +180,7 @@ class ContentRenderer(
 
     private fun escapeBlockedParams(raw: String, config: TagsConfig): String {
         var result = raw
-        for (rule in config.rules.values + config.custom.values) {
+        for (rule in config.rules.values + config.custom.values + config.replacements.values) {
             if (rule.blockedParams.isEmpty()) continue
             val names = rule.names().joinToString("|") { Regex.escape(it) }
             val pattern = Regex("<(?:$names):([^>]*)>", RegexOption.IGNORE_CASE)
