@@ -28,7 +28,7 @@ class HookManager(private val plugin: JavaPlugin) {
     fun load(integrations: IntegrationsConfig) {
         meta = resolveMeta(integrations)
         papi = if (integrations.placeholderApi && plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
-            runCatching { PapiFormatHook() }
+            runCatching { PapiFormatHook(plugin.logger) }
                 .onFailure { plugin.logger.warning("Failed to hook into PlaceholderAPI: ${it.message}") }
                 .getOrNull()
         } else {
