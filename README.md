@@ -425,6 +425,7 @@ Both directions work when PlaceholderAPI is installed:
 | `%voxen_party_leader%` | party leader's name or empty |
 | `%voxen_language%` | chosen language or `auto` |
 | `%voxen_mentions%` / `%voxen_pm%` / `%voxen_chat%` | personal toggle states |
+| `%voxen_similarity_threshold%` | anti-repeat similarity threshold as a percentage, e.g. `85` |
 
 ## MiniPlaceholders
 
@@ -441,6 +442,7 @@ The same state is published as a MiniPlaceholders expansion when that plugin is 
 | `<voxen_nickname>` | nickname without formatting, real name when none is set |
 | `<voxen_server>` | `server-name` from config.yml |
 | `<voxen_mentions>` / `<voxen_pm>` / `<voxen_chat>` | personal toggle states |
+| `<voxen_similarity_threshold>` | anti-repeat similarity threshold as a percentage, e.g. `85` |
 
 The `miniplaceholders` switch in `integrations.yml` covers both directions: it decides whether Voxen reads other plugins' tags in chat and whether it publishes its own. Registration happens once on startup, so a `/voxen reload` does not re-register the expansion.
 

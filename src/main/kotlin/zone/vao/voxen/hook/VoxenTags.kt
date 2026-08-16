@@ -36,5 +36,6 @@ object VoxenTags {
                 .plainNickname(plugin.contentRenderer::plain) ?: player.name
         },
         "server" to { _ -> plugin.configManager.config.serverName },
+        "similarity_threshold" to { _ -> plugin.configManager.config.moderation.similarityThresholdPercent },
     )
 }

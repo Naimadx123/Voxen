@@ -50,7 +50,7 @@ history-header: "<aqua>Last <amount> message(s) from <white><player></white>:"
 history-entry: "<gray>  [<time>] <white><channel></white>/<white><server></white>: <message>"
 
 chat-cooldown: "<red>Wait <white><remaining></white> before sending another message."
-chat-repeat: "<red>Please don't repeat the same message."
+chat-repeat: "<red>Please don't repeat the same message. <gray>(over <threshold>% alike)"
 message-blocked: "<red>Your message contains blocked words."
 message-has-link: "<red>You are not allowed to post links."
 

@@ -28,6 +28,9 @@ data class ModerationConfig(
     val historyKeepDays: Int = 14,
     val historyEntries: Int = 15,
 ) {
+    val similarityThresholdPercent: String
+        get() = Math.round(similarityThreshold * 100).toString()
+
     val wordIndex: Map<Char, List<String>> by lazy {
         val words = if (normalizeRepeated) blockedWords.map(::collapseRuns).distinct() else blockedWords
         words.groupBy { it.first() }

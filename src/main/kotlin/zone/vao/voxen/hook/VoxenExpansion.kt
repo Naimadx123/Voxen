@@ -27,6 +27,7 @@ class VoxenExpansion(private val plugin: Voxen) : PlaceholderExpansion() {
             "mentions" -> plugin.playerDataService.get(player.uniqueId).mentionsEnabled.toString()
             "pm" -> plugin.playerDataService.get(player.uniqueId).pmEnabled.toString()
             "chat" -> plugin.playerDataService.get(player.uniqueId).chatEnabled.toString()
+            "similarity_threshold" -> plugin.configManager.config.moderation.similarityThresholdPercent
             else -> null
         }
     }

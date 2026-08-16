@@ -140,7 +140,11 @@ class ChatService(
                 return null
             }
             SpamGuard.Result.Repeat -> {
-                messages.send(player, "chat-repeat")
+                messages.send(
+                    player,
+                    "chat-repeat",
+                    Placeholder.unparsed("threshold", config().moderation.similarityThresholdPercent),
+                )
                 return null
             }
             SpamGuard.Result.Ok -> Unit
