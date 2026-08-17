@@ -7,7 +7,7 @@ import java.io.File
 object StorageFactory {
 
     fun create(plugin: Plugin, config: StorageConfig): PlayerStorage =
-        SqlPlayerStorage(buildHikari(plugin, config), config.tablePrefix)
+        SqlPlayerStorage(buildHikari(plugin, config), config.tablePrefix, config.type)
 
     private fun buildHikari(plugin: Plugin, config: StorageConfig): HikariConfig {
         val hikari = HikariConfig()

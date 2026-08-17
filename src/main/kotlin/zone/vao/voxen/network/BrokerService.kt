@@ -2,14 +2,14 @@ package zone.vao.voxen.network
 
 import com.google.gson.Gson
 import zone.vao.voxen.config.NetworkConfig
+import zone.vao.voxen.util.WorkQueue
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 
 class BrokerService(
     private val logger: Logger,
     private val network: () -> NetworkConfig,
+    queueCapacity: Int = 1000,
 ) {
 
     @Volatile
@@ -26,9 +26,12 @@ class BrokerService(
 
     private val gson = Gson()
     private val warned = ConcurrentHashMap.newKeySet<Envelope.Result.Rejected>()
-    private val io = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "voxen-network").apply { isDaemon = true }
-    }
+    private val io = WorkQueue(
+        "voxen-network",
+        queueCapacity,
+        logger,
+        "The broker is unreachable or too slow, so cross-server messages are being dropped.",
+    )
     private val seen = object : LinkedHashMap<String, Boolean>(256, 0.75f, false) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>): Boolean = size > 1024
     }
@@ -72,7 +75,7 @@ class BrokerService(
     fun publish(message: BrokerMessage) {
         val current = broker ?: return
         message.id?.let(::markSeen)
-        io.execute {
+        io.submit {
             runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret)) }
                 .onFailure { logger.warning("Failed to publish a cross-server message: ${it.message}") }
         }
@@ -85,8 +88,7 @@ class BrokerService(
 
     fun shutdown() {
         stop()
-        io.shutdown()
-        runCatching { io.awaitTermination(3, TimeUnit.SECONDS) }
+        io.shutdown(3)
     }
 
     private fun handleIncoming(raw: String) {

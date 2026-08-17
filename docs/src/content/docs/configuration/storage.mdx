@@ -29,6 +29,8 @@ the chat log.
 		password: "secret"
 		table-prefix: voxen_
 		pool-size: 10
+		queue-size: 500
+		chat-log-batch: 100
 		```
 
 		`type: mysql` covers MariaDB as well. Use this on a network so settings, nicknames,
@@ -58,6 +60,20 @@ versions.
 `pool-size` is the HikariCP connection pool. `10` is right for almost everyone. Voxen does
 its database work on a single background thread, so raising it does not make anything
 faster.
+
+## Write queue
+
+Writes are queued and handled on that background thread. `queue-size` caps how many may
+wait. When the database is down or too slow the queue fills up and further writes are
+dropped, with one warning every 30 seconds instead of a wall of them. Without a cap the
+queue would grow until the server ran out of memory.
+
+Repeated writes for the same player collapse into one, so a player toggling something ten
+times in a row costs a single write rather than ten. Chat history is written in batches of
+`chat-log-batch` rows.
+
+Both values take effect after a restart. Raise `queue-size` if a busy server logs drops
+during a short database hiccup; if it drops constantly, the database is the problem.
 
 <Aside type="tip" title="Going from one server to many">
 	Switching from SQLite to MySQL starts from an empty database; existing SQLite data is

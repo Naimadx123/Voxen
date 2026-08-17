@@ -31,6 +31,9 @@ network:
   # who copied a message off the broker from playing it back later. The clocks on your
   # servers have to agree within this window; 0 turns the check off.
   max-age-seconds: 60
+  # How many outgoing messages may wait for the broker. Once it is full, further messages are
+  # dropped with one warning instead of piling up until the server runs out of memory.
+  queue-size: 1000
   redis:
     host: localhost
     port: 6379

@@ -78,7 +78,11 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         configManager.load()
 
         threads = Threads(this)
-        playerDataService = PlayerDataService(this)
+        playerDataService = PlayerDataService(
+            this,
+            configManager.config.storage.queueSize,
+            configManager.config.storage.chatLogBatch,
+        )
         server.pluginManager.registerEvents(playerDataService, this)
         playerDataService.attach(createStorage())
         purgeChatLog()
@@ -146,7 +150,11 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         )
         server.pluginManager.registerEvents(ChatListener(chatService) { configManager.config.chatDelivery }, this)
 
-        brokerService = BrokerService(logger) { configManager.config.network }
+        brokerService = BrokerService(
+            logger,
+            { configManager.config.network },
+            configManager.config.network.queueSize,
+        )
         chatService.remotePublisher = { channel, player, component, content ->
             brokerService.publish(
                 BrokerMessage(
@@ -316,14 +324,10 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             logger.warning("Failed to initialise ${config.type.name.lowercase()} storage (${first.message}); falling back to SQLite.")
             StorageFactory.create(
                 this,
-                StorageConfig(
+                config.copy(
                     type = StorageType.SQLITE,
-                    host = config.host,
-                    port = config.port,
-                    database = config.database,
                     username = "",
                     password = "",
-                    tablePrefix = config.tablePrefix,
                     poolSize = 1,
                 ),
             )

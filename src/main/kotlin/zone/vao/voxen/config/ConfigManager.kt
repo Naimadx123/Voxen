@@ -439,6 +439,7 @@ class ConfigManager(
         syncMutes = section?.getBoolean("sync-mutes", true) ?: true,
         secret = networkSecret(section),
         maxAgeSeconds = (section?.getLong("max-age-seconds", 60L) ?: 60L).coerceAtLeast(0L),
+        queueSize = (section?.getInt("queue-size", 1000) ?: 1000).coerceAtLeast(1),
         redis = NetworkConfig.Redis(
             host = section?.getString("redis.host") ?: "localhost",
             port = section?.getInt("redis.port", 6379) ?: 6379,
@@ -481,6 +482,8 @@ class ConfigManager(
         password = yaml.getString("password") ?: "",
         tablePrefix = yaml.getString("table-prefix") ?: "voxen_",
         poolSize = yaml.getInt("pool-size", 10).coerceAtLeast(1),
+        queueSize = yaml.getInt("queue-size", 500).coerceAtLeast(1),
+        chatLogBatch = yaml.getInt("chat-log-batch", 100).coerceAtLeast(1),
     )
 
     private fun parseItemShare(yaml: YamlConfiguration): ItemShareConfig {

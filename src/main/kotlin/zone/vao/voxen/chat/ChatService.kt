@@ -300,7 +300,7 @@ class ChatService(
                 server = config().network.serverId,
                 createdAt = System.currentTimeMillis(),
             )
-            playerData.async { it.logChat(entry) }
+            playerData.logChat(entry)
         }
 
         if (out.channel.crossServer) {

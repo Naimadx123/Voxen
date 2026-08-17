@@ -18,7 +18,7 @@ interface PlayerStorage {
     fun deleteParty(id: UUID)
     fun addPartyMember(id: UUID, member: UUID)
     fun removePartyMember(id: UUID, member: UUID)
-    fun logChat(entry: ChatLogEntry)
+    fun logChat(entries: List<ChatLogEntry>)
     fun chatHistory(uuid: UUID, limit: Int): List<ChatLogEntry>
     fun purgeChatLog(before: Long)
     fun close()

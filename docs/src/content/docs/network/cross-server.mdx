@@ -103,6 +103,15 @@ servers pointed at the same Redis work just as well.
 `reconnect-seconds` and `timeout-millis` control connection recovery and how long a lookup
 of a player on another server may take.
 
+## Send queue
+
+Outgoing messages are handed to a background thread so a slow broker never holds up the
+main thread. `queue-size` (1000 by default) caps how many may wait. When the broker is
+unreachable the queue fills up and further messages are dropped, with one warning every 30
+seconds. Without a cap the queue would grow until the server ran out of memory, and a chat
+line that arrives ten minutes late is worthless anyway. The value takes effect after a
+restart.
+
 ## What crosses the network
 
 | Feature | Behavior |

@@ -255,18 +255,16 @@ class PrivateMessageService(
     private fun logHistory(sender: Player, content: String) {
         val moderation = config().moderation
         if (!moderation.historyEnabled || !moderation.historyAffectsPm) return
-        playerData.async {
-            it.logChat(
-                ChatLogEntry(
-                    uuid = sender.uniqueId,
-                    playerName = sender.name,
-                    channel = PM_CHANNEL,
-                    content = content,
-                    server = config().network.serverId,
-                    createdAt = System.currentTimeMillis(),
-                )
+        playerData.logChat(
+            ChatLogEntry(
+                uuid = sender.uniqueId,
+                playerName = sender.name,
+                channel = PM_CHANNEL,
+                content = content,
+                server = config().network.serverId,
+                createdAt = System.currentTimeMillis(),
             )
-        }
+        )
     }
 
     private fun handleRequest(request: BrokerMessage) {

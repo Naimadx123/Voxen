@@ -9,4 +9,6 @@ data class StorageConfig(
     val password: String,
     val tablePrefix: String,
     val poolSize: Int,
+    val queueSize: Int,
+    val chatLogBatch: Int,
 )

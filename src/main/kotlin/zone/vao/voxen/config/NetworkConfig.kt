@@ -8,6 +8,7 @@ data class NetworkConfig(
     val syncMutes: Boolean,
     val secret: String,
     val maxAgeSeconds: Long,
+    val queueSize: Int,
     val redis: Redis,
     val nats: Nats,
     val rabbit: Rabbit,

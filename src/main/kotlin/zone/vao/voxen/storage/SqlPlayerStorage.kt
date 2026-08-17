@@ -7,7 +7,11 @@ import zone.vao.voxen.party.PartyRecord
 import java.sql.Connection
 import java.util.UUID
 
-class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : PlayerStorage {
+class SqlPlayerStorage(
+    hikariConfig: HikariConfig,
+    tablePrefix: String,
+    private val type: StorageType,
+) : PlayerStorage {
 
     private val playersTable = "${tablePrefix}players"
     private val ignoresTable = "${tablePrefix}ignores"
@@ -123,14 +127,15 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
 
     override fun savePlayer(data: PlayerData) {
         dataSource.connection.use { conn ->
-            conn.prepareStatement("DELETE FROM $playersTable WHERE uuid = ?").use { ps ->
-                ps.setString(1, data.uuid.toString())
-                ps.executeUpdate()
-            }
             conn.prepareStatement(
-                "INSERT INTO $playersTable " +
-                    "(uuid, active_channel, joined_channels, left_channels, pm_enabled, mentions_enabled, chat_enabled, social_spy, language, filter_enabled, nickname, last_pm_uuid, last_pm_name) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                upsert(
+                    playersTable,
+                    listOf(
+                        "uuid", "active_channel", "joined_channels", "left_channels", "pm_enabled", "mentions_enabled",
+                        "chat_enabled", "social_spy", "language", "filter_enabled", "nickname", "last_pm_uuid", "last_pm_name",
+                    ),
+                    listOf("uuid"),
+                )
             ).use { ps ->
                 ps.setString(1, data.uuid.toString())
                 ps.setString(2, data.activeChannel)
@@ -213,14 +218,12 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
 
     override fun saveMute(entry: MuteEntry) {
         dataSource.connection.use { conn ->
-            conn.prepareStatement("DELETE FROM $mutesTable WHERE uuid = ? AND channel = ?").use { ps ->
-                ps.setString(1, entry.uuid.toString())
-                ps.setString(2, entry.channel.orEmpty())
-                ps.executeUpdate()
-            }
             conn.prepareStatement(
-                "INSERT INTO $mutesTable (uuid, player, channel, reason, moderator, expires_at, created_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                upsert(
+                    mutesTable,
+                    listOf("uuid", "player", "channel", "reason", "moderator", "expires_at", "created_at"),
+                    listOf("uuid", "channel"),
+                )
             ).use { ps ->
                 ps.setString(1, entry.uuid.toString())
                 ps.setString(2, entry.playerName)
@@ -339,18 +342,32 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
         }
     }
 
-    override fun logChat(entry: ChatLogEntry) {
+    override fun logChat(entries: List<ChatLogEntry>) {
+        if (entries.isEmpty()) return
         dataSource.connection.use { conn ->
-            conn.prepareStatement(
-                "INSERT INTO $chatLogTable (uuid, player, channel, content, server, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-            ).use { ps ->
-                ps.setString(1, entry.uuid.toString())
-                ps.setString(2, entry.playerName)
-                ps.setString(3, entry.channel)
-                ps.setString(4, entry.content)
-                ps.setString(5, entry.server)
-                ps.setLong(6, entry.createdAt)
-                ps.executeUpdate()
+            val restore = conn.autoCommit
+            conn.autoCommit = false
+            try {
+                conn.prepareStatement(
+                    "INSERT INTO $chatLogTable (uuid, player, channel, content, server, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+                ).use { ps ->
+                    for (entry in entries) {
+                        ps.setString(1, entry.uuid.toString())
+                        ps.setString(2, entry.playerName)
+                        ps.setString(3, entry.channel)
+                        ps.setString(4, entry.content)
+                        ps.setString(5, entry.server)
+                        ps.setLong(6, entry.createdAt)
+                        ps.addBatch()
+                    }
+                    ps.executeBatch()
+                }
+                conn.commit()
+            } catch (ex: Exception) {
+                runCatching { conn.rollback() }
+                throw ex
+            } finally {
+                runCatching { conn.autoCommit = restore }
             }
         }
     }
@@ -387,6 +404,20 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                 ps.setLong(1, before)
                 ps.executeUpdate()
             }
+        }
+    }
+
+    private fun upsert(table: String, columns: List<String>, keys: List<String>): String {
+        val head = "INSERT INTO $table (${columns.joinToString(", ")}) " +
+            "VALUES (${columns.joinToString(", ") { "?" }})"
+        val updates = columns.filterNot { it in keys }
+        return when (type) {
+            StorageType.SQLITE ->
+                "$head ON CONFLICT(${keys.joinToString(", ")}) DO UPDATE SET " +
+                    updates.joinToString(", ") { "$it = excluded.$it" }
+
+            StorageType.MYSQL, StorageType.MARIADB ->
+                "$head ON DUPLICATE KEY UPDATE " + updates.joinToString(", ") { "$it = VALUES($it)" }
         }
     }
 

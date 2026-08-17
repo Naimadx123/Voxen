@@ -7,3 +7,8 @@ username: root
 password: ""
 table-prefix: voxen_
 pool-size: 10
+# How many writes may wait for the database. Once it is full, further writes are dropped
+# with one warning instead of piling up until the server runs out of memory.
+queue-size: 500
+# How many chat history rows go into one insert.
+chat-log-batch: 100
