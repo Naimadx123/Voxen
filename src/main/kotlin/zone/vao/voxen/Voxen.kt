@@ -143,7 +143,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         )
         server.pluginManager.registerEvents(ChatListener(chatService) { configManager.config.chatDelivery }, this)
 
-        brokerService = BrokerService(this) { configManager.config.network }
+        brokerService = BrokerService(logger) { configManager.config.network }
         chatService.remotePublisher = { channel, player, component, content ->
             brokerService.publish(
                 BrokerMessage(

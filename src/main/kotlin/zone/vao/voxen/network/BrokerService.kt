@@ -1,14 +1,14 @@
 package zone.vao.voxen.network
 
 import com.google.gson.Gson
-import org.bukkit.plugin.java.JavaPlugin
 import zone.vao.voxen.config.NetworkConfig
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
 
 class BrokerService(
-    private val plugin: JavaPlugin,
+    private val logger: Logger,
     private val network: () -> NetworkConfig,
 ) {
 
@@ -42,7 +42,7 @@ class BrokerService(
         warned.clear()
         val config = network()
         if (config.transport != NetworkConfig.Transport.NONE && config.secret.isEmpty()) {
-            plugin.logger.warning(
+            logger.warning(
                 "network.secret in integrations.yml is empty, so incoming cross-server messages are not " +
                     "authenticated. Anyone who can reach the broker can fake chat, private messages and mutes.",
             )
@@ -50,19 +50,23 @@ class BrokerService(
         val created = when (config.transport) {
             NetworkConfig.Transport.NONE -> return
             NetworkConfig.Transport.REDIS ->
-                RedisBroker(config.redis, config.reconnectSeconds, config.timeoutMillis, plugin.logger)
+                RedisBroker(config.redis, config.reconnectSeconds, config.timeoutMillis, logger)
             NetworkConfig.Transport.NATS ->
-                NatsBroker(config.nats, config.reconnectSeconds, config.timeoutMillis, plugin.logger)
+                NatsBroker(config.nats, config.reconnectSeconds, config.timeoutMillis, logger)
             NetworkConfig.Transport.RABBITMQ ->
-                RabbitBroker(config.rabbit, config.reconnectSeconds, config.timeoutMillis, plugin.logger)
+                RabbitBroker(config.rabbit, config.reconnectSeconds, config.timeoutMillis, logger)
         }
-        val started = runCatching { created.start(::handleIncoming) }
+        connect(created, config.transport.name.lowercase())
+    }
+
+    internal fun connect(candidate: MessageBroker, transportName: String) {
+        val started = runCatching { candidate.start(::handleIncoming) }
             .onFailure {
-                plugin.logger.warning("Failed to start the ${config.transport.name.lowercase()} transport: ${it.message}. Cross-server chat is disabled.")
-                runCatching { created.close() }
+                logger.warning("Failed to start the $transportName transport: ${it.message}. Cross-server chat is disabled.")
+                runCatching { candidate.close() }
             }
             .isSuccess
-        if (started) broker = created
+        if (started) broker = candidate
     }
 
     fun publish(message: BrokerMessage) {
@@ -70,7 +74,7 @@ class BrokerService(
         message.id?.let(::markSeen)
         io.execute {
             runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret)) }
-                .onFailure { plugin.logger.warning("Failed to publish a cross-server message: ${it.message}") }
+                .onFailure { logger.warning("Failed to publish a cross-server message: ${it.message}") }
         }
     }
 
@@ -115,7 +119,7 @@ class BrokerService(
         val result = Envelope.unwrap(raw, config.secret, config.maxAgeSeconds * 1000L)
         if (result is Envelope.Result.Ok) return result.payload
         val reason = result as Envelope.Result.Rejected
-        if (warned.add(reason)) plugin.logger.warning("${explain(reason)} Later drops for the same reason are not logged.")
+        if (warned.add(reason)) logger.warning("${explain(reason)} Later drops for the same reason are not logged.")
         return null
     }
 
