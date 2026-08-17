@@ -21,6 +21,11 @@ export default defineConfig({
 					label: 'GitHub',
 					href: 'https://github.com/Naimadx123/Voxen',
 				},
+				{
+					icon: 'discord',
+					label: 'Discord',
+					href: 'https://discord.gg/aSRYxqSjVJ',
+				},
 			],
 			editLink: {
 				baseUrl: 'https://github.com/Naimadx123/Voxen/edit/master/docs/',
