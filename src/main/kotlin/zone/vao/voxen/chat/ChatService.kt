@@ -323,12 +323,18 @@ class ChatService(
         return true
     }
 
-    fun deliverRemote(channelId: String, message: Component, content: String? = null) {
+    fun deliverRemote(
+        channelId: String,
+        message: Component,
+        content: String? = null,
+        senderUuid: UUID? = null,
+        bypassIgnore: Boolean = false,
+    ) {
         val channel = channels.channel(channelId) ?: return
         if (!channel.enabled || !channel.crossServer) return
         val mentioned = if (!content.isNullOrEmpty() && config().mentions.enabled) mentions.mentionedNames(content) else emptySet()
         threads.main {
-            for (reader in channels.readers(channel)) {
+            for (reader in channels.readers(channel, senderUuid, bypassIgnore)) {
                 var delivered = message
                 val notify = reader.name.lowercase() in mentioned && mentions.accepts(reader)
                 if (notify) delivered = mentions.highlight(delivered, reader)

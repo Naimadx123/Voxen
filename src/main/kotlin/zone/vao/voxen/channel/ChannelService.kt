@@ -149,12 +149,13 @@ class ChannelService(
         return result
     }
 
-    fun readers(channel: Channel): List<Player> =
+    fun readers(channel: Channel, senderUuid: java.util.UUID? = null, bypassIgnore: Boolean = false): List<Player> =
         server.onlinePlayers.filter { player ->
             channel.canRead(player) &&
                 isJoined(channel, playerData.get(player.uniqueId)) &&
                 channel.allowsWorld(player.world.name) &&
-                playerData.get(player.uniqueId).chatEnabled
+                playerData.get(player.uniqueId).chatEnabled &&
+                (senderUuid == null || bypassIgnore || !ignores.isIgnoring(player.uniqueId, senderUuid))
         }
 
     fun quickChannel(player: Player, message: String): Pair<Channel, String>? {
@@ -195,6 +196,14 @@ class ChannelService(
             if (data.joinedChannels.any { it.equals(id, ignoreCase = true) }) return true
             if (data.leftChannels.any { it.equals(id, ignoreCase = true) }) return false
             return channel.defaultChannel
+        }
+
+        fun localOnlyReason(type: ChannelType, radius: Int, scope: String?): String? = when {
+            radius >= 0 -> "a radius"
+            type == ChannelType.WORLD -> "type 'world'"
+            type == ChannelType.PARTY -> "type 'party'"
+            scope != null -> "scope '$scope'"
+            else -> null
         }
 
         fun withinRadius(radius: Int, sameWorld: Boolean, distanceSquared: Double): Boolean {

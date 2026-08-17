@@ -70,6 +70,11 @@ servers pointed at the same Redis work just as well.
    The bundled `server` channel already has it, so you have a local-only channel from the
    start.
 
+   Some channels cannot be shared, because the other servers have no way to check who
+   belongs to them: anything with a `radius`, type `world`, type `party` and any channel
+   with a `scope`. If you set `cross-server: true` on one of those, Voxen turns it back off
+   and says so in the console.
+
 4. Set a shared `network.secret`, the same random string on every server:
 
    ```yaml title="plugins/Voxen/integrations.yml"
@@ -114,8 +119,10 @@ Formatting permissions are applied **on the sending server**. The message is ren
 there and travels as finished MiniMessage text, so what a player may write depends on
 their permissions where they typed it. Servers can run different Paper builds.
 
-The receiving side decides what belongs to it: the mention toggle, the PM toggle and the
-ignore list are checked on the recipient's server.
+The receiving side decides what belongs to it: the mention toggle, the PM toggle, chat
+visibility and the ignore list are all checked on the recipient's server. Chat carries the
+sender's UUID for that reason, so ignoring someone works no matter which server they are on.
+A sender with `voxen.bypass.ignore` still gets through, the same as locally.
 
 ## Private messages
 

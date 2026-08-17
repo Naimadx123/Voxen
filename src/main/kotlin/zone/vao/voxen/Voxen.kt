@@ -154,6 +154,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                     component = componentCodec.serialize(component),
                     content = content.ifEmpty { null },
                     mm = miniMessageCodec.serialize(component),
+                    senderUuid = player.uniqueId.toString(),
+                    flags = if (player.hasPermission(ChannelService.BYPASS_IGNORE)) "ignore" else null,
                 )
             )
         }
@@ -181,7 +183,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             val component = message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
                 ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()
             if (component != null && message.channel != null) {
-                chatService.deliverRemote(message.channel, component, message.content)
+                chatService.deliverRemote(
+                    message.channel,
+                    component,
+                    message.content,
+                    senderUuid = runCatching { UUID.fromString(message.senderUuid) }.getOrNull(),
+                    bypassIgnore = "ignore" in message.flags.orEmpty().split(','),
+                )
             }
         }
         brokerService.start()

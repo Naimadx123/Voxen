@@ -7,6 +7,7 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 import zone.vao.voxen.channel.Channel
+import zone.vao.voxen.channel.ChannelService
 import zone.vao.voxen.channel.ChannelType
 import zone.vao.voxen.network.Envelope
 import zone.vao.voxen.network.ProxySecret
@@ -166,6 +167,15 @@ class ConfigManager(
         if (scope != null && scope !in VALID_SCOPES) {
             plugin.logger.warning("$CHANNELS_DIR/$fileName: unknown scope '$scope' (expected one of $VALID_SCOPES); ignoring it.")
         }
+        val localOnly = ChannelService.localOnlyReason(type, radius, scope?.takeIf { it in VALID_SCOPES })
+        var crossServer = section.getBoolean("cross-server", type == ChannelType.SERVER)
+        if (crossServer && localOnly != null) {
+            plugin.logger.warning(
+                "$CHANNELS_DIR/$fileName: 'cross-server' does not work with $localOnly, because the other " +
+                    "servers cannot check it. Turning cross-server off for this channel.",
+            )
+            crossServer = false
+        }
         return Channel(
             id = id,
             displayName = section.getString("display-name")?.ifEmpty { null } ?: id,
@@ -174,7 +184,7 @@ class ConfigManager(
             defaultChannel = section.getBoolean("default", false),
             defaultActive = section.getBoolean("default-active", false),
             readOnly = section.getBoolean("read-only", false),
-            crossServer = section.getBoolean("cross-server", type == ChannelType.SERVER),
+            crossServer = crossServer,
             radius = radius.coerceAtLeast(-1),
             worlds = section.getStringList("worlds").mapTo(LinkedHashSet()) { it.trim() },
             format = section.getString("format")?.ifEmpty { null }
