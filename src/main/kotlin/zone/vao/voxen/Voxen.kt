@@ -138,6 +138,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             { configManager.config },
             playerDataService,
             ignoreService,
+            muteService,
             contentRenderer,
             threads,
         )

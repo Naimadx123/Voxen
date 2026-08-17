@@ -8,19 +8,21 @@ import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.ignore.IgnoreService
+import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.Durations
 import zone.vao.voxen.util.Threads
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 class PrivateMessageService(
     private val server: Server,
     private val config: () -> VoxenConfig,
     private val playerData: PlayerDataService,
     private val ignores: IgnoreService,
+    private val mutes: MuteService,
     private val renderer: ContentRenderer,
     private val threads: Threads,
 ) {
@@ -31,10 +33,8 @@ class PrivateMessageService(
     @Volatile
     var scheduleTimeout: ((Long, () -> Unit) -> Unit)? = null
 
-    private class Pending(val targetName: String, val message: Component)
-
     private val mm = MiniMessage.miniMessage()
-    private val pending = ConcurrentHashMap<UUID, Pending>()
+    private val pending = PendingMessages()
 
     private fun setConversation(playerUuid: UUID, otherUuid: UUID, otherName: String) {
         val data = playerData.get(playerUuid)
@@ -54,6 +54,7 @@ class PrivateMessageService(
             messages.send(sender, "pm-self")
             return false
         }
+        if (isMuted(sender)) return false
         val targetName = Placeholder.unparsed("target", target.name)
         if (!playerData.get(target.uniqueId).pmEnabled && !sender.hasPermission(BYPASS_TOGGLE)) {
             messages.send(sender, "pm-target-disabled", targetName)
@@ -110,15 +111,17 @@ class PrivateMessageService(
             messages.send(sender, "pm-self")
             return false
         }
+        if (isMuted(sender)) return false
         val message = renderer.render(content, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
-        pending[sender.uniqueId] = Pending(targetName, message)
+        val requestId = UUID.randomUUID().toString()
+        pending.add(requestId, sender.uniqueId, targetName, message)
         val flags = buildList {
             if (sender.hasPermission(BYPASS_TOGGLE)) add("pmtoggle")
             if (sender.hasPermission(BYPASS_IGNORE)) add("ignore")
         }
         publisher(
             BrokerMessage(
-                id = UUID.randomUUID().toString(),
+                id = requestId,
                 server = null,
                 channel = null,
                 sender = sender.name,
@@ -130,10 +133,9 @@ class PrivateMessageService(
                 flags = flags.joinToString(","),
             )
         )
-        val senderId = sender.uniqueId
         scheduleTimeout?.invoke(config().network.timeoutMillis) {
-            val timedOut = pending.remove(senderId) ?: return@invoke
-            server.getPlayer(senderId)?.let {
+            val timedOut = pending.drop(requestId) ?: return@invoke
+            server.getPlayer(timedOut.senderUuid)?.let {
                 config().messages.send(it, "player-not-found", Placeholder.unparsed("player", timedOut.targetName))
             }
         }
@@ -165,7 +167,22 @@ class PrivateMessageService(
     }
 
     fun forget(uuid: UUID) {
-        pending.remove(uuid)
+        pending.forget(uuid)
+    }
+
+    private fun isMuted(sender: Player): Boolean {
+        if (!config().privateMessages.respectMutes) return false
+        val mute = mutes.activeMute(sender.uniqueId, null) ?: return false
+        val messages = config().messages
+        val remaining = mute.expiresAt?.let { Durations.humanize(it - System.currentTimeMillis()) }
+            ?: messages.raw(sender, "mute-permanent")
+        messages.send(
+            sender,
+            "you-are-muted",
+            Placeholder.unparsed("reason", mute.reason ?: messages.raw(sender, "mute-no-reason")),
+            Placeholder.unparsed("remaining", remaining),
+        )
+        return true
     }
 
     private fun handleRequest(request: BrokerMessage) {
@@ -207,12 +224,12 @@ class PrivateMessageService(
     }
 
     private fun handleAck(ackMessage: BrokerMessage) {
-        val senderUuid = runCatching { UUID.fromString(ackMessage.senderUuid) }.getOrNull() ?: return
-        val entry = pending.remove(senderUuid) ?: return
-        val sender = server.getPlayer(senderUuid) ?: return
+        val senderUuid = runCatching { UUID.fromString(ackMessage.senderUuid) }.getOrNull()
+        val entry = pending.claim(ackMessage.replyTo, senderUuid, ackMessage.target) ?: return
+        val targetName = ackMessage.target ?: entry.targetName
+        val sender = server.getPlayer(entry.senderUuid) ?: return
         val messages = config().messages
         val settings = config().privateMessages
-        val targetName = ackMessage.target ?: entry.targetName
         if (ackMessage.status != "ok") {
             messages.send(
                 sender,
@@ -277,6 +294,7 @@ class PrivateMessageService(
                 senderUuid = request.senderUuid,
                 targetUuid = target.uniqueId.toString(),
                 status = status,
+                replyTo = request.id,
             )
         )
     }

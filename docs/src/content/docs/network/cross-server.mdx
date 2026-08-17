@@ -132,6 +132,14 @@ network has that player, the sender gets the not-found message after `timeout-mi
 The `/r` target lives in player data. With a shared MySQL database it follows players
 between servers and survives relogs; with per-server SQLite each server keeps its own.
 
+Every outgoing message gets its own id and the answer carries it back, so two messages sent
+one after another cannot mix up their answers. An answer is only accepted once, and only if
+the sender and the typed name match what was sent; anything else is ignored. The timeout
+covers a single message rather than the whole conversation.
+
+A server-wide mute also blocks `/msg` and `/r`. Set `respect-mutes: false` in
+`modules/private-messages.yml` if a mute should only cover public chat.
+
 ## Mutes
 
 `network.sync-mutes` is on by default and broadcasts every `/voxen mute` and `unmute`

@@ -316,6 +316,7 @@ class ConfigManager(
         spyFormat = yaml.getString("spy-format")
             ?: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>",
         notifyMonitored = yaml.getBoolean("notify-monitored", false),
+        respectMutes = yaml.getBoolean("respect-mutes", true),
         sound = parseSound("modules/private-messages.yml", yaml.getConfigurationSection("sound")),
     )
 

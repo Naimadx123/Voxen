@@ -7,6 +7,10 @@ spy-format: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>"
 # Tells both players that a moderator with social spy saw the message.
 notify-monitored: false
 
+# A player under a server-wide mute cannot send private messages either. Turn this off
+# if a mute should only cover public chat. Mutes limited to one channel never apply here.
+respect-mutes: true
+
 sound:
   enabled: true
   key: "minecraft:block.note_block.pling"
