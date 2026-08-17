@@ -12,6 +12,7 @@ import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.Threads
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -21,6 +22,7 @@ class PrivateMessageService(
     private val playerData: PlayerDataService,
     private val ignores: IgnoreService,
     private val renderer: ContentRenderer,
+    private val threads: Threads,
 ) {
 
     @Volatile
@@ -73,8 +75,12 @@ class PrivateMessageService(
             Placeholder.unparsed("target", target.name),
         )
         sender.sendMessage(mm.deserialize(settings.senderFormat, *resolvers))
-        target.sendMessage(mm.deserialize(settings.receiverFormat, *resolvers))
-        settings.sound.sound?.let { target.playSound(it) }
+        val received = mm.deserialize(settings.receiverFormat, *resolvers)
+        val sound = settings.sound.sound
+        threads.forPlayer(target) {
+            target.sendMessage(received)
+            sound?.let { target.playSound(it) }
+        }
 
         setConversation(sender.uniqueId, target.uniqueId, target.name)
         setConversation(target.uniqueId, sender.uniqueId, sender.name)
@@ -186,8 +192,12 @@ class PrivateMessageService(
             Placeholder.unparsed("player", senderName),
             Placeholder.unparsed("target", target.name),
         )
-        target.sendMessage(mm.deserialize(settings.receiverFormat, *resolvers))
-        settings.sound.sound?.let { target.playSound(it) }
+        val received = mm.deserialize(settings.receiverFormat, *resolvers)
+        val sound = settings.sound.sound
+        threads.forPlayer(target) {
+            target.sendMessage(received)
+            sound?.let { target.playSound(it) }
+        }
         setConversation(target.uniqueId, senderUuid, senderName)
         notifySpies(senderUuid, target.uniqueId, resolvers) {
             if (config().privateMessages.notifyMonitored) config().messages.send(target, "pm-monitored")
@@ -279,7 +289,7 @@ class PrivateMessageService(
         }
         if (spies.isEmpty()) return
         val spyMessage = mm.deserialize(settings.spyFormat, *resolvers)
-        for (spy in spies) spy.sendMessage(spyMessage)
+        for (spy in spies) threads.forPlayer(spy) { spy.sendMessage(spyMessage) }
         onSpied()
     }
 

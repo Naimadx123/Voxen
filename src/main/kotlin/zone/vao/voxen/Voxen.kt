@@ -32,6 +32,7 @@ import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
 import java.util.*
 
@@ -64,6 +65,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
     lateinit var wordFilter: WordFilter
         private set
+    lateinit var threads: Threads
+        private set
 
     private val componentCodec = GsonComponentSerializer.gson()
     private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
@@ -74,6 +77,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         }
         configManager.load()
 
+        threads = Threads(this)
         playerDataService = PlayerDataService(this)
         server.pluginManager.registerEvents(playerDataService, this)
         playerDataService.attach(createStorage())
@@ -127,6 +131,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             mentionService,
             playerDataService,
             hookManager,
+            threads,
         )
         privateMessageService = PrivateMessageService(
             server,
@@ -134,6 +139,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             playerDataService,
             ignoreService,
             contentRenderer,
+            threads,
         )
         server.pluginManager.registerEvents(ChatListener(chatService) { configManager.config.chatDelivery }, this)
 
@@ -155,9 +161,14 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             brokerService.publish(message.copy(server = configManager.config.network.serverId))
         }
         privateMessageService.scheduleTimeout = { delayMillis, task ->
-            server.asyncScheduler.runDelayed(this, { task() }, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+            server.asyncScheduler.runDelayed(
+                this,
+                { threads.main { task() } },
+                delayMillis,
+                java.util.concurrent.TimeUnit.MILLISECONDS,
+            )
         }
-        brokerService.onPmMessage = { privateMessageService.handleRemote(it) }
+        brokerService.onPmMessage = { message -> threads.main { privateMessageService.handleRemote(message) } }
         muteService.remotePublisher = { message ->
             if (configManager.config.network.syncMutes) {
                 brokerService.publish(message.copy(server = configManager.config.network.serverId))

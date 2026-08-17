@@ -23,6 +23,7 @@ import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
 import zone.vao.voxen.tags.Replacements
 import zone.vao.voxen.util.Durations
+import zone.vao.voxen.util.Threads
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -38,6 +39,7 @@ class ChatService(
     private val mentions: MentionService,
     private val playerData: PlayerDataService,
     private val hooks: HookManager,
+    private val threads: Threads,
 ) {
 
     @Volatile
@@ -53,6 +55,7 @@ class ChatService(
         val message: Component,
         val formatted: Component,
         val unfiltered: Component?,
+        val console: Component,
         val recipients: List<Player>,
         val mentionedNames: Set<String>,
         val mentionsAllowed: Boolean,
@@ -156,7 +159,9 @@ class ChatService(
         }
 
         var content = rawContent
-        if (hooks.papi != null) content = applyPapi(player, content)
+        if (hooks.papi != null && content.contains('%')) {
+            content = threads.await { applyPapi(player, content) } ?: return null
+        }
         var uncensored: String? = null
         if (!player.hasPermission(BYPASS_LINKS)) {
             when (val result = wordFilter.checkLinks(content)) {
@@ -189,6 +194,14 @@ class ChatService(
         content = emotes.apply(content, player::hasPermission)
         uncensored = uncensored?.let { emotes.apply(it, player::hasPermission) }
 
+        val filtered = content
+        val censored = uncensored
+        return threads.await { build(player, channel, filtered, censored) }
+    }
+
+    private fun build(player: Player, channel: Channel, filtered: String, censored: String?): Outgoing? {
+        var content = filtered
+        var uncensored = censored
         val recipients = channels.recipients(player, channel)
         val event = ChatMessageSendEvent(player, channel.id, content, recipients)
         server.pluginManager.callEvent(event)
@@ -222,7 +235,21 @@ class ChatService(
             null
         }
 
-        return Outgoing(player, channel, content, message, formatted, unfiltered, finalRecipients, mentionedNames, mentionsAllowed, networkFormatted)
+        val console = formats.render(channel.consoleFormat ?: format, player, channel, message)
+
+        return Outgoing(
+            player,
+            channel,
+            content,
+            message,
+            formatted,
+            unfiltered,
+            console,
+            finalRecipients,
+            mentionedNames,
+            mentionsAllowed,
+            networkFormatted,
+        )
     }
 
     fun viewFor(out: Outgoing, recipient: Player): Component {
@@ -231,19 +258,32 @@ class ChatService(
         return delivered
     }
 
-    fun consoleView(out: Outgoing): Component = formats.renderConsole(out.channel, out.player, out.message)
+    fun consoleView(out: Outgoing): Component = out.console
 
     fun effectsFor(out: Outgoing, recipient: Player) {
-        if (isMentioned(out, recipient)) mentions.notify(recipient)
-        out.channel.sound.sound?.let { if (recipient.uniqueId != out.player.uniqueId) recipient.playSound(it) }
+        val mentioned = isMentioned(out, recipient)
+        val sound = out.channel.sound.sound?.takeIf { recipient.uniqueId != out.player.uniqueId }
+        if (!mentioned && sound == null) return
+        threads.forPlayer(recipient) {
+            if (mentioned) mentions.notify(recipient)
+            sound?.let { recipient.playSound(it) }
+        }
     }
 
     fun finish(out: Outgoing) {
-        if (out.channel.emptyWarning && out.recipients.none { it.uniqueId != out.player.uniqueId }) {
-            config().messages.send(out.player, "channel-empty", Placeholder.parsed("channel", out.channel.displayName))
+        threads.main {
+            if (out.channel.emptyWarning && out.recipients.none { it.uniqueId != out.player.uniqueId }) {
+                config().messages.send(out.player, "channel-empty", Placeholder.parsed("channel", out.channel.displayName))
+            }
+            server.pluginManager.callEvent(
+                ChatMessageDeliveredEvent(out.player, out.channel.id, out.content, out.formatted, out.recipients),
+            )
+            if (out.channel.discord) {
+                val custom = out.channel.discordFormat
+                    ?.let { plain.serialize(formats.render(it, out.player, out.channel, out.message)) }
+                hooks.discord.forward(out.player, custom ?: plain.serialize(out.message), preformatted = custom != null)
+            }
         }
-
-        server.pluginManager.callEvent(ChatMessageDeliveredEvent(out.player, out.channel.id, out.content, out.formatted, out.recipients))
 
         if (config().moderation.historyEnabled) {
             val entry = ChatLogEntry(
@@ -261,16 +301,12 @@ class ChatService(
             val mentionContent = if (out.mentionsAllowed) plain.serialize(out.message) else ""
             remotePublisher?.invoke(out.channel, out.player, out.networkFormatted ?: out.formatted, mentionContent)
         }
-        if (out.channel.discord) {
-            val custom = out.channel.discordFormat
-                ?.let { plain.serialize(formats.render(it, out.player, out.channel, out.message)) }
-            hooks.discord.forward(out.player, custom ?: plain.serialize(out.message), preformatted = custom != null)
-        }
     }
 
     private fun deliver(out: Outgoing) {
         for (recipient in out.recipients) {
-            recipient.sendMessage(viewFor(out, recipient))
+            val view = viewFor(out, recipient)
+            threads.forPlayer(recipient) { recipient.sendMessage(view) }
             effectsFor(out, recipient)
         }
         server.consoleSender.sendMessage(consoleView(out))
@@ -278,7 +314,11 @@ class ChatService(
     }
 
     fun broadcast(channel: Channel, message: Component): Boolean {
-        for (reader in channels.readers(channel)) reader.sendMessage(message)
+        threads.main {
+            for (reader in channels.readers(channel)) {
+                threads.forPlayer(reader) { reader.sendMessage(message) }
+            }
+        }
         server.consoleSender.sendMessage(message)
         return true
     }
@@ -287,13 +327,16 @@ class ChatService(
         val channel = channels.channel(channelId) ?: return
         if (!channel.enabled || !channel.crossServer) return
         val mentioned = if (!content.isNullOrEmpty() && config().mentions.enabled) mentions.mentionedNames(content) else emptySet()
-        for (reader in channels.readers(channel)) {
-            var delivered = message
-            if (reader.name.lowercase() in mentioned && mentions.accepts(reader)) {
-                delivered = mentions.highlight(delivered, reader)
-                mentions.notify(reader)
+        threads.main {
+            for (reader in channels.readers(channel)) {
+                var delivered = message
+                val notify = reader.name.lowercase() in mentioned && mentions.accepts(reader)
+                if (notify) delivered = mentions.highlight(delivered, reader)
+                threads.forPlayer(reader) {
+                    reader.sendMessage(delivered)
+                    if (notify) mentions.notify(reader)
+                }
             }
-            reader.sendMessage(delivered)
         }
         server.consoleSender.sendMessage(message)
     }

@@ -10,9 +10,8 @@ import org.bukkit.event.HandlerList
  * Fired after a chat message was delivered, with the final rendered
  * [message] and the actual [recipients]. Purely informational.
  *
- * Fires on the thread the message came from: asynchronously for regular
- * chat, synchronously when triggered by a command or the API. Check
- * [isAsynchronous] before touching the world.
+ * Always fires on the server thread, so handlers may read and change the
+ * world freely.
  */
 class ChatMessageDeliveredEvent(
     val player: Player,

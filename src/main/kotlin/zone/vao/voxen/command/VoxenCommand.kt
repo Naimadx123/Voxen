@@ -394,27 +394,29 @@ object VoxenCommand {
         }
         plugin.playerDataService.async { storage ->
             val entries = storage.chatHistory(target.first, moderation.historyEntries)
-            if (entries.isEmpty()) {
-                messages.send(sender, "history-empty", Placeholder.unparsed("player", target.second))
-                return@async
-            }
-            messages.send(
-                sender,
-                "history-header",
-                Placeholder.unparsed("player", target.second),
-                Placeholder.unparsed("amount", entries.size.toString()),
-            )
-            for (entry in entries.asReversed()) {
-                sender.sendMessage(
-                    messages.line(
-                        sender,
-                        "history-entry",
-                        Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
-                        Placeholder.unparsed("channel", entry.channel),
-                        Placeholder.unparsed("server", entry.server),
-                        Placeholder.unparsed("message", entry.content),
-                    )
+            plugin.threads.main {
+                if (entries.isEmpty()) {
+                    messages.send(sender, "history-empty", Placeholder.unparsed("player", target.second))
+                    return@main
+                }
+                messages.send(
+                    sender,
+                    "history-header",
+                    Placeholder.unparsed("player", target.second),
+                    Placeholder.unparsed("amount", entries.size.toString()),
                 )
+                for (entry in entries.asReversed()) {
+                    sender.sendMessage(
+                        messages.line(
+                            sender,
+                            "history-entry",
+                            Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
+                            Placeholder.unparsed("channel", entry.channel),
+                            Placeholder.unparsed("server", entry.server),
+                            Placeholder.unparsed("message", entry.content),
+                        )
+                    )
+                }
             }
         }
         return Command.SINGLE_SUCCESS
