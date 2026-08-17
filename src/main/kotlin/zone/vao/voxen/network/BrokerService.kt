@@ -3,6 +3,7 @@ package zone.vao.voxen.network
 import com.google.gson.Gson
 import org.bukkit.plugin.java.JavaPlugin
 import zone.vao.voxen.config.NetworkConfig
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -24,6 +25,7 @@ class BrokerService(
     var onModerationMessage: ((BrokerMessage) -> Unit)? = null
 
     private val gson = Gson()
+    private val warned = ConcurrentHashMap.newKeySet<Envelope.Result.Rejected>()
     private val io = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "voxen-network").apply { isDaemon = true }
     }
@@ -37,7 +39,14 @@ class BrokerService(
 
     fun start() {
         stop()
+        warned.clear()
         val config = network()
+        if (config.transport != NetworkConfig.Transport.NONE && config.secret.isEmpty()) {
+            plugin.logger.warning(
+                "network.secret in integrations.yml is empty, so incoming cross-server messages are not " +
+                    "authenticated. Anyone who can reach the broker can fake chat, private messages and mutes.",
+            )
+        }
         val created = when (config.transport) {
             NetworkConfig.Transport.NONE -> return
             NetworkConfig.Transport.REDIS ->
@@ -60,7 +69,7 @@ class BrokerService(
         val current = broker ?: return
         message.id?.let(::markSeen)
         io.execute {
-            runCatching { current.publish(gson.toJson(message)) }
+            runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret)) }
                 .onFailure { plugin.logger.warning("Failed to publish a cross-server message: ${it.message}") }
         }
     }
@@ -76,7 +85,8 @@ class BrokerService(
         runCatching { io.awaitTermination(3, TimeUnit.SECONDS) }
     }
 
-    private fun handleIncoming(payload: String) {
+    private fun handleIncoming(raw: String) {
+        val payload = verify(raw) ?: return
         val message = runCatching { gson.fromJson(payload, BrokerMessage::class.java) }.getOrNull() ?: return
         val id = message.id
         if (id.isNullOrEmpty() || message.server == network().serverId) return
@@ -98,6 +108,28 @@ class BrokerService(
 
     private fun markSeen(id: String) {
         synchronized(seen) { seen[id] = true }
+    }
+
+    private fun verify(raw: String): String? {
+        val config = network()
+        val result = Envelope.unwrap(raw, config.secret, config.maxAgeSeconds * 1000L)
+        if (result is Envelope.Result.Ok) return result.payload
+        val reason = result as Envelope.Result.Rejected
+        if (warned.add(reason)) plugin.logger.warning("${explain(reason)} Later drops for the same reason are not logged.")
+        return null
+    }
+
+    private fun explain(reason: Envelope.Result.Rejected): String = when (reason) {
+        Envelope.Result.Rejected.TOO_BIG ->
+            "Dropped a cross-server message larger than ${Envelope.MAX_BYTES / 1024} KiB."
+        Envelope.Result.Rejected.MALFORMED ->
+            "Dropped a cross-server message that is not a Voxen envelope. Something else is publishing on the same channel."
+        Envelope.Result.Rejected.VERSION ->
+            "Dropped a cross-server message from another Voxen protocol version. Run the same Voxen build everywhere."
+        Envelope.Result.Rejected.SIGNATURE ->
+            "Dropped a cross-server message with a bad or missing signature. Every server must share the same network.secret in integrations.yml."
+        Envelope.Result.Rejected.EXPIRED ->
+            "Dropped a cross-server message that is too old or dated in the future. Check that the server clocks agree, or raise network.max-age-seconds."
     }
 
     companion object {

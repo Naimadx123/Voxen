@@ -70,7 +70,26 @@ servers pointed at the same Redis work just as well.
    The bundled `server` channel already has it, so you have a local-only channel from the
    start.
 
-4. Restart every server. Repeat the same `integrations.yml` everywhere except
+4. Set a shared `network.secret`, the same random string on every server:
+
+   ```yaml title="plugins/Voxen/integrations.yml"
+   network:
+     secret: "a-long-random-string"
+   ```
+
+   Every outgoing message is signed with it (HMAC-SHA256) and anything arriving with a
+   wrong or missing signature is dropped.
+
+   If you run behind Velocity you can skip this. With `secret` left empty Voxen picks up
+   the forwarding secret from `config/paper-global.yml`, which every backend server behind
+   the proxy already shares, and derives its own key from it. Set
+   `use-velocity-secret: false` if you would rather it did not.
+
+   Servers also have to agree on the time, because a message older than
+   `network.max-age-seconds` (60 by default) is thrown away. If your machines run NTP,
+   which they should, there is nothing to do here.
+
+5. Restart every server. Repeat the same `integrations.yml` everywhere except
    `server-id`.
 
 </Steps>
@@ -112,9 +131,35 @@ between servers and survives relogs; with per-server SQLite each server keeps it
 immediately. With shared MySQL mutes also survive restarts on every server. With
 per-server SQLite each server only knows about mutes it was online to receive.
 
+## Signing
+
+Without `network.secret` Voxen trusts whatever the broker hands it, so anyone who can
+publish to Redis, NATS or RabbitMQ can fake a chat message from any player, send private
+messages as somebody else, or mute anyone. Set the secret and that stops: messages are
+signed on the way out and verified on the way in.
+
+The signature covers the whole message plus the time it was sent, so nobody can edit a
+captured message or backdate it. On top of that Voxen drops anything that is:
+
+| Dropped | Why |
+| --- | --- |
+| older than `max-age-seconds`, or dated that far into the future | somebody is replaying an old message, or two clocks disagree |
+| bigger than 256 KiB | someone is trying to make the server chew on junk |
+| stamped with another protocol version | one of the servers runs a different Voxen build |
+| already seen | the same message arrived twice |
+
+The key itself is never sent anywhere, so a derived Velocity secret cannot leak back out
+of the broker. Servers behind *different* proxies end up with different keys and will
+ignore each other, so set `secret` by hand in that case.
+
+The same string has to be on every server. A mismatch means the servers silently ignore
+each other, so Voxen logs one warning per reason the first time it drops a message, and
+one on startup if the secret is empty while a transport is on.
+
 <Aside type="caution" title="Keep the broker private">
-	Chat and private message contents travel over it in the clear unless you configure TLS
-	on the broker itself. It should not be reachable from outside your network.
+	Signing proves who wrote a message, it does not hide it. Chat and private message
+	contents travel in the clear unless you configure TLS on the broker itself. The broker
+	should not be reachable from outside your network, and it should need a password.
 </Aside>
 
 <Aside type="note">

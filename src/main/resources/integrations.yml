@@ -18,6 +18,19 @@ network:
   timeout-millis: 5000
   # Broadcasts mutes and unmutes to the other servers as they happen.
   sync-mutes: true
+  # Shared key that signs every cross-server message (HMAC-SHA256). Put the same random
+  # string on every server. Empty means no signing, and then anyone who can reach the
+  # broker can fake chat, private messages and mutes.
+  secret: ""
+  # When 'secret' is empty, take the key from the Velocity forwarding secret in
+  # config/paper-global.yml instead, so you do not have to invent a second shared string.
+  # Every server behind the same proxy already has it. Voxen does not use it directly, it
+  # derives its own key from it. Only helps if all your servers sit behind one proxy.
+  use-velocity-secret: true
+  # How old an incoming message may be before it is thrown away, in seconds. Stops someone
+  # who copied a message off the broker from playing it back later. The clocks on your
+  # servers have to agree within this window; 0 turns the check off.
+  max-age-seconds: 60
   redis:
     host: localhost
     port: 6379

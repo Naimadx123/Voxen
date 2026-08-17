@@ -8,6 +8,8 @@ import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelType
+import zone.vao.voxen.network.Envelope
+import zone.vao.voxen.network.ProxySecret
 import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.util.Durations
@@ -416,6 +418,8 @@ class ConfigManager(
         reconnectSeconds = (section?.getLong("reconnect-seconds", 5L) ?: 5L).coerceAtLeast(1L),
         timeoutMillis = (section?.getLong("timeout-millis", 5000L) ?: 5000L).coerceAtLeast(500L),
         syncMutes = section?.getBoolean("sync-mutes", true) ?: true,
+        secret = networkSecret(section),
+        maxAgeSeconds = (section?.getLong("max-age-seconds", 60L) ?: 60L).coerceAtLeast(0L),
         redis = NetworkConfig.Redis(
             host = section?.getString("redis.host") ?: "localhost",
             port = section?.getInt("redis.port", 6379) ?: 6379,
@@ -439,6 +443,15 @@ class ConfigManager(
             exchange = section?.getString("rabbitmq.exchange")?.trim()?.ifEmpty { null } ?: "voxen.chat",
         ),
     )
+
+    private fun networkSecret(section: ConfigurationSection?): String {
+        val configured = section?.getString("secret")?.trim().orEmpty()
+        if (configured.isNotEmpty()) return configured
+        if (section?.getBoolean("use-velocity-secret", true) == false) return ""
+        val proxy = ProxySecret.velocity(plugin.dataFolder.parentFile.parentFile) ?: return ""
+        plugin.logger.info("network.secret is empty, using the Velocity forwarding secret to sign cross-server messages.")
+        return Envelope.derive(proxy)
+    }
 
     private fun parseStorage(yaml: YamlConfiguration): StorageConfig = StorageConfig(
         type = StorageType.from(yaml.getString("type")),

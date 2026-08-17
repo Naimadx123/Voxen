@@ -6,6 +6,8 @@ data class NetworkConfig(
     val reconnectSeconds: Long,
     val timeoutMillis: Long,
     val syncMutes: Boolean,
+    val secret: String,
+    val maxAgeSeconds: Long,
     val redis: Redis,
     val nats: Nats,
     val rabbit: Rabbit,
