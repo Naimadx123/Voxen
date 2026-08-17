@@ -10,6 +10,7 @@ chat log) and optional cross-server chat over Redis, NATS or RabbitMQ.
 - Documentation: https://voxen.vao.zone (setup, channels, formats, moderation, network, API)
 - Issues and source: https://github.com/Naimadx123/Voxen
 - API releases: https://repo.vao.zone/#/releases/zone/vao/voxen-api
+- Discord: https://discord.gg/aSRYxqSjVJ
 
 ## Quick start
 
