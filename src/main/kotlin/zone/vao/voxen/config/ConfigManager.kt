@@ -39,6 +39,7 @@ class ConfigManager(
         val tags = YamlConfiguration.loadConfiguration(file("modules/minimessage-tags.yml"))
         val party = YamlConfiguration.loadConfiguration(file("modules/party.yml"))
         val emotes = YamlConfiguration.loadConfiguration(file("modules/emotes.yml"))
+        val presence = YamlConfiguration.loadConfiguration(file("modules/presence.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -55,6 +56,7 @@ class ConfigManager(
             emotes = parseEmotes(emotes),
             integrations = parseIntegrations(integrations),
             network = parseNetwork(integrations.getConfigurationSection("network")),
+            presence = parsePresence(presence),
             storage = parseStorage(storage),
             commands = parseCommands(main.getConfigurationSection("commands")),
             chatDelivery = ChatDelivery.from(main.getString("chat-delivery")),
@@ -473,6 +475,22 @@ class ConfigManager(
         return Envelope.derive(proxy)
     }
 
+    private fun parsePresence(yaml: YamlConfiguration): PresenceConfig {
+        fun millis(key: String, fallback: String): Long {
+            val raw = yaml.getString(key)?.trim().orEmpty().ifEmpty { fallback }
+            return Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/presence.yml: invalid '$key' value '$raw'; using $fallback.")
+                Durations.parseMillis(fallback)!!
+            }
+        }
+        return PresenceConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            heartbeatMillis = millis("heartbeat", "15s").coerceAtLeast(1000L),
+            ttlMillis = millis("ttl", "60s").coerceAtLeast(5000L),
+            suggestRemotePlayers = yaml.getBoolean("suggest-remote-players", true),
+        )
+    }
+
     private fun parseStorage(yaml: YamlConfiguration): StorageConfig = StorageConfig(
         type = StorageType.from(yaml.getString("type")),
         host = yaml.getString("host") ?: "localhost",
@@ -546,6 +564,7 @@ class ConfigManager(
             "modules/minimessage-tags.yml",
             "modules/party.yml",
             "modules/emotes.yml",
+            "modules/presence.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )

@@ -145,3 +145,8 @@ party-invalid-name: "<red>Nazwa drużyny może zawierać tylko litery, cyfry, '-
 party-channel-missing: "<red>Brak skonfigurowanego kanału drużyny."
 
 update-available: "<gradient:#00d4ff:#7b5cff><bold>Voxen <latest></bold></gradient> <gray>jest już dostępna, masz <red><current></red>. <aqua><url>"
+find-result: "<gray>Gracz <white><player></white> jest na serwerze <white><server></white>."
+find-disabled: "<red>Śledzenie graczy jest wyłączone w modules/presence.yml."
+find-empty: "<gray>Nie znam teraz żadnych graczy z innych serwerów."
+find-header: "<aqua>Gracze na innych serwerach</aqua> <gray>(<amount>)</gray>"
+find-entry: "<gray>- <white><player></white> <dark_gray>na</dark_gray> <white><server></white>"

@@ -17,12 +17,20 @@ data class VoxenConfig(
     val party: PartyConfig,
     val integrations: IntegrationsConfig,
     val network: NetworkConfig,
+    val presence: PresenceConfig,
     val storage: StorageConfig,
     val commands: CommandNames,
     val nicknames: NicknamesConfig,
     val emotes: EmotesConfig,
     val chatDelivery: ChatDelivery,
     val updateChecker: UpdateCheckerConfig,
+)
+
+data class PresenceConfig(
+    val enabled: Boolean,
+    val heartbeatMillis: Long,
+    val ttlMillis: Long,
+    val suggestRemotePlayers: Boolean,
 )
 
 data class UpdateCheckerConfig(

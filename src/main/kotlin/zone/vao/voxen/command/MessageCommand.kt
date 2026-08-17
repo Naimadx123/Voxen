@@ -17,7 +17,7 @@ object MessageCommand {
             .requires { it.sender.hasPermission("voxen.pm.send") }
             .then(
                 Commands.argument("player", StringArgumentType.word())
-                    .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                    .suggests { _, builder -> CommandSuggestions.networkPlayers(plugin, builder) }
                     .then(
                         Commands.argument("message", StringArgumentType.greedyString())
                             .executes { ctx ->

@@ -145,3 +145,8 @@ party-invalid-name: "<red>Party names may only contain letters, digits, '-' and 
 party-channel-missing: "<red>No party channel is configured."
 
 update-available: "<gradient:#00d4ff:#7b5cff><bold>Voxen <latest></bold></gradient> <gray>is out, you are running <red><current></red>. <aqua><url>"
+find-result: "<gray>Player <white><player></white> is on server <white><server></white>."
+find-disabled: "<red>Player tracking is disabled in modules/presence.yml."
+find-empty: "<gray>No players from other servers are known right now."
+find-header: "<aqua>Players on other servers</aqua> <gray>(<amount>)</gray>"
+find-entry: "<gray>- <white><player></white> <dark_gray>on</dark_gray> <white><server></white>"

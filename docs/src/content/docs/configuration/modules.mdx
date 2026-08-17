@@ -85,6 +85,18 @@ you want when another plugin already handles parties.
 Party chat goes through the `party` channel, or the `#` quick prefix from anywhere.
 Membership is stored in the database, so with MySQL a party survives a server hop.
 
+## Presence
+
+```yaml title="plugins/Voxen/modules/presence.yml"
+enabled: true
+heartbeat: 15s
+ttl: 60s
+suggest-remote-players: true
+```
+
+Tracks which server each player on the network is on so private messages go straight there.
+Does nothing without `network.transport`, see [Cross-server](/network/cross-server/#player-tracking).
+
 ## Emotes
 
 ```yaml title="plugins/Voxen/modules/emotes.yml"

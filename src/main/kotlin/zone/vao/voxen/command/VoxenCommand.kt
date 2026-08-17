@@ -39,6 +39,15 @@ object VoxenCommand {
                     .executes { ctx -> sendStatus(plugin, ctx.source.sender) }
             )
             .then(
+                permLiteral("find", "voxen.find")
+                    .executes { ctx -> listPresence(plugin, ctx.source.sender) }
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.networkPlayers(plugin, builder) }
+                            .executes { ctx -> find(plugin, ctx.source.sender, arg(ctx, "player")) }
+                    )
+            )
+            .then(
                 permLiteral("mutes", "voxen.mod.mute")
                     .executes { ctx -> listMutes(plugin, ctx.source.sender) }
             )
@@ -221,6 +230,48 @@ object VoxenCommand {
                     "status-line",
                     Placeholder.unparsed("key", key),
                     Placeholder.unparsed("value", value),
+                )
+            )
+        }
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun find(plugin: Voxen, sender: CommandSender, name: String): Int {
+        val messages = plugin.messages()
+        val server = plugin.server.getPlayerExact(name)?.let { plugin.configManager.config.network.serverId }
+            ?: plugin.presenceService.serverOf(name)
+        if (server == null) {
+            messages.send(sender, "player-not-found", Placeholder.unparsed("player", name))
+            return Command.SINGLE_SUCCESS
+        }
+        messages.send(
+            sender,
+            "find-result",
+            Placeholder.unparsed("player", name),
+            Placeholder.unparsed("server", server),
+        )
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun listPresence(plugin: Voxen, sender: CommandSender): Int {
+        val messages = plugin.messages()
+        if (!plugin.configManager.config.presence.enabled) {
+            messages.send(sender, "find-disabled")
+            return Command.SINGLE_SUCCESS
+        }
+        val entries = plugin.presenceService.entries()
+        if (entries.isEmpty()) {
+            messages.send(sender, "find-empty")
+            return Command.SINGLE_SUCCESS
+        }
+        messages.send(sender, "find-header", Placeholder.unparsed("amount", entries.size.toString()))
+        for (entry in entries) {
+            sender.sendMessage(
+                messages.line(
+                    sender,
+                    "find-entry",
+                    Placeholder.unparsed("player", entry.name),
+                    Placeholder.unparsed("server", entry.server),
                 )
             )
         }

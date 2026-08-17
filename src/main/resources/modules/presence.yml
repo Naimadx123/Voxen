@@ -1,0 +1,11 @@
+# Keeps track of which server every player on the network is on, so a private message
+# goes straight to that server instead of asking every server in turn.
+# Needs network.transport in integrations.yml; on a single server it does nothing.
+enabled: true
+# How often this server publishes its own player list.
+heartbeat: 15s
+# How long an entry stays valid without a refresh. A server that crashes has its players
+# forgotten after this long. Keep it well above the heartbeat.
+ttl: 60s
+# Suggest players from other servers when completing /msg.
+suggest-remote-players: true

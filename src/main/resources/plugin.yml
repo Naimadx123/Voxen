@@ -46,6 +46,9 @@ permissions:
   voxen.mute.exempt:
     description: Protects against being muted.
     default: op
+  voxen.find:
+    description: Allows looking up which server a player is on.
+    default: op
   voxen.socialspy:
     description: Allows toggling the private message spy.
     default: op

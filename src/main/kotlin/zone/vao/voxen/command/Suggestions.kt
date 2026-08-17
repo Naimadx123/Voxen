@@ -15,6 +15,17 @@ object CommandSuggestions {
         return builder.buildFuture()
     }
 
+    fun networkPlayers(plugin: Voxen, builder: SuggestionsBuilder): CompletableFuture<Suggestions> {
+        val input = builder.remaining.lowercase()
+        val local = plugin.server.onlinePlayers.map { it.name }
+        val remote = if (plugin.configManager.config.presence.suggestRemotePlayers) plugin.presenceService.names() else emptyList()
+        (local + remote)
+            .filter { it.lowercase().startsWith(input) }
+            .distinct()
+            .forEach(builder::suggest)
+        return builder.buildFuture()
+    }
+
     fun nicknames(plugin: Voxen, builder: SuggestionsBuilder): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
         plugin.server.onlinePlayers

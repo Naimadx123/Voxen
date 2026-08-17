@@ -5,6 +5,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import org.bstats.bukkit.Metrics
 import org.bukkit.entity.Player
@@ -26,6 +27,8 @@ import zone.vao.voxen.moderation.WordFilter
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.party.PartyService
+import zone.vao.voxen.presence.PresenceListener
+import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.StorageConfig
@@ -63,10 +66,14 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
     lateinit var brokerService: BrokerService
         private set
+    lateinit var presenceService: PresenceService
+        private set
     lateinit var wordFilter: WordFilter
         private set
     lateinit var threads: Threads
         private set
+
+    private var presenceTask: ScheduledTask? = null
 
     private val componentCodec = GsonComponentSerializer.gson()
     private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
@@ -170,6 +177,16 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 )
             )
         }
+        presenceService = PresenceService(
+            { configManager.config.presence },
+            { configManager.config.network.serverId },
+        )
+        presenceService.remotePublisher = { message -> brokerService.publish(message) }
+        brokerService.onPresenceMessage = { message -> presenceService.handleRemote(message) }
+        server.pluginManager.registerEvents(PresenceListener(presenceService), this)
+        privateMessageService.routeLookup = { name -> presenceService.serverOf(name) }
+        startPresenceHeartbeat()
+
         privateMessageService.remotePublisher = { message ->
             brokerService.publish(message.copy(server = configManager.config.network.serverId))
         }
@@ -220,6 +237,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     }
 
     override fun onDisable() {
+        presenceTask?.cancel()
         if (::brokerService.isInitialized) brokerService.shutdown()
         if (::playerDataService.isInitialized) playerDataService.shutdown()
         VoxenApi.shutdown()
@@ -231,6 +249,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         muteService.load()
         partyService.load()
         brokerService.start()
+        presenceService.clear()
+        startPresenceHeartbeat()
         refreshClientCommands()
     }
 
@@ -332,6 +352,23 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 ),
             )
         }
+    }
+
+    private fun startPresenceHeartbeat() {
+        presenceTask?.cancel()
+        presenceTask = null
+        val presence = configManager.config.presence
+        if (!presence.enabled) return
+        presenceTask = server.globalRegionScheduler.runAtFixedRate(
+            this,
+            {
+                if (brokerService.active() && configManager.config.presence.enabled) {
+                    presenceService.announceRoster(server.onlinePlayers.map { it.uniqueId to it.name })
+                }
+            },
+            1L,
+            (presence.heartbeatMillis / 50L).coerceAtLeast(20L),
+        )
     }
 
     private fun purgeChatLog() {

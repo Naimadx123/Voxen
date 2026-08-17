@@ -133,10 +133,37 @@ visibility and the ignore list are all checked on the recipient's server. Chat c
 sender's UUID for that reason, so ignoring someone works no matter which server they are on.
 A sender with `voxen.bypass.ignore` still gets through, the same as locally.
 
+## Player tracking
+
+Every server publishes its own player list every `heartbeat` and announces single joins and
+quits as they happen, so each server knows which server the rest of the network is on:
+
+```yaml title="plugins/Voxen/modules/presence.yml"
+enabled: true
+heartbeat: 15s
+ttl: 60s
+suggest-remote-players: true
+```
+
+An entry is only trusted for `ttl`, so a server that crashes has its players forgotten
+instead of leaving private messages pointed at a machine that is gone. Keep `ttl` a few
+times larger than `heartbeat`, otherwise entries expire between two heartbeats.
+
+`/voxen find <player>` (permission `voxen.find`) answers which server somebody is on, and
+`/voxen find` without a name lists everyone known on the other servers.
+
+A server that has just started knows nobody until the first heartbeat arrives. Private
+messages still work in that window, they just take the slower route below.
+
 ## Private messages
 
-Tab completion only suggests local players, but any name can be typed. If nobody on the
-network has that player, the sender gets the not-found message after `timeout-millis`.
+Tab completion suggests players from the whole network, not only the local ones. Set
+`suggest-remote-players: false` in `modules/presence.yml` to keep it local.
+
+When player tracking knows where the target is, the message is addressed to that one server
+and it answers even when the player left in the meantime, so the sender hears back at once.
+Otherwise the message goes to every server and the not-found message comes after
+`timeout-millis`, which is also what happens with `presence.enabled: false`.
 
 The `/r` target lives in player data. With a shared MySQL database it follows players
 between servers and survives relogs; with per-server SQLite each server keeps its own.

@@ -24,6 +24,9 @@ class BrokerService(
     @Volatile
     var onModerationMessage: ((BrokerMessage) -> Unit)? = null
 
+    @Volatile
+    var onPresenceMessage: ((BrokerMessage) -> Unit)? = null
+
     private val gson = Gson()
     private val warned = ConcurrentHashMap.newKeySet<Envelope.Result.Rejected>()
     private val io = WorkQueue(
@@ -104,6 +107,10 @@ class BrokerService(
             onPmMessage?.invoke(message)
             return
         }
+        if (message.type in PRESENCE_TYPES) {
+            onPresenceMessage?.invoke(message)
+            return
+        }
         if (message.type == TYPE_MUTE || message.type == TYPE_UNMUTE) {
             onModerationMessage?.invoke(message)
             return
@@ -144,5 +151,9 @@ class BrokerService(
         const val TYPE_PM_SPY = "pm_spy"
         const val TYPE_MUTE = "mute"
         const val TYPE_UNMUTE = "unmute"
+        const val TYPE_PRESENCE_JOIN = "presence_join"
+        const val TYPE_PRESENCE_QUIT = "presence_quit"
+        const val TYPE_PRESENCE_SYNC = "presence_sync"
+        private val PRESENCE_TYPES = setOf(TYPE_PRESENCE_JOIN, TYPE_PRESENCE_QUIT, TYPE_PRESENCE_SYNC)
     }
 }

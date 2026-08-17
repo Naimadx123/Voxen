@@ -38,6 +38,9 @@ class PrivateMessageService(
     @Volatile
     var scheduleTimeout: ((Long, () -> Unit) -> Unit)? = null
 
+    @Volatile
+    var routeLookup: ((String) -> String?)? = null
+
     private val mm = MiniMessage.miniMessage()
     private val pending = PendingMessages()
 
@@ -139,6 +142,7 @@ class PrivateMessageService(
                 target = targetName,
                 senderUuid = sender.uniqueId.toString(),
                 flags = flags.joinToString(","),
+                route = routeLookup?.invoke(targetName),
             )
         )
         scheduleTimeout?.invoke(config().network.timeoutMillis) {
@@ -268,21 +272,28 @@ class PrivateMessageService(
     }
 
     private fun handleRequest(request: BrokerMessage) {
-        val target = server.getPlayerExact(request.target ?: return) ?: return
+        val route = request.route
+        val directed = route != null && route == config().network.serverId
+        if (route != null && !directed) return
+        val targetName = request.target ?: return
+        val target = server.getPlayerExact(targetName) ?: run {
+            if (directed) ack(request, targetName, null, "player-not-found")
+            return
+        }
         val senderName = request.sender ?: return
         val senderUuid = runCatching { UUID.fromString(request.senderUuid) }.getOrNull() ?: return
         val settings = config().privateMessages
         if (!settings.enabled) {
-            ack(request, target, "pm-disabled")
+            ack(request, target.name, target.uniqueId.toString(), "pm-disabled")
             return
         }
         val flags = request.flags.orEmpty().split(',')
         if (!playerData.get(target.uniqueId).pmEnabled && "pmtoggle" !in flags) {
-            ack(request, target, "pm-target-disabled")
+            ack(request, target.name, target.uniqueId.toString(), "pm-target-disabled")
             return
         }
         if (ignores.isIgnoring(target.uniqueId, senderUuid) && "ignore" !in flags) {
-            ack(request, target, "pm-ignored")
+            ack(request, target.name, target.uniqueId.toString(), "pm-ignored")
             return
         }
         val message = runCatching { mm.deserialize(request.mm ?: return) }.getOrNull() ?: return
@@ -302,7 +313,7 @@ class PrivateMessageService(
             if (config().privateMessages.notifyMonitored) config().messages.send(target, "pm-monitored")
         }
         broadcastSpy(senderName, senderUuid, target.name, target.uniqueId, message)
-        ack(request, target, "ok")
+        ack(request, target.name, target.uniqueId.toString(), "ok")
     }
 
     private fun handleAck(ackMessage: BrokerMessage) {
@@ -363,7 +374,7 @@ class PrivateMessageService(
         )
     }
 
-    private fun ack(request: BrokerMessage, target: Player, status: String) {
+    private fun ack(request: BrokerMessage, targetName: String, targetUuid: String?, status: String) {
         remotePublisher?.invoke(
             BrokerMessage(
                 id = UUID.randomUUID().toString(),
@@ -372,9 +383,9 @@ class PrivateMessageService(
                 sender = request.sender,
                 component = null,
                 type = BrokerService.TYPE_PM_ACK,
-                target = target.name,
+                target = targetName,
                 senderUuid = request.senderUuid,
-                targetUuid = target.uniqueId.toString(),
+                targetUuid = targetUuid,
                 status = status,
                 replyTo = request.id,
             )
