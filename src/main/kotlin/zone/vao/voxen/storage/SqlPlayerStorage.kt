@@ -60,20 +60,19 @@ class SqlPlayerStorage(
                         "(party_id VARCHAR(36) NOT NULL, uuid VARCHAR(36) PRIMARY KEY)"
                 )
             }
+            writeVersion(conn, 1)
             version = 1
         }
         if (version < 2) {
-            conn.createStatement().use { st ->
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN filter_enabled INT NOT NULL DEFAULT 1")
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN nickname VARCHAR(64)")
-            }
+            addColumn(conn, playersTable, "filter_enabled", "INT NOT NULL DEFAULT 1")
+            addColumn(conn, playersTable, "nickname", "VARCHAR(64)")
+            writeVersion(conn, 2)
             version = 2
         }
         if (version < 3) {
-            conn.createStatement().use { st ->
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN last_pm_uuid VARCHAR(36)")
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN last_pm_name VARCHAR(16)")
-            }
+            addColumn(conn, playersTable, "last_pm_uuid", "VARCHAR(36)")
+            addColumn(conn, playersTable, "last_pm_name", "VARCHAR(16)")
+            writeVersion(conn, 3)
             version = 3
         }
         if (version < 4) {
@@ -87,12 +86,35 @@ class SqlPlayerStorage(
                     st.executeUpdate("CREATE INDEX ${chatLogTable}_lookup ON $chatLogTable (uuid, created_at)")
                 }
             }
-            version = 4
+            writeVersion(conn, 4)
         }
-        conn.createStatement().use { st -> st.executeUpdate("DELETE FROM $schemaTable") }
-        conn.prepareStatement("INSERT INTO $schemaTable (version) VALUES (?)").use { ps ->
-            ps.setInt(1, version)
-            ps.executeUpdate()
+    }
+
+    private fun addColumn(conn: Connection, table: String, column: String, definition: String) {
+        val existing = conn.metaData.getColumns(null, null, table, null).use { rs ->
+            buildSet { while (rs.next()) add(rs.getString("COLUMN_NAME").lowercase()) }
+        }
+        if (column.lowercase() in existing) return
+        conn.createStatement().use { st ->
+            st.executeUpdate("ALTER TABLE $table ADD COLUMN $column $definition")
+        }
+    }
+
+    private fun writeVersion(conn: Connection, version: Int) {
+        val restore = conn.autoCommit
+        conn.autoCommit = false
+        try {
+            conn.createStatement().use { st -> st.executeUpdate("DELETE FROM $schemaTable") }
+            conn.prepareStatement("INSERT INTO $schemaTable (version) VALUES (?)").use { ps ->
+                ps.setInt(1, version)
+                ps.executeUpdate()
+            }
+            conn.commit()
+        } catch (ex: Exception) {
+            runCatching { conn.rollback() }
+            throw ex
+        } finally {
+            runCatching { conn.autoCommit = restore }
         }
     }
 
@@ -278,7 +300,7 @@ class SqlPlayerStorage(
     }
 
     override fun saveParty(record: PartyRecord) {
-        dataSource.connection.use { conn ->
+        transaction { conn ->
             conn.prepareStatement("DELETE FROM $partiesTable WHERE id = ?").use { ps ->
                 ps.setString(1, record.id.toString())
                 ps.executeUpdate()
@@ -306,7 +328,7 @@ class SqlPlayerStorage(
     }
 
     override fun deleteParty(id: UUID) {
-        dataSource.connection.use { conn ->
+        transaction { conn ->
             conn.prepareStatement("DELETE FROM $partyMembersTable WHERE party_id = ?").use { ps ->
                 ps.setString(1, id.toString())
                 ps.executeUpdate()
@@ -319,7 +341,7 @@ class SqlPlayerStorage(
     }
 
     override fun addPartyMember(id: UUID, member: UUID) {
-        dataSource.connection.use { conn ->
+        transaction { conn ->
             conn.prepareStatement("DELETE FROM $partyMembersTable WHERE uuid = ?").use { ps ->
                 ps.setString(1, member.toString())
                 ps.executeUpdate()
@@ -344,30 +366,20 @@ class SqlPlayerStorage(
 
     override fun logChat(entries: List<ChatLogEntry>) {
         if (entries.isEmpty()) return
-        dataSource.connection.use { conn ->
-            val restore = conn.autoCommit
-            conn.autoCommit = false
-            try {
-                conn.prepareStatement(
-                    "INSERT INTO $chatLogTable (uuid, player, channel, content, server, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-                ).use { ps ->
-                    for (entry in entries) {
-                        ps.setString(1, entry.uuid.toString())
-                        ps.setString(2, entry.playerName)
-                        ps.setString(3, entry.channel)
-                        ps.setString(4, entry.content)
-                        ps.setString(5, entry.server)
-                        ps.setLong(6, entry.createdAt)
-                        ps.addBatch()
-                    }
-                    ps.executeBatch()
+        transaction { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $chatLogTable (uuid, player, channel, content, server, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                for (entry in entries) {
+                    ps.setString(1, entry.uuid.toString())
+                    ps.setString(2, entry.playerName)
+                    ps.setString(3, entry.channel)
+                    ps.setString(4, entry.content)
+                    ps.setString(5, entry.server)
+                    ps.setLong(6, entry.createdAt)
+                    ps.addBatch()
                 }
-                conn.commit()
-            } catch (ex: Exception) {
-                runCatching { conn.rollback() }
-                throw ex
-            } finally {
-                runCatching { conn.autoCommit = restore }
+                ps.executeBatch()
             }
         }
     }
@@ -406,6 +418,22 @@ class SqlPlayerStorage(
             }
         }
     }
+
+    private fun <T> transaction(block: (Connection) -> T): T =
+        dataSource.connection.use { conn ->
+            val restore = conn.autoCommit
+            conn.autoCommit = false
+            try {
+                val result = block(conn)
+                conn.commit()
+                result
+            } catch (ex: Exception) {
+                runCatching { conn.rollback() }
+                throw ex
+            } finally {
+                runCatching { conn.autoCommit = restore }
+            }
+        }
 
     private fun upsert(table: String, columns: List<String>, keys: List<String>): String {
         val head = "INSERT INTO $table (${columns.joinToString(", ")}) " +

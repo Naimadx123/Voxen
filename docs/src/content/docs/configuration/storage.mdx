@@ -55,6 +55,16 @@ share one database:
 Schema updates run on startup. There is nothing to migrate by hand between plugin
 versions.
 
+Each step checks what the database already has instead of trusting the recorded version, and
+the version is written as soon as its step finishes. A crash or a killed process halfway
+through an update leaves the database in a state the next startup can pick up from, so
+nothing gets applied twice and nothing gets skipped.
+
+Writes that touch more than one row run in a transaction: parties, chat history batches and
+the schema version. Either everything lands or nothing does, so a dropped connection cannot
+leave a party without members. Player settings and mutes go through a single UPSERT, which
+is atomic on its own.
+
 ## Pool size
 
 `pool-size` is the HikariCP connection pool. `10` is right for almost everyone. Voxen does

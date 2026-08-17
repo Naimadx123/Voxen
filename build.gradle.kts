@@ -35,6 +35,8 @@ dependencies {
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("com.zaxxer:HikariCP:$hikariVersion")
+    testImplementation("org.xerial:sqlite-jdbc:$sqliteVersion")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
