@@ -1,6 +1,6 @@
 ---
 title: Storage
-description: SQLite for a single server, MySQL or MariaDB for a network.
+description: SQLite for a single server, MySQL, MariaDB or PostgreSQL for a network.
 ---
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
@@ -35,6 +35,23 @@ the chat log.
 
 		`type: mysql` covers MariaDB as well. Use this on a network so settings, nicknames,
 		ignores, mutes and parties are shared.
+	</TabItem>
+	<TabItem label="PostgreSQL" icon="seti:db">
+		```yaml title="plugins/Voxen/storage.yml"
+		type: postgres
+		host: localhost
+		port: 5432
+		database: voxen
+		username: voxen
+		password: "secret"
+		table-prefix: voxen_
+		pool-size: 10
+		queue-size: 500
+		chat-log-batch: 100
+		```
+
+		`postgresql` works as a value too. Mind the port: 5432, not 3306. The database and
+		the user have to exist before the first start, Voxen only creates its own tables.
 	</TabItem>
 </Tabs>
 

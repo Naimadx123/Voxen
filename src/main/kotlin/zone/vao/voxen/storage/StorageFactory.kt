@@ -30,6 +30,14 @@ object StorageFactory {
                 hikari.password = config.password
                 hikari.maximumPoolSize = config.poolSize
             }
+
+            StorageType.POSTGRES -> {
+                hikari.jdbcUrl = "jdbc:postgresql://${config.host}:${config.port}/${config.database}"
+                hikari.driverClassName = "org.postgresql.Driver"
+                hikari.username = config.username
+                hikari.password = config.password
+                hikari.maximumPoolSize = config.poolSize
+            }
         }
 
         runCatching { Class.forName(hikari.driverClassName) }

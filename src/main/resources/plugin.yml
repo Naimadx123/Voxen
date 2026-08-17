@@ -13,6 +13,7 @@ libraries:
   - "com.zaxxer:HikariCP:${hikariVersion}"
   - "org.xerial:sqlite-jdbc:${sqliteVersion}"
   - "com.mysql:mysql-connector-j:${mysqlVersion}"
+  - "org.postgresql:postgresql:${postgresVersion}"
   - "redis.clients:jedis:${jedisVersion}"
   - "io.nats:jnats:${natsVersion}"
   - "com.rabbitmq:amqp-client:${amqpVersion}"

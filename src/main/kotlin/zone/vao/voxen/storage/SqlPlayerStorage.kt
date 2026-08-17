@@ -91,7 +91,8 @@ class SqlPlayerStorage(
     }
 
     private fun addColumn(conn: Connection, table: String, column: String, definition: String) {
-        val existing = conn.metaData.getColumns(null, null, table, null).use { rs ->
+        val lookup = if (type == StorageType.POSTGRES) table.lowercase() else table
+        val existing = conn.metaData.getColumns(null, null, lookup, null).use { rs ->
             buildSet { while (rs.next()) add(rs.getString("COLUMN_NAME").lowercase()) }
         }
         if (column.lowercase() in existing) return
@@ -440,7 +441,7 @@ class SqlPlayerStorage(
             "VALUES (${columns.joinToString(", ") { "?" }})"
         val updates = columns.filterNot { it in keys }
         return when (type) {
-            StorageType.SQLITE ->
+            StorageType.SQLITE, StorageType.POSTGRES ->
                 "$head ON CONFLICT(${keys.joinToString(", ")}) DO UPDATE SET " +
                     updates.joinToString(", ") { "$it = excluded.$it" }
 
