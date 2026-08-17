@@ -31,7 +31,19 @@ data class ModerationConfig(
     val historyEnabled: Boolean = false,
     val historyKeepDays: Int = 14,
     val historyEntries: Int = 15,
+    val maxLength: Int = 0,
+    val cooldownAffectsPm: Boolean = false,
+    val repeatAffectsPm: Boolean = false,
+    val floodAffectsPm: Boolean = true,
+    val filterAffectsPm: Boolean = true,
+    val linksAffectsPm: Boolean = true,
+    val historyAffectsPm: Boolean = false,
+    val maxLengthAffectsPm: Boolean = true,
 ) {
+
+    val spamAffectsPm: Boolean
+        get() = cooldownAffectsPm || repeatAffectsPm || floodAffectsPm
+
     val similarityThresholdPercent: String
         get() = Math.round(similarityThreshold * 100).toString()
 

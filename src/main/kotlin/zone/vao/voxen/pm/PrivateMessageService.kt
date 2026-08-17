@@ -9,8 +9,11 @@ import org.bukkit.entity.Player
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.ignore.IgnoreService
 import zone.vao.voxen.moderation.MuteService
+import zone.vao.voxen.moderation.SpamGuard
+import zone.vao.voxen.moderation.WordFilter
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
+import zone.vao.voxen.storage.ChatLogEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
 import zone.vao.voxen.util.Durations
@@ -23,6 +26,8 @@ class PrivateMessageService(
     private val playerData: PlayerDataService,
     private val ignores: IgnoreService,
     private val mutes: MuteService,
+    private val spamGuard: SpamGuard,
+    private val wordFilter: WordFilter,
     private val renderer: ContentRenderer,
     private val threads: Threads,
 ) {
@@ -69,7 +74,8 @@ class PrivateMessageService(
             return false
         }
 
-        val message = renderer.render(content, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+        val text = moderate(sender, content) ?: return false
+        val message = renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
             Placeholder.unparsed("player", sender.name),
@@ -93,6 +99,7 @@ class PrivateMessageService(
             }
         }
         broadcastSpy(sender.name, sender.uniqueId, target.name, target.uniqueId, message)
+        logHistory(sender, text)
         return true
     }
 
@@ -112,7 +119,8 @@ class PrivateMessageService(
             return false
         }
         if (isMuted(sender)) return false
-        val message = renderer.render(content, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+        val text = moderate(sender, content) ?: return false
+        val message = renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
         val requestId = UUID.randomUUID().toString()
         pending.add(requestId, sender.uniqueId, targetName, message)
         val flags = buildList {
@@ -139,6 +147,7 @@ class PrivateMessageService(
                 config().messages.send(it, "player-not-found", Placeholder.unparsed("player", timedOut.targetName))
             }
         }
+        logHistory(sender, text)
         return true
     }
 
@@ -183,6 +192,81 @@ class PrivateMessageService(
             Placeholder.unparsed("remaining", remaining),
         )
         return true
+    }
+
+    private fun moderate(sender: Player, content: String): String? {
+        val moderation = config().moderation
+        val messages = config().messages
+        if (moderation.maxLengthAffectsPm && moderation.maxLength > 0 && content.length > moderation.maxLength) {
+            messages.send(sender, "message-too-long", Placeholder.unparsed("max", moderation.maxLength.toString()))
+            return null
+        }
+        if (moderation.spamAffectsPm) {
+            when (
+                val result = spamGuard.check(
+                    uuid = sender.uniqueId,
+                    channelId = PM_CHANNEL,
+                    channelCooldownMillis = 0L,
+                    content = content,
+                    bypassCooldown = !moderation.cooldownAffectsPm || sender.hasPermission(BYPASS_COOLDOWN),
+                    bypassRepeat = !moderation.repeatAffectsPm || sender.hasPermission(BYPASS_SPAM),
+                    bypassFlood = !moderation.floodAffectsPm || sender.hasPermission(BYPASS_SPAM),
+                )
+            ) {
+                is SpamGuard.Result.Cooldown -> {
+                    messages.send(sender, "chat-cooldown", Placeholder.unparsed("remaining", Durations.humanize(result.remainingMillis)))
+                    return null
+                }
+                SpamGuard.Result.Repeat -> {
+                    messages.send(sender, "chat-repeat", Placeholder.unparsed("threshold", moderation.similarityThresholdPercent))
+                    return null
+                }
+                SpamGuard.Result.Flood -> {
+                    messages.send(sender, "chat-flood")
+                    return null
+                }
+                SpamGuard.Result.Ok -> Unit
+            }
+        }
+        var text = content
+        if (moderation.linksAffectsPm && !sender.hasPermission(BYPASS_LINKS)) {
+            when (val result = wordFilter.checkLinks(text)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(sender, "message-has-link")
+                    return null
+                }
+                is WordFilter.Result.Censored -> text = result.content
+                WordFilter.Result.Clean -> Unit
+            }
+        }
+        if (moderation.filterAffectsPm && !sender.hasPermission(BYPASS_FILTER)) {
+            when (val result = wordFilter.check(text)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(sender, "message-blocked")
+                    return null
+                }
+                is WordFilter.Result.Censored -> text = result.content
+                WordFilter.Result.Clean -> Unit
+            }
+        }
+        return text
+    }
+
+    private fun logHistory(sender: Player, content: String) {
+        val moderation = config().moderation
+        if (!moderation.historyEnabled || !moderation.historyAffectsPm) return
+        playerData.async {
+            it.logChat(
+                ChatLogEntry(
+                    uuid = sender.uniqueId,
+                    playerName = sender.name,
+                    channel = PM_CHANNEL,
+                    content = content,
+                    server = config().network.serverId,
+                    createdAt = System.currentTimeMillis(),
+                )
+            )
+        }
     }
 
     private fun handleRequest(request: BrokerMessage) {
@@ -315,5 +399,10 @@ class PrivateMessageService(
         const val SPY_PERMISSION = "voxen.socialspy"
         const val BYPASS_TOGGLE = "voxen.bypass.pmtoggle"
         const val BYPASS_IGNORE = "voxen.bypass.ignore"
+        const val PM_CHANNEL = "@pm"
+        private const val BYPASS_COOLDOWN = "voxen.bypass.cooldown"
+        private const val BYPASS_SPAM = "voxen.bypass.spam"
+        private const val BYPASS_FILTER = "voxen.bypass.filter"
+        private const val BYPASS_LINKS = "voxen.bypass.links"
     }
 }

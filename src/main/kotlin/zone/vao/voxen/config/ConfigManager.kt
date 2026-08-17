@@ -269,6 +269,14 @@ class ConfigManager(
             historyEnabled = yaml.getBoolean("history.enabled", false),
             historyKeepDays = yaml.getInt("history.keep-days", 14).coerceIn(0, 3650),
             historyEntries = yaml.getInt("history.entries", 15).coerceIn(1, 100),
+            maxLength = yaml.getInt("max-length.chars", 0).coerceAtLeast(0),
+            cooldownAffectsPm = yaml.getBoolean("cooldown-affect-pm", false),
+            repeatAffectsPm = yaml.getBoolean("anti-repeat.affect-pm", false),
+            floodAffectsPm = yaml.getBoolean("anti-flood.affect-pm", true),
+            filterAffectsPm = yaml.getBoolean("filter.affect-pm", true),
+            linksAffectsPm = yaml.getBoolean("links.affect-pm", true),
+            historyAffectsPm = yaml.getBoolean("history.affect-pm", false),
+            maxLengthAffectsPm = yaml.getBoolean("max-length.affect-pm", true),
         )
     }
 

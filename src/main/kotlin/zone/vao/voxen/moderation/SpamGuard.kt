@@ -33,6 +33,7 @@ class SpamGuard(
         content: String,
         bypassCooldown: Boolean,
         bypassRepeat: Boolean,
+        bypassFlood: Boolean = bypassRepeat,
     ): Result {
         val config = moderation()
         val now = clock()
@@ -50,7 +51,7 @@ class SpamGuard(
             }
         }
 
-        if (!bypassRepeat && config.floodEnabled && isFlood(content, config)) return Result.Flood
+        if (!bypassFlood && config.floodEnabled && isFlood(content, config)) return Result.Flood
 
         val normalized = normalize(content)
         val recent = state?.recent.orEmpty().filter { inWindow(it, now, config.repeatWindowMillis) }

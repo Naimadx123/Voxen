@@ -131,6 +131,12 @@ class ChatService(
             return null
         }
 
+        val maxLength = config().moderation.maxLength
+        if (maxLength > 0 && rawContent.length > maxLength) {
+            messages.send(player, "message-too-long", Placeholder.unparsed("max", maxLength.toString()))
+            return null
+        }
+
         when (val result = spamGuard.check(
             uuid = player.uniqueId,
             channelId = channel.id,

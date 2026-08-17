@@ -1,9 +1,20 @@
 # Minimum delay between any two chat messages per player (empty = disabled).
 cooldown: 1s
+# Whether the cooldown also counts private messages. Off by default, a conversation
+# in /msg goes back and forth faster than public chat.
+cooldown-affect-pm: false
+
+# Rejects messages longer than this many characters. chars: 0 turns it off.
+max-length:
+  chars: 0
+  affect-pm: true
 
 # Blocks sending the exact same message twice within the window.
 anti-repeat:
   enabled: true
+  # Whether repeats in private messages count too. Off by default, "ok" twice in
+  # a conversation is normal.
+  affect-pm: false
   window-seconds: 30
   # Also catches slightly changed repeats like "hi there" after "hi there!".
   # threshold: how alike two messages must be, from 0.0 to 1.0.
@@ -19,12 +30,16 @@ anti-repeat:
 # to the link filter instead. 0 turns a check off.
 anti-flood:
   enabled: true
+  # Whether private messages are checked for noise too.
+  affect-pm: true
   max-run: 8
   max-word-length: 30
 
 # Blocked words and regex patterns. mode: block (reject the message) or censor (mask matches).
 filter:
   enabled: true
+  # Whether blocked words are also caught in private messages.
+  affect-pm: true
   mode: censor
   censor-char: "*"
   words: []
@@ -45,6 +60,8 @@ filter:
 # Anything on the whitelist is allowed, including its subdomains.
 links:
   enabled: false
+  # Whether links are also caught in private messages.
+  affect-pm: true
   mode: block
   ips: true
   # Also catches addresses written with a comma or apostrophe instead of a dot,
@@ -63,6 +80,9 @@ slowmode:
 # Stores sent messages so staff can read them back with /voxen history <player>.
 history:
   enabled: false
+  # Whether private messages are stored as well. They then show up in
+  # /voxen history under the channel name '@pm'.
+  affect-pm: false
   # Entries older than this are deleted on startup. 0 keeps them forever.
   keep-days: 14
   # How many of the newest messages /voxen history shows.

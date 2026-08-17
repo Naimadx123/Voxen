@@ -41,6 +41,7 @@ sender-format: "<gray>[<gold>You</gold> → <gold><target></gold>]</gray> <white
 receiver-format: "<gray>[<gold><player></gold> → <gold>You</gold>]</gray> <white><message></white>"
 spy-format: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>"
 notify-monitored: false
+respect-mutes: true
 sound:
   enabled: true
   key: "minecraft:block.note_block.pling"
@@ -54,6 +55,10 @@ The three formats take `<player>` (sender), `<target>` and `<message>`.
 Players refuse private messages with `/voxen pm`; `voxen.bypass.pmtoggle` gets through
 anyway. Ignoring someone with `/ignore` also blocks their private messages, and
 `voxen.bypass.ignore` overrides that.
+
+`respect-mutes: true` makes a server-wide mute cover `/msg` and `/r` as well. A mute limited
+to one channel never applies here. The other moderation checks have their own `affect-pm`
+switches in `modules/moderation.yml`, see [Moderation](/configuration/moderation/#private-messages).
 
 ### Social spy
 
