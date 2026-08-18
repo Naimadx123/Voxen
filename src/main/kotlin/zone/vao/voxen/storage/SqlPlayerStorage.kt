@@ -19,6 +19,7 @@ class SqlPlayerStorage(
     private val partiesTable = "${tablePrefix}parties"
     private val partyMembersTable = "${tablePrefix}party_members"
     private val chatLogTable = "${tablePrefix}chat_log"
+    private val mailTable = "${tablePrefix}mail"
     private val schemaTable = "${tablePrefix}schema"
     private val dataSource = HikariDataSource(hikariConfig)
 
@@ -87,6 +88,21 @@ class SqlPlayerStorage(
                 }
             }
             writeVersion(conn, 4)
+            version = 4
+        }
+        if (version < 5) {
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $mailTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, recipient VARCHAR(36) NOT NULL, sender VARCHAR(36) NOT NULL, " +
+                        "sender_name VARCHAR(16) NOT NULL, content TEXT NOT NULL, server VARCHAR(64) NOT NULL, " +
+                        "created_at BIGINT NOT NULL, read_at BIGINT)"
+                )
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${mailTable}_inbox ON $mailTable (recipient, created_at)")
+                }
+            }
+            writeVersion(conn, 5)
         }
     }
 
@@ -414,6 +430,92 @@ class SqlPlayerStorage(
     override fun purgeChatLog(before: Long) {
         dataSource.connection.use { conn ->
             conn.prepareStatement("DELETE FROM $chatLogTable WHERE created_at < ?").use { ps ->
+                ps.setLong(1, before)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun saveMail(entry: MailEntry) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $mailTable (id, recipient, sender, sender_name, content, server, created_at, read_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, entry.id.toString())
+                ps.setString(2, entry.recipient.toString())
+                ps.setString(3, entry.senderUuid.toString())
+                ps.setString(4, entry.senderName)
+                ps.setString(5, entry.content)
+                ps.setString(6, entry.server)
+                ps.setLong(7, entry.createdAt)
+                if (entry.readAt != null) ps.setLong(8, entry.readAt) else ps.setNull(8, java.sql.Types.BIGINT)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun mailFor(recipient: UUID, unreadOnly: Boolean): List<MailEntry> {
+        val result = ArrayList<MailEntry>()
+        val filter = if (unreadOnly) " AND read_at IS NULL" else ""
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT id, sender, sender_name, content, server, created_at, read_at FROM $mailTable " +
+                    "WHERE recipient = ?$filter ORDER BY created_at DESC"
+            ).use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: continue
+                        val sender = runCatching { UUID.fromString(rs.getString(2)) }.getOrNull() ?: continue
+                        val readAt = rs.getLong(7).let { if (rs.wasNull()) null else it }
+                        result += MailEntry(
+                            id = id,
+                            recipient = recipient,
+                            senderUuid = sender,
+                            senderName = rs.getString(3),
+                            content = rs.getString(4),
+                            server = rs.getString(5),
+                            createdAt = rs.getLong(6),
+                            readAt = readAt,
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    override fun markMailRead(recipient: UUID) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("UPDATE $mailTable SET read_at = ? WHERE recipient = ? AND read_at IS NULL").use { ps ->
+                ps.setLong(1, System.currentTimeMillis())
+                ps.setString(2, recipient.toString())
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun deleteMail(recipient: UUID, id: UUID): Boolean =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $mailTable WHERE recipient = ? AND id = ?").use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.setString(2, id.toString())
+                ps.executeUpdate() > 0
+            }
+        }
+
+    override fun clearMail(recipient: UUID): Int =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $mailTable WHERE recipient = ?").use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.executeUpdate()
+            }
+        }
+
+    override fun purgeMail(before: Long) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $mailTable WHERE created_at < ?").use { ps ->
                 ps.setLong(1, before)
                 ps.executeUpdate()
             }

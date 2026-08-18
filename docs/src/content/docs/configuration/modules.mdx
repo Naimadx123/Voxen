@@ -85,6 +85,29 @@ you want when another plugin already handles parties.
 Party chat goes through the `party` channel, or the `#` quick prefix from anywhere.
 Membership is stored in the database, so with MySQL a party survives a server hop.
 
+## Offline mail
+
+```yaml title="plugins/Voxen/modules/mail.yml"
+enabled: true
+max-per-player: 30
+expire-days: 30
+notify-on-join: true
+allow-when-online: false
+cooldown: 30s
+```
+
+`/mail send <player> <text>` leaves a message for someone who is not online. Mail lives in
+the database, so on a network every server sees the same mailbox and no broker traffic is
+needed. On join a player is told how much unread mail is waiting.
+
+Mail goes through the same checks as a private message: mutes, the word and link filters,
+the spam guard and the maximum length from `modules/private-messages.yml`. It also respects
+`/ignore`, and a full mailbox refuses new mail instead of dropping the oldest message.
+
+`expire-days: 0` keeps mail forever, otherwise anything older is deleted on startup.
+`allow-when-online: false` points players at `/msg` when the recipient is reachable, on this
+server or anywhere on the network.
+
 ## Presence
 
 ```yaml title="plugins/Voxen/modules/presence.yml"

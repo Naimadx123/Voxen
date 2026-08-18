@@ -517,7 +517,7 @@ object VoxenCommand {
         return Command.SINGLE_SUCCESS
     }
 
-    private fun resolve(plugin: Voxen, name: String): Pair<UUID, String>? {
+    internal fun resolve(plugin: Voxen, name: String): Pair<UUID, String>? {
         runCatching { UUID.fromString(name) }.getOrNull()?.let { id ->
             return id to (plugin.server.getOfflinePlayer(id).name ?: id.toString())
         }

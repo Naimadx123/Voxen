@@ -183,7 +183,7 @@ class PrivateMessageService(
         pending.forget(uuid)
     }
 
-    private fun isMuted(sender: Player): Boolean {
+    internal fun isMuted(sender: Player): Boolean {
         if (!config().privateMessages.respectMutes) return false
         val mute = mutes.activeMute(sender.uniqueId, null) ?: return false
         val messages = config().messages
@@ -198,7 +198,7 @@ class PrivateMessageService(
         return true
     }
 
-    private fun moderate(sender: Player, content: String): String? {
+    internal fun moderate(sender: Player, content: String): String? {
         val moderation = config().moderation
         val messages = config().messages
         if (moderation.maxLengthAffectsPm && moderation.maxLength > 0 && content.length > moderation.maxLength) {

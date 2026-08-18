@@ -70,6 +70,9 @@ permissions:
   voxen.ignore:
     description: Allows ignoring other players.
     default: true
+  voxen.mail:
+    description: Allows sending and reading offline mail.
+    default: true
   voxen.pm.send:
     description: Allows sending private messages.
     default: true

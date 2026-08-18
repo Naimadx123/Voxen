@@ -20,6 +20,7 @@ import zone.vao.voxen.config.Messages
 import zone.vao.voxen.hook.HookManager
 import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
+import zone.vao.voxen.mail.MailService
 import zone.vao.voxen.mention.MentionService
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
@@ -67,6 +68,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var brokerService: BrokerService
         private set
     lateinit var presenceService: PresenceService
+
+    lateinit var mailService: MailService
         private set
     lateinit var wordFilter: WordFilter
         private set
@@ -221,6 +224,16 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             }
         }
         brokerService.start()
+
+        mailService = MailService(
+            server,
+            { configManager.config },
+            playerDataService,
+            privateMessageService,
+            threads,
+        ) { name -> presenceService.serverOf(name) != null }
+        server.pluginManager.registerEvents(mailService, this)
+        purgeMail()
 
         VoxenApi.init(this)
         server.servicesManager.register(VoxenService::class.java, this, this, org.bukkit.plugin.ServicePriority.Normal)
@@ -378,6 +391,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         playerDataService.async { it.purgeChatLog(cutoff) }
     }
 
+    private fun purgeMail() {
+        val mail = configManager.config.mail
+        if (!mail.enabled || mail.expireDays <= 0) return
+        val cutoff = System.currentTimeMillis() - mail.expireDays * 86_400_000L
+        playerDataService.async { it.purgeMail(cutoff) }
+    }
+
     private fun refreshClientCommands() {
         for (player in server.onlinePlayers) {
             player.scheduler.run(this, { player.updateCommands() }, null)
@@ -432,6 +452,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             }
             if (configManager.config.party.enabled) {
                 register(commands.party, "Manage your party") { PartyCommand.build(this, it) }
+            }
+            if (configManager.config.mail.enabled) {
+                register(commands.mail, "Send and read offline mail") { MailCommand.build(this, it) }
             }
 
             for (channel in channels.values) {

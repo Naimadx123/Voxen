@@ -21,5 +21,11 @@ interface PlayerStorage {
     fun logChat(entries: List<ChatLogEntry>)
     fun chatHistory(uuid: UUID, limit: Int): List<ChatLogEntry>
     fun purgeChatLog(before: Long)
+    fun saveMail(entry: MailEntry)
+    fun mailFor(recipient: UUID, unreadOnly: Boolean): List<MailEntry>
+    fun markMailRead(recipient: UUID)
+    fun deleteMail(recipient: UUID, id: UUID): Boolean
+    fun clearMail(recipient: UUID): Int
+    fun purgeMail(before: Long)
     fun close()
 }

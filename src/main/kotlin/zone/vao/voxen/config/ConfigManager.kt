@@ -40,6 +40,7 @@ class ConfigManager(
         val party = YamlConfiguration.loadConfiguration(file("modules/party.yml"))
         val emotes = YamlConfiguration.loadConfiguration(file("modules/emotes.yml"))
         val presence = YamlConfiguration.loadConfiguration(file("modules/presence.yml"))
+        val mail = YamlConfiguration.loadConfiguration(file("modules/mail.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -57,6 +58,7 @@ class ConfigManager(
             integrations = parseIntegrations(integrations),
             network = parseNetwork(integrations.getConfigurationSection("network")),
             presence = parsePresence(presence),
+            mail = parseMail(mail),
             storage = parseStorage(storage),
             commands = parseCommands(main.getConfigurationSection("commands")),
             chatDelivery = ChatDelivery.from(main.getString("chat-delivery")),
@@ -491,6 +493,23 @@ class ConfigManager(
         )
     }
 
+    private fun parseMail(yaml: YamlConfiguration): MailConfig {
+        val cooldown = yaml.getString("cooldown")?.trim().orEmpty().let { raw ->
+            if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/mail.yml: invalid 'cooldown' value '$raw'; ignoring it.")
+                0L
+            }
+        }
+        return MailConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            maxPerPlayer = yaml.getInt("max-per-player", 30).coerceAtLeast(1),
+            expireDays = yaml.getInt("expire-days", 30).coerceAtLeast(0),
+            notifyOnJoin = yaml.getBoolean("notify-on-join", true),
+            allowWhenOnline = yaml.getBoolean("allow-when-online", false),
+            cooldownMillis = cooldown,
+        )
+    }
+
     private fun parseStorage(yaml: YamlConfiguration): StorageConfig = StorageConfig(
         type = StorageType.from(yaml.getString("type")),
         host = yaml.getString("host") ?: "localhost",
@@ -529,6 +548,7 @@ class ConfigManager(
         filter = names(section, "filter", listOf("filter")),
         nickname = names(section, "nickname", listOf("nick", "nickname")),
         realName = names(section, "real-name", listOf("realname")),
+        mail = names(section, "mail", listOf("mail")),
     )
 
     private fun names(section: ConfigurationSection?, key: String, defaults: List<String>): List<String> {
@@ -565,6 +585,7 @@ class ConfigManager(
             "modules/party.yml",
             "modules/emotes.yml",
             "modules/presence.yml",
+            "modules/mail.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )

@@ -18,6 +18,7 @@ data class VoxenConfig(
     val integrations: IntegrationsConfig,
     val network: NetworkConfig,
     val presence: PresenceConfig,
+    val mail: MailConfig,
     val storage: StorageConfig,
     val commands: CommandNames,
     val nicknames: NicknamesConfig,

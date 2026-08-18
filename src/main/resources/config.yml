@@ -48,6 +48,7 @@ commands:
   ignore: [ignore]
   ignore-list: [ignorelist]
   party: [party]
+  mail: [mail]
   chat-toggle: [chattoggle]
   language: [language, lang]
   filter: [filter]
