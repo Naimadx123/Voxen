@@ -10,6 +10,7 @@ import zone.vao.voxen.FormatPlaceholder
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.hook.HookManager
+import zone.vao.voxen.util.Components
 import java.util.concurrent.ConcurrentHashMap
 
 class FormatService(
@@ -46,8 +47,15 @@ class FormatService(
     }
 
     fun render(format: String, player: Player, channel: Channel, message: Component): Component {
-        val expanded = hooks.applyPlaceholders(player, format)
-        return mm.deserialize(expanded, resolvers(player, channel, message))
+        val trimmed = Components.stripEmptyPlaceholders(format) { token ->
+            when (token) {
+                "<prefix>" -> if (hooks.meta.prefix(player).isBlank()) "" else token
+                "<suffix>" -> if (hooks.meta.suffix(player).isBlank()) "" else token
+                else -> hooks.applyPlaceholders(player, token)
+            }
+        }
+        val expanded = hooks.applyPlaceholders(player, trimmed)
+        return Components.tidy(mm.deserialize(expanded, resolvers(player, channel, message)))
     }
 
     fun renderConsole(channel: Channel, player: Player, message: Component): Component =
