@@ -53,6 +53,12 @@ switching channel.
 | `/voxen slowmode <channel> <time\|off>` | raise a channel's cooldown live | `voxen.mod.slowmode` |
 | `/voxen history <player\|uuid>` | read stored messages | `voxen.mod.history` |
 | `/voxen chatclear [player]` | clear the chat | `voxen.mod.chatclear` |
+| `/voxen inspect <player>` | one-screen player summary | `voxen.mod.inspect` |
+| `/voxen warn <player> [reason]` | warn a player | `voxen.mod.warn` |
+| `/voxen warns <player>` | list active warnings | `voxen.mod.warn` |
+| `/voxen unwarn <player> <number>` | drop one warning | `voxen.mod.warn` |
+| `/voxen notes <player> [add <text>\|del <number>]` | staff notes on a player | `voxen.mod.notes` |
+| `/voxen delete <player> [amount]` | delete recent messages | `voxen.mod.delete` |
 | `/voxen spy` | toggle social spy | `voxen.socialspy` |
 | `/voxen mentions` / `/voxen pm` | personal toggles | everyone |
 
@@ -89,6 +95,12 @@ Default: **OP**.
 | `voxen.mod.history` | reading stored chat history |
 | `voxen.mod.chatclear` | clearing the chat |
 | `voxen.mod.chatclear.exempt` | keeps chat visible during a global clear |
+| `voxen.mod.inspect` | inspecting players |
+| `voxen.mod.warn` | warning players and managing warnings |
+| `voxen.mod.notes` | reading and writing staff notes |
+| `voxen.mod.alerts` | receiving staff alerts |
+| `voxen.mod.delete` | deleting recent chat messages |
+| `voxen.mod.delete.exempt` | protects a player's messages from deletion |
 | `voxen.mute.exempt` | cannot be muted |
 | `voxen.socialspy` | `/voxen spy`, viewing private messages |
 | `voxen.filter.toggle` | `/filter`, chat without the word filter |

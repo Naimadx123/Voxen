@@ -43,6 +43,24 @@ permissions:
   voxen.mod.chatclear.exempt:
     description: Keeps the chat visible during a global chat clear.
     default: op
+  voxen.mod.inspect:
+    description: Allows inspecting a player with /voxen inspect.
+    default: op
+  voxen.mod.warn:
+    description: Allows warning players and managing their warnings.
+    default: op
+  voxen.mod.notes:
+    description: Allows reading and writing staff notes on players.
+    default: op
+  voxen.mod.alerts:
+    description: Receives staff alerts about warnings and flagged joins.
+    default: op
+  voxen.mod.delete:
+    description: Allows deleting a player's recent chat messages.
+    default: op
+  voxen.mod.delete.exempt:
+    description: Protects a player's messages from being deleted.
+    default: op
   voxen.mute.exempt:
     description: Protects against being muted.
     default: op

@@ -27,5 +27,9 @@ interface PlayerStorage {
     fun deleteMail(recipient: UUID, id: UUID): Boolean
     fun clearMail(recipient: UUID): Int
     fun purgeMail(before: Long)
+    fun saveStaffNote(entry: StaffNote)
+    fun staffNotes(target: UUID, kind: StaffNote.Kind, since: Long): List<StaffNote>
+    fun deleteStaffNote(id: UUID): Boolean
+    fun purgeStaffNotes(before: Long, kind: StaffNote.Kind)
     fun close()
 }

@@ -20,6 +20,7 @@ class SqlPlayerStorage(
     private val partyMembersTable = "${tablePrefix}party_members"
     private val chatLogTable = "${tablePrefix}chat_log"
     private val mailTable = "${tablePrefix}mail"
+    private val staffNotesTable = "${tablePrefix}staff_notes"
     private val schemaTable = "${tablePrefix}schema"
     private val dataSource = HikariDataSource(hikariConfig)
 
@@ -103,6 +104,23 @@ class SqlPlayerStorage(
                 }
             }
             writeVersion(conn, 5)
+            version = 5
+        }
+        if (version < 6) {
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $staffNotesTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, target VARCHAR(36) NOT NULL, target_name VARCHAR(16) NOT NULL, " +
+                        "author VARCHAR(32) NOT NULL, content TEXT NOT NULL, kind VARCHAR(8) NOT NULL, " +
+                        "created_at BIGINT NOT NULL)"
+                )
+                runCatching {
+                    st.executeUpdate(
+                        "CREATE INDEX ${staffNotesTable}_lookup ON $staffNotesTable (target, kind, created_at)"
+                    )
+                }
+            }
+            writeVersion(conn, 6)
         }
     }
 
@@ -517,6 +535,71 @@ class SqlPlayerStorage(
         dataSource.connection.use { conn ->
             conn.prepareStatement("DELETE FROM $mailTable WHERE created_at < ?").use { ps ->
                 ps.setLong(1, before)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun saveStaffNote(entry: StaffNote) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $staffNotesTable (id, target, target_name, author, content, kind, created_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, entry.id.toString())
+                ps.setString(2, entry.target.toString())
+                ps.setString(3, entry.targetName)
+                ps.setString(4, entry.author)
+                ps.setString(5, entry.content)
+                ps.setString(6, entry.kind.id)
+                ps.setLong(7, entry.createdAt)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun staffNotes(target: UUID, kind: StaffNote.Kind, since: Long): List<StaffNote> {
+        val result = ArrayList<StaffNote>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT id, target_name, author, content, created_at FROM $staffNotesTable " +
+                    "WHERE target = ? AND kind = ? AND created_at >= ? ORDER BY created_at DESC"
+            ).use { ps ->
+                ps.setString(1, target.toString())
+                ps.setString(2, kind.id)
+                ps.setLong(3, since)
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: continue
+                        result += StaffNote(
+                            id = id,
+                            target = target,
+                            targetName = rs.getString(2),
+                            author = rs.getString(3),
+                            content = rs.getString(4),
+                            kind = kind,
+                            createdAt = rs.getLong(5),
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    override fun deleteStaffNote(id: UUID): Boolean =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $staffNotesTable WHERE id = ?").use { ps ->
+                ps.setString(1, id.toString())
+                ps.executeUpdate() > 0
+            }
+        }
+
+    override fun purgeStaffNotes(before: Long, kind: StaffNote.Kind) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $staffNotesTable WHERE kind = ? AND created_at < ?").use { ps ->
+                ps.setString(1, kind.id)
+                ps.setLong(2, before)
                 ps.executeUpdate()
             }
         }

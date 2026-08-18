@@ -3,6 +3,7 @@ package zone.vao.voxen.chat
 import io.papermc.paper.chat.ChatRenderer
 import io.papermc.paper.event.player.AsyncChatEvent
 import net.kyori.adventure.audience.Audience
+import net.kyori.adventure.chat.SignedMessage
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.entity.Player
@@ -11,10 +12,12 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
 import zone.vao.voxen.config.ChatDelivery
+import zone.vao.voxen.moderation.ModeratorService
 
 class ChatListener(
     private val chatService: ChatService,
     private val delivery: () -> ChatDelivery,
+    private val moderator: ModeratorService,
 ) : Listener {
 
     private val plain = PlainTextComponentSerializer.plainText()
@@ -38,15 +41,26 @@ class ChatListener(
         }
         val keep = out.recipients.mapTo(HashSet()) { it.uniqueId }
         event.viewers().removeIf { it is Player && it.uniqueId !in keep }
-        event.renderer(ChatRenderer { _, _, _, viewer -> renderFor(out, viewer) })
+        val signed = runCatching { event.signedMessage() }.getOrNull()
+        event.renderer(ChatRenderer { _, _, _, viewer -> renderFor(out, viewer, event.player, signed) })
         for (recipient in out.recipients) {
             chatService.effectsFor(out, recipient)
         }
         chatService.finish(out)
+        if (signed != null) moderator.remember(event.player, signed)
     }
 
-    private fun renderFor(out: ChatService.Outgoing, viewer: Audience): Component =
-        if (viewer is Player) chatService.viewFor(out, viewer) else chatService.consoleView(out)
+    private fun renderFor(
+        out: ChatService.Outgoing,
+        viewer: Audience,
+        sender: Player,
+        signed: SignedMessage?,
+    ): Component {
+        if (viewer !is Player) return chatService.consoleView(out)
+        val view = chatService.viewFor(out, viewer)
+        val buttons = signed?.let { moderator.chatButtons(sender, it, viewer) } ?: return view
+        return Component.empty().append(buttons).append(view)
+    }
 
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {

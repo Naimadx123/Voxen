@@ -26,6 +26,7 @@ network:
   # config/paper-global.yml instead, so you do not have to invent a second shared string.
   # Every server behind the same proxy already has it. Voxen does not use it directly, it
   # derives its own key from it. Only helps if all your servers sit behind one proxy.
+  # Ignored while transport is 'none', so a single server without a proxy needs nothing here.
   use-velocity-secret: true
   # How old an incoming message may be before it is thrown away, in seconds. Stops someone
   # who copied a message off the broker from playing it back later. The clocks on your

@@ -41,6 +41,7 @@ class ConfigManager(
         val emotes = YamlConfiguration.loadConfiguration(file("modules/emotes.yml"))
         val presence = YamlConfiguration.loadConfiguration(file("modules/presence.yml"))
         val mail = YamlConfiguration.loadConfiguration(file("modules/mail.yml"))
+        val moderatorTools = YamlConfiguration.loadConfiguration(file("modules/moderator-tools.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -59,6 +60,7 @@ class ConfigManager(
             network = parseNetwork(integrations.getConfigurationSection("network")),
             presence = parsePresence(presence),
             mail = parseMail(mail),
+            moderatorTools = parseModeratorTools(moderatorTools),
             storage = parseStorage(storage),
             commands = parseCommands(main.getConfigurationSection("commands")),
             chatDelivery = ChatDelivery.from(main.getString("chat-delivery")),
@@ -531,6 +533,54 @@ class ConfigManager(
         )
     }
 
+    private fun parseModeratorTools(yaml: YamlConfiguration): ModeratorToolsConfig {
+        return ModeratorToolsConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            dialogs = yaml.getBoolean("dialogs", true),
+            warningsEnabled = yaml.getBoolean("warnings.enabled", true),
+            warningExpireMillis = warningExpiry(yaml),
+            notifyTarget = yaml.getBoolean("warnings.notify-target", true),
+            warningRules = warningRules(yaml),
+            notesEnabled = yaml.getBoolean("notes.enabled", true),
+            joinAlerts = yaml.getBoolean("join-alerts", true),
+            deleteEnabled = yaml.getBoolean("message-delete.enabled", true),
+            deleteKeep = yaml.getInt("message-delete.keep", 200).coerceIn(1, 5000),
+            deleteButton = yaml.getBoolean("message-delete.button", true),
+            manageButton = yaml.getBoolean("manage-button", true),
+        )
+    }
+
+    private fun warningExpiry(yaml: YamlConfiguration): Long {
+        val raw = yaml.getString("warnings.expire")?.trim().orEmpty()
+        if (raw.isEmpty() || raw.equals("never", ignoreCase = true) || raw == "0") {
+            val days = yaml.getInt("warnings.expire-days", 0).coerceAtLeast(0)
+            return days * 86_400_000L
+        }
+        return Durations.parseMillis(raw) ?: run {
+            plugin.logger.warning("modules/moderator-tools.yml: invalid 'warnings.expire' value '$raw'; warnings never expire.")
+            0L
+        }
+    }
+
+    private fun warningRules(yaml: YamlConfiguration): List<ModeratorToolsConfig.WarningRule> {
+        val list = yaml.getMapList("warnings.rules")
+        return list.mapNotNull { entry ->
+            val at = (entry["at"] as? Number)?.toInt() ?: return@mapNotNull null
+            val commands = (entry["commands"] as? List<*>)
+                ?.mapNotNull { it?.toString()?.trim()?.ifEmpty { null } }
+                .orEmpty()
+            if (at <= 0 || commands.isEmpty()) {
+                plugin.logger.warning("modules/moderator-tools.yml: skipping a warnings rule without a positive 'at' and at least one command.")
+                return@mapNotNull null
+            }
+            ModeratorToolsConfig.WarningRule(
+                at = at,
+                repeat = entry["repeat"] as? Boolean ?: false,
+                commands = commands,
+            )
+        }
+    }
+
     private fun parseStorage(yaml: YamlConfiguration): StorageConfig = StorageConfig(
         type = StorageType.from(yaml.getString("type")),
         host = yaml.getString("host") ?: "localhost",
@@ -608,6 +658,7 @@ class ConfigManager(
             "modules/emotes.yml",
             "modules/presence.yml",
             "modules/mail.yml",
+            "modules/moderator-tools.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )

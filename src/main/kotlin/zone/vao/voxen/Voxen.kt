@@ -22,6 +22,8 @@ import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
 import zone.vao.voxen.mail.MailService
 import zone.vao.voxen.mention.MentionService
+import zone.vao.voxen.moderation.ModeratorDialogs
+import zone.vao.voxen.moderation.ModeratorService
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
 import zone.vao.voxen.moderation.WordFilter
@@ -33,6 +35,7 @@ import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.GroupService
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.PlayerDataService
+import zone.vao.voxen.storage.StaffNote
 import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
@@ -73,6 +76,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var mailService: MailService
         private set
     lateinit var groupService: GroupService
+        private set
+    lateinit var moderatorService: ModeratorService
         private set
     lateinit var wordFilter: WordFilter
         private set
@@ -161,7 +166,6 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             contentRenderer,
             threads,
         )
-        server.pluginManager.registerEvents(ChatListener(chatService) { configManager.config.chatDelivery }, this)
 
         brokerService = BrokerService(
             logger,
@@ -249,6 +253,25 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         ) { name -> presenceService.serverOf(name) != null }
         server.pluginManager.registerEvents(mailService, this)
         purgeMail()
+
+        moderatorService = ModeratorService(
+            server,
+            { configManager.config },
+            playerDataService,
+            muteService,
+            presenceService,
+            threads,
+        )
+        val dialogs = ModeratorDialogs(this)
+        moderatorService.dialogs = { viewer, target, lines -> dialogs.inspect(viewer, target, lines) }
+        moderatorService.warnDialog = { viewer, target -> dialogs.warn(viewer, target) }
+        moderatorService.notesDialog = { viewer, target, lines -> dialogs.notes(viewer, target, lines) }
+        server.pluginManager.registerEvents(moderatorService, this)
+        purgeWarnings()
+        server.pluginManager.registerEvents(
+            ChatListener(chatService, { configManager.config.chatDelivery }, moderatorService),
+            this,
+        )
 
         VoxenApi.init(this)
         server.servicesManager.register(VoxenService::class.java, this, this, org.bukkit.plugin.ServicePriority.Normal)
@@ -412,6 +435,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         if (!mail.enabled || mail.expireDays <= 0) return
         val cutoff = System.currentTimeMillis() - mail.expireDays * 86_400_000L
         playerDataService.async { it.purgeMail(cutoff) }
+    }
+
+    private fun purgeWarnings() {
+        val tools = configManager.config.moderatorTools
+        if (!tools.enabled || !tools.warningsEnabled || tools.warningExpireMillis <= 0L) return
+        val cutoff = tools.warningCutoff
+        playerDataService.async { it.purgeStaffNotes(cutoff, StaffNote.Kind.WARN) }
     }
 
     private fun refreshClientCommands() {
