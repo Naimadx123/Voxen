@@ -1,0 +1,51 @@
+# Staff tooling: /voxen inspect, warn, warns, unwarn, notes and delete.
+enabled: true
+
+# Opens a Minecraft dialog screen for /voxen inspect and for /voxen warn without a reason.
+# Needs a 1.21.6+ client. The chat summary is always sent as well, so older clients
+# lose nothing.
+dialogs: true
+
+# Shows a wrench in front of every message for staff with voxen.mod.inspect, before the
+# channel's own formatting. Clicking it runs /voxen inspect on the author.
+manage-button: true
+
+warnings:
+  enabled: true
+  # How long a warning counts. Older ones stop counting and are deleted on startup.
+  # Takes 30d, 12h, 1w and the like; 'never' keeps them forever.
+  expire: 30d
+  # Whether the warned player is told about it.
+  notify-target: true
+  # What happens at a given number of active warnings. Every command runs from the console.
+  # at: the warning count that triggers the rule.
+  # repeat: false fires only on that exact count, true fires again on every multiple of it.
+  # Placeholders: <player>, <uuid>, <count>, <moderator>, <reason>.
+  rules:
+    - at: 3
+      repeat: false
+      commands:
+        - "voxen mute <player> 1h Too many warnings"
+    - at: 5
+      repeat: false
+      commands:
+        - "voxen mute <player> 1d Too many warnings"
+        - "kick <player> Too many warnings (<count>)"
+
+# Staff-only notes on a player, invisible to them.
+notes:
+  enabled: true
+
+# Tells staff with voxen.mod.alerts when a player with active mutes or warnings joins.
+join-alerts: true
+
+# /voxen delete <player> [amount] removes that player's newest messages from every chat.
+# Only works with chat-delivery: player in config.yml, since messages Voxen sends
+# itself are not signed and clients cannot delete them.
+message-delete:
+  enabled: true
+  # How many recent messages stay deletable.
+  keep: 200
+  # Shows an [x] in front of every message for staff with voxen.mod.delete. Hidden for messages
+  # they cannot delete and for players with voxen.mod.delete.exempt.
+  button: true
