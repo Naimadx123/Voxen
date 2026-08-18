@@ -449,13 +449,18 @@ class ConfigManager(
         mcmmo = yaml.getBoolean("mcmmo", true),
     )
 
-    private fun parseNetwork(section: ConfigurationSection?): NetworkConfig = NetworkConfig(
-        transport = NetworkConfig.Transport.from(section?.getString("transport")),
+    private fun parseNetwork(section: ConfigurationSection?): NetworkConfig = parseNetwork(
+        section,
+        NetworkConfig.Transport.from(section?.getString("transport")),
+    )
+
+    private fun parseNetwork(section: ConfigurationSection?, transport: NetworkConfig.Transport): NetworkConfig = NetworkConfig(
+        transport = transport,
         serverId = section?.getString("server-id")?.trim()?.ifEmpty { null } ?: "server-1",
         reconnectSeconds = (section?.getLong("reconnect-seconds", 5L) ?: 5L).coerceAtLeast(1L),
         timeoutMillis = (section?.getLong("timeout-millis", 5000L) ?: 5000L).coerceAtLeast(500L),
         syncMutes = section?.getBoolean("sync-mutes", true) ?: true,
-        secret = networkSecret(section),
+        secret = networkSecret(section, transport),
         maxAgeSeconds = (section?.getLong("max-age-seconds", 60L) ?: 60L).coerceAtLeast(0L),
         queueSize = (section?.getInt("queue-size", 1000) ?: 1000).coerceAtLeast(1),
         redis = NetworkConfig.Redis(
@@ -482,11 +487,13 @@ class ConfigManager(
         ),
     )
 
-    private fun networkSecret(section: ConfigurationSection?): String {
+    private fun networkSecret(section: ConfigurationSection?, transport: NetworkConfig.Transport): String {
         val configured = section?.getString("secret")?.trim().orEmpty()
         if (configured.isNotEmpty()) return configured
+        if (transport == NetworkConfig.Transport.NONE) return ""
         if (section?.getBoolean("use-velocity-secret", true) == false) return ""
-        val proxy = ProxySecret.velocity(plugin.dataFolder.parentFile.parentFile) ?: return ""
+        val serverDirectory = plugin.dataFolder.absoluteFile.parentFile?.parentFile ?: return ""
+        val proxy = ProxySecret.velocity(serverDirectory) ?: return ""
         plugin.logger.info("network.secret is empty, using the Velocity forwarding secret to sign cross-server messages.")
         return Envelope.derive(proxy)
     }
