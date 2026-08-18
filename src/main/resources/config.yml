@@ -49,6 +49,7 @@ commands:
   ignore-list: [ignorelist]
   party: [party]
   mail: [mail]
+  group: [gm, groupchat]
   chat-toggle: [chattoggle]
   language: [language, lang]
   filter: [filter]

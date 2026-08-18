@@ -14,6 +14,8 @@ Names below are the defaults. Every player command can be renamed and aliased un
 | --- | --- | --- |
 | `/msg <player> <text>` (`/tell`, `/whisper`, `/w`) | private message | `voxen.pm.send` |
 | `/r <text>` (`/reply`) | reply to the last conversation | `voxen.pm.send` |
+| `/gm create\|invite\|leave\|list` (`/groupchat`) | group private messages | `voxen.pm.group` |
+| `/gm <text>` | talk to your group | `voxen.pm.group` |
 | `/channel join\|leave\|set\|list` (`/ch`) | manage channels | per channel |
 | `/ignore <player>` | toggle ignoring a player | `voxen.ignore` |
 | `/ignorelist` | list ignored players | `voxen.ignore` |
@@ -67,6 +69,7 @@ Default: **everyone**.
 | `voxen.ignore` | ignoring other players |
 | `voxen.mail` | sending and reading offline mail |
 | `voxen.pm.send` | sending private messages |
+| `voxen.pm.group` | using group private messages |
 | `voxen.chat.mention` | mentioning players with `@name` |
 | `voxen.chat.tag.item` | sharing held and worn items in chat |
 | `voxen.chat.emote` | every emote shortcode (`voxen.chat.emote.<name>` for one) |

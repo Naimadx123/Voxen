@@ -330,6 +330,20 @@ class ConfigManager(
         notifyMonitored = yaml.getBoolean("notify-monitored", false),
         respectMutes = yaml.getBoolean("respect-mutes", true),
         sound = parseSound("modules/private-messages.yml", yaml.getConfigurationSection("sound")),
+        group = parseGroup(yaml.getConfigurationSection("group")),
+    )
+
+    private fun parseGroup(section: ConfigurationSection?): GroupConfig = GroupConfig(
+        enabled = section?.getBoolean("enabled", true) ?: true,
+        maxMembers = (section?.getInt("max-members", 6) ?: 6).coerceIn(2, 32),
+        idleMillis = section?.getString("idle-timeout")?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+            Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/private-messages.yml: invalid 'group.idle-timeout' value '$raw'; using 30m.")
+                null
+            }
+        } ?: 1_800_000L,
+        format = section?.getString("format")
+            ?: "<gray>[<aqua>Group</aqua>] <gold><player></gold><dark_gray>:</dark_gray> <white><message></white>",
     )
 
     private fun parseTags(yaml: YamlConfiguration): TagsConfig = TagsConfig(
@@ -549,6 +563,7 @@ class ConfigManager(
         nickname = names(section, "nickname", listOf("nick", "nickname")),
         realName = names(section, "real-name", listOf("realname")),
         mail = names(section, "mail", listOf("mail")),
+        group = names(section, "group", listOf("gm", "groupchat")),
     )
 
     private fun names(section: ConfigurationSection?, key: String, defaults: List<String>): List<String> {

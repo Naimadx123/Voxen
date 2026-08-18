@@ -198,6 +198,9 @@ class PrivateMessageService(
         return true
     }
 
+    internal fun renderContent(sender: Player, text: String): Component =
+        renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+
     internal fun moderate(sender: Player, content: String): String? {
         val moderation = config().moderation
         val messages = config().messages
@@ -256,7 +259,7 @@ class PrivateMessageService(
         return text
     }
 
-    private fun logHistory(sender: Player, content: String) {
+    internal fun logHistory(sender: Player, content: String) {
         val moderation = config().moderation
         if (!moderation.historyEnabled || !moderation.historyAffectsPm) return
         playerData.logChat(
@@ -392,7 +395,7 @@ class PrivateMessageService(
         )
     }
 
-    private fun notifySpies(senderId: UUID?, targetId: UUID?, resolvers: Array<TagResolver>, onSpied: () -> Unit) {
+    internal fun notifySpies(senderId: UUID?, targetId: UUID?, resolvers: Array<TagResolver>, onSpied: () -> Unit) {
         val settings = config().privateMessages
         val spies = server.onlinePlayers.filter { spy ->
             spy.uniqueId != senderId && spy.uniqueId != targetId &&

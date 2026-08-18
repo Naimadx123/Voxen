@@ -8,4 +8,12 @@ data class PrivateMessagesConfig(
     val notifyMonitored: Boolean,
     val respectMutes: Boolean,
     val sound: SoundConfig,
+    val group: GroupConfig,
+)
+
+data class GroupConfig(
+    val enabled: Boolean,
+    val maxMembers: Int,
+    val idleMillis: Long,
+    val format: String,
 )

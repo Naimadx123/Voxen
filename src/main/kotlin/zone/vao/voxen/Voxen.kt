@@ -30,6 +30,7 @@ import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.party.PartyService
 import zone.vao.voxen.presence.PresenceListener
 import zone.vao.voxen.presence.PresenceService
+import zone.vao.voxen.pm.GroupService
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.StorageConfig
@@ -68,8 +69,10 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var brokerService: BrokerService
         private set
     lateinit var presenceService: PresenceService
-
+        private set
     lateinit var mailService: MailService
+        private set
+    lateinit var groupService: GroupService
         private set
     lateinit var wordFilter: WordFilter
         private set
@@ -201,7 +204,19 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 java.util.concurrent.TimeUnit.MILLISECONDS,
             )
         }
-        brokerService.onPmMessage = { message -> threads.main { privateMessageService.handleRemote(message) } }
+        groupService = GroupService(
+            server,
+            { configManager.config },
+            privateMessageService,
+            ignoreService,
+            presenceService,
+            threads,
+        )
+        groupService.remotePublisher = { message -> brokerService.publish(message) }
+        brokerService.onPmMessage = { message ->
+            if (message.type == BrokerService.TYPE_PM_GROUP) groupService.handleRemote(message)
+            else threads.main { privateMessageService.handleRemote(message) }
+        }
         muteService.remotePublisher = { message ->
             if (configManager.config.network.syncMutes) {
                 brokerService.publish(message.copy(server = configManager.config.network.serverId))
@@ -263,6 +278,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         partyService.load()
         brokerService.start()
         presenceService.clear()
+        groupService.clear()
         startPresenceHeartbeat()
         refreshClientCommands()
     }
@@ -452,6 +468,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             }
             if (configManager.config.party.enabled) {
                 register(commands.party, "Manage your party") { PartyCommand.build(this, it) }
+            }
+            if (configManager.config.privateMessages.group.enabled) {
+                register(commands.group, "Group private messages") { GroupCommand.build(this, it) }
             }
             if (configManager.config.mail.enabled) {
                 register(commands.mail, "Send and read offline mail") { MailCommand.build(this, it) }

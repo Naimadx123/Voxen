@@ -11,6 +11,15 @@ notify-monitored: false
 # if a mute should only cover public chat. Mutes limited to one channel never apply here.
 respect-mutes: true
 
+# Group conversations: /gm create <players>, then /gm <text> talks to everyone in it.
+group:
+  enabled: true
+  # Including the founder. 2 to 32.
+  max-members: 6
+  # A group with no activity for this long is dropped.
+  idle-timeout: 30m
+  format: "<gray>[<aqua>Group</aqua>] <gold><player></gold><dark_gray>:</dark_gray> <white><message></white>"
+
 sound:
   enabled: true
   key: "minecraft:block.note_block.pling"
