@@ -61,8 +61,10 @@ class PresenceService(
                 remote[uuid] = Entry(uuid, name, from, clock())
             }
 
+            // only the server the player was last seen on may drop them, or a quit from the
+            // server they just left would erase the join from the server they moved to
             BrokerService.TYPE_PRESENCE_QUIT -> parse(message.senderUuid, message.sender)?.let { (uuid, _) ->
-                remote.remove(uuid)
+                remote.computeIfPresent(uuid) { _, entry -> if (entry.server == from) null else entry }
             }
 
             BrokerService.TYPE_PRESENCE_SYNC -> replaceServer(from, message.roster.orEmpty())
