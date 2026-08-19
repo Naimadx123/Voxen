@@ -37,6 +37,8 @@ network:
   # How many outgoing messages may wait for the broker. Once it is full, further messages are
   # dropped with one warning instead of piling up until the server runs out of memory.
   queue-size: 1000
+  # The names below are base names. Voxen listens on '<name>.broadcast' plus its own
+  # '<name>.server.<server-id>', so a private message for one server is not sent to the rest.
   redis:
     host: localhost
     port: 6379

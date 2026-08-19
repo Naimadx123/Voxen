@@ -10,10 +10,14 @@ import java.util.logging.Logger
 
 class RedisBroker(
     private val config: NetworkConfig.Redis,
+    private val serverId: String,
     private val reconnectSeconds: Long,
     private val timeoutMillis: Long,
     private val logger: Logger,
 ) : MessageBroker {
+
+    private val broadcast = Addresses.broadcast(config.channel)
+    private val own = Addresses.server(config.channel, serverId)
 
     @Volatile
     private var running = true
@@ -64,8 +68,8 @@ class RedisBroker(
                     }
                     pubSub = listener
                     warned = false
-                    logger.info("Connected to Redis; subscribed to '${config.channel}'.")
-                    jedis.subscribe(listener, config.channel)
+                    logger.info("Connected to Redis; subscribed to '$broadcast' and '$own'.")
+                    jedis.subscribe(listener, broadcast, own)
                 } catch (ex: Exception) {
                     if (running && !warned) {
                         logger.warning("Redis connection lost (${ex.javaClass.simpleName}); retrying every ${reconnectSeconds}s.")
@@ -81,8 +85,8 @@ class RedisBroker(
         }
     }
 
-    override fun publish(payload: String) {
-        pool?.publish(config.channel, payload)
+    override fun publish(payload: String, route: String?) {
+        pool?.publish(if (route == null) broadcast else Addresses.server(config.channel, route), payload)
     }
 
     override fun close() {

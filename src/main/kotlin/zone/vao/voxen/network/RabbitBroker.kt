@@ -10,10 +10,14 @@ import java.util.logging.Logger
 
 class RabbitBroker(
     private val config: NetworkConfig.Rabbit,
+    private val serverId: String,
     private val reconnectSeconds: Long,
     private val timeoutMillis: Long,
     private val logger: Logger,
 ) : MessageBroker {
+
+    private val broadcast = Addresses.broadcast(config.exchange)
+    private val own = Addresses.server(config.exchange, serverId)
 
     @Volatile
     private var running = true
@@ -43,9 +47,10 @@ class RabbitBroker(
                     }
                     val conn = factory.newConnection("voxen")
                     val ch = conn.createChannel()
-                    ch.exchangeDeclare(config.exchange, "fanout", false)
+                    ch.exchangeDeclare(config.exchange, "topic", false)
                     val queue = ch.queueDeclare("", false, true, true, emptyMap()).queue
-                    ch.queueBind(queue, config.exchange, "")
+                    ch.queueBind(queue, config.exchange, broadcast)
+                    ch.queueBind(queue, config.exchange, own)
                     ch.basicConsume(
                         queue,
                         true,
@@ -56,7 +61,7 @@ class RabbitBroker(
                     )
                     connection = conn
                     channel = ch
-                    logger.info("Connected to RabbitMQ; bound to exchange '${config.exchange}'.")
+                    logger.info("Connected to RabbitMQ; bound to '$broadcast' and '$own' on exchange '${config.exchange}'.")
                 } catch (ex: Exception) {
                     if (running && !warned) {
                         logger.warning("RabbitMQ connection failed (${ex.javaClass.simpleName}); retrying every ${reconnectSeconds}s.")
@@ -71,8 +76,9 @@ class RabbitBroker(
         }
     }
 
-    override fun publish(payload: String) {
-        channel?.basicPublish(config.exchange, "", null, payload.toByteArray(Charsets.UTF_8))
+    override fun publish(payload: String, route: String?) {
+        val key = if (route == null) broadcast else Addresses.server(config.exchange, route)
+        channel?.basicPublish(config.exchange, key, null, payload.toByteArray(Charsets.UTF_8))
     }
 
     override fun close() {

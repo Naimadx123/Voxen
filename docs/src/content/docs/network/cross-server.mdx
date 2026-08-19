@@ -100,6 +100,13 @@ servers pointed at the same Redis work just as well.
 
 </Steps>
 
+Every transport uses the configured name as a base only. Voxen subscribes to
+`<name>.broadcast` and to its own `<name>.server.<server-id>`, and a message meant for one
+server (a private message to a player Voxen knows the location of) is published straight to
+that server's address instead of to everyone. RabbitMQ therefore uses a `topic` exchange; if
+you are upgrading from an older Voxen, restart every server so the old `fanout` exchange goes
+away.
+
 `transport: none` is the default and keeps Voxen in single-server mode.
 `reconnect-seconds` and `timeout-millis` control connection recovery and how long a lookup
 of a player on another server may take.

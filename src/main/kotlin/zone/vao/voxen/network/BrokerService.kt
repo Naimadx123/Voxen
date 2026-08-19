@@ -64,11 +64,11 @@ class BrokerService(
         val created = when (config.transport) {
             NetworkConfig.Transport.NONE -> return
             NetworkConfig.Transport.REDIS ->
-                RedisBroker(config.redis, config.reconnectSeconds, config.timeoutMillis, logger)
+                RedisBroker(config.redis, config.serverId, config.reconnectSeconds, config.timeoutMillis, logger)
             NetworkConfig.Transport.NATS ->
-                NatsBroker(config.nats, config.reconnectSeconds, config.timeoutMillis, logger)
+                NatsBroker(config.nats, config.serverId, config.reconnectSeconds, config.timeoutMillis, logger)
             NetworkConfig.Transport.RABBITMQ ->
-                RabbitBroker(config.rabbit, config.reconnectSeconds, config.timeoutMillis, logger)
+                RabbitBroker(config.rabbit, config.serverId, config.reconnectSeconds, config.timeoutMillis, logger)
         }
         connect(created, config.transport.name.lowercase())
     }
@@ -87,7 +87,7 @@ class BrokerService(
         val current = broker ?: return
         message.id?.let(::markSeen)
         io.submit {
-            runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret)) }
+            runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret), message.route) }
                 .onFailure { logger.warning("Failed to publish a cross-server message: ${it.message}") }
         }
     }
