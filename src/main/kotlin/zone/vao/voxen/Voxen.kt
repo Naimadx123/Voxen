@@ -42,6 +42,7 @@ import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.tags.ContentRenderer
 import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
+import zone.vao.voxen.util.Vanish
 import java.util.*
 
 @Suppress("UnstableApiUsage")
@@ -415,7 +416,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             this,
             {
                 if (brokerService.active() && configManager.config.presence.enabled) {
-                    presenceService.announceRoster(server.onlinePlayers.map { it.uniqueId to it.name })
+                    presenceService.announceRoster(
+                        server.onlinePlayers.filterNot(Vanish::hidden).map { it.uniqueId to it.name },
+                    )
                 }
             },
             1L,

@@ -18,7 +18,7 @@ object GroupCommand {
                 Commands.literal("create")
                     .then(
                         Commands.argument("players", StringArgumentType.greedyString())
-                            .suggests { _, builder -> CommandSuggestions.networkPlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.networkPlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx ->
                                 val sender = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
                                 val names = StringArgumentType.getString(ctx, "players")
@@ -35,7 +35,7 @@ object GroupCommand {
                 Commands.literal("invite")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.networkPlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.networkPlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx ->
                                 val sender = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
                                 plugin.groupService.invite(sender, StringArgumentType.getString(ctx, "player"))

@@ -2,6 +2,8 @@ package zone.vao.voxen.command
 
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
+import org.bukkit.command.CommandSender
+import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
 import java.util.concurrent.CompletableFuture
 
@@ -15,9 +17,16 @@ object CommandSuggestions {
         return builder.buildFuture()
     }
 
-    fun networkPlayers(plugin: Voxen, builder: SuggestionsBuilder): CompletableFuture<Suggestions> {
+    fun networkPlayers(
+        plugin: Voxen,
+        builder: SuggestionsBuilder,
+        viewer: CommandSender? = null,
+    ): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
-        val local = plugin.server.onlinePlayers.map { it.name }
+        val watcher = viewer as? Player
+        val local = plugin.server.onlinePlayers
+            .filter { watcher == null || watcher.canSee(it) }
+            .map { it.name }
         val remote = if (plugin.configManager.config.presence.suggestRemotePlayers) plugin.presenceService.names() else emptyList()
         (local + remote)
             .filter { it.lowercase().startsWith(input) }

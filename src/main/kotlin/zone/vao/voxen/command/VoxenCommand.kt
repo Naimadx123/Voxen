@@ -45,7 +45,7 @@ object VoxenCommand {
                     .executes { ctx -> listPresence(plugin, ctx.source.sender) }
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.networkPlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.networkPlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> find(plugin, ctx.source.sender, arg(ctx, "player")) }
                     )
             )
