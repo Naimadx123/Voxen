@@ -68,21 +68,21 @@ class ChatService(
     }
 
     fun prepareChat(player: Player, raw: String): Outgoing? {
-        val messages = config().messages
-        val quick = channels.quickChannel(player, raw)
-        val channel: Channel
-        val content: String
-        if (quick != null) {
-            channel = quick.first
-            content = quick.second
-        } else {
-            channel = channels.activeChannel(player) ?: run {
-                messages.send(player, "no-channel")
-                return null
+        val picked = threads.awaitPlayer(player) {
+            val quick = channels.quickChannel(player, raw)
+            if (quick != null) {
+                quick
+            } else {
+                val active = channels.activeChannel(player)
+                if (active == null) {
+                    config().messages.send(player, "no-channel")
+                    null
+                } else {
+                    active to raw
+                }
             }
-            content = raw
-        }
-        return prepare(player, channel, content)
+        } ?: return null
+        return prepare(player, picked.first, picked.second)
     }
 
     fun send(player: Player, channel: Channel, rawContent: String): Boolean {
@@ -92,6 +92,18 @@ class ChatService(
     }
 
     fun prepare(player: Player, channel: Channel, rawContent: String): Outgoing? {
+        // reading the sender (world, permissions, placeholders) only happens on the sender's own thread
+        val snapshot = threads.awaitPlayer(player) { validate(player, channel, rawContent) } ?: return null
+        // word filtering is plain text work, so it stays off the region thread
+        val filtered = filter(player, snapshot) ?: return null
+        return threads.awaitPlayer(player) { build(player, channel, filtered.content, filtered.uncensored) }
+    }
+
+    private class Snapshot(val content: String, val bypassLinks: Boolean, val bypassFilter: Boolean)
+
+    private class Filtered(val content: String, val uncensored: String?)
+
+    private fun validate(player: Player, channel: Channel, rawContent: String): Snapshot? {
         val messages = config().messages
         val channelName = Placeholder.parsed("channel", channel.displayName)
 
@@ -164,12 +176,15 @@ class ChatService(
             SpamGuard.Result.Ok -> Unit
         }
 
-        var content = rawContent
-        if (hooks.papi != null && content.contains('%')) {
-            content = threads.await { applyPapi(player, content) } ?: return null
-        }
+        val content = if (hooks.papi != null) applyPapi(player, rawContent) else rawContent
+        return Snapshot(content, player.hasPermission(BYPASS_LINKS), player.hasPermission(BYPASS_FILTER))
+    }
+
+    private fun filter(player: Player, snapshot: Snapshot): Filtered? {
+        val messages = config().messages
+        var content = snapshot.content
         var uncensored: String? = null
-        if (!player.hasPermission(BYPASS_LINKS)) {
+        if (!snapshot.bypassLinks) {
             when (val result = wordFilter.checkLinks(content)) {
                 WordFilter.Result.Blocked -> {
                     messages.send(player, "message-has-link")
@@ -182,7 +197,7 @@ class ChatService(
                 WordFilter.Result.Clean -> Unit
             }
         }
-        if (!player.hasPermission(BYPASS_FILTER)) {
+        if (!snapshot.bypassFilter) {
             when (val result = wordFilter.check(content)) {
                 WordFilter.Result.Blocked -> {
                     messages.send(player, "message-blocked")
@@ -197,12 +212,10 @@ class ChatService(
         }
 
         val emotes = config().emotes
-        content = emotes.apply(content, player::hasPermission)
-        uncensored = uncensored?.let { emotes.apply(it, player::hasPermission) }
-
-        val filtered = content
-        val censored = uncensored
-        return threads.await { build(player, channel, filtered, censored) }
+        return Filtered(
+            emotes.apply(content, player::hasPermission),
+            uncensored?.let { emotes.apply(it, player::hasPermission) },
+        )
     }
 
     private fun build(player: Player, channel: Channel, filtered: String, censored: String?): Outgoing? {
