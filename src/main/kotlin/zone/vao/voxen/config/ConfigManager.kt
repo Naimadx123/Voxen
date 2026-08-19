@@ -547,8 +547,25 @@ class ConfigManager(
             deleteKeep = yaml.getInt("message-delete.keep", 200).coerceIn(1, 5000),
             deleteButton = yaml.getBoolean("message-delete.button", true),
             manageButton = yaml.getBoolean("manage-button", true),
+            dialogButtons = dialogButtons(yaml),
         )
     }
+
+    private fun dialogButtons(yaml: YamlConfiguration): List<ModeratorToolsConfig.DialogButton> =
+        yaml.getMapList("dialog-buttons").mapNotNull { entry ->
+            val label = entry["label"]?.toString()?.trim().orEmpty()
+            val command = entry["command"]?.toString()?.trim()?.removePrefix("/").orEmpty()
+            if (label.isEmpty() || command.isEmpty()) {
+                plugin.logger.warning("modules/moderator-tools.yml: every 'dialog-buttons' entry needs a 'label' and a 'command'; skipping one.")
+                return@mapNotNull null
+            }
+            ModeratorToolsConfig.DialogButton(
+                label = label,
+                command = command,
+                permission = entry["permission"]?.toString()?.trim()?.ifEmpty { null },
+                console = entry["console"] as? Boolean ?: false,
+            )
+        }
 
     private fun warningExpiry(yaml: YamlConfiguration): Long {
         val raw = yaml.getString("warnings.expire")?.trim().orEmpty()

@@ -136,6 +136,7 @@ server or anywhere on the network.
 enabled: true
 dialogs: true
 manage-button: true
+dialog-buttons: []
 warnings:
   enabled: true
   expire: 30d
@@ -198,6 +199,24 @@ without a reason opens a confirmation screen instead of complaining. Every butto
 by permission and rechecks it when clicked, so a dialog left open grants nothing. The screen carries a
 reason field and a nickname field, the latter needing `voxen.nick.others` and an online target,
 and an empty nickname resets it.
+
+The delete button comes with a slider for how many of the player's newest messages to wipe,
+starting at 5 and capped at `message-delete.keep` or 100, whichever is lower.
+
+`dialog-buttons` adds your own buttons to that screen. Each entry takes a MiniMessage `label`
+and a `command`, optionally a `permission` that hides the button from staff without it and
+`console: true` to run the command from the console instead of as the clicking moderator.
+`<player>`, `<uuid>` and `<moderator>` are replaced before the command runs.
+
+```yaml title="plugins/Voxen/modules/moderator-tools.yml"
+dialog-buttons:
+  - label: "<red>Ban"
+    command: "ban <player> Cheating"
+    permission: "voxen.mod.ban"
+    console: true
+  - label: "Teleport"
+    command: "tp <player>"
+```
 
 The notes button opens a page of its own listing the player's notes, with a field for a new one,
 an add button and a delete button per note (first ten), plus a back button to the main screen.

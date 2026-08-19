@@ -10,6 +10,18 @@ dialogs: true
 # channel's own formatting. Clicking it runs /voxen inspect on the author.
 manage-button: true
 
+# Extra buttons on the /voxen inspect dialog. Every entry needs a 'label' (MiniMessage)
+# and a 'command'; 'permission' hides the button from staff without it and 'console: true'
+# runs the command from the console instead of as the clicking moderator.
+# Placeholders: <player>, <uuid>, <moderator>.
+dialog-buttons: []
+#  - label: "<red>Ban"
+#    command: "ban <player> Cheating"
+#    permission: "voxen.mod.ban"
+#    console: true
+#  - label: "Teleport"
+#    command: "tp <player>"
+
 warnings:
   enabled: true
   # How long a warning counts. Older ones stop counting and are deleted on startup.
@@ -40,6 +52,7 @@ notes:
 join-alerts: true
 
 # /voxen delete <player> [amount] removes that player's newest messages from every chat.
+# The inspect dialog gets a slider for the amount, capped at 'keep' or 100, whichever is lower.
 # Only works with chat-delivery: player in config.yml, since messages Voxen sends
 # itself are not signed and clients cannot delete them.
 message-delete:

@@ -11,11 +11,13 @@ import io.papermc.paper.dialog.DialogResponseView
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickCallback
 import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
 import zone.vao.voxen.command.NickCommand
 import zone.vao.voxen.command.VoxenCommand
+import zone.vao.voxen.config.ModeratorToolsConfig
 import java.time.Duration
 
 @Suppress("UnstableApiUsage")
@@ -23,6 +25,7 @@ class ModeratorDialogs(private val plugin: Voxen) {
 
     fun inspect(viewer: Player, target: ModeratorService.Target, lines: List<Component>) {
         val messages = plugin.messages()
+        val canDelete = viewer.hasPermission("voxen.mod.delete")
         val buttons = buildList {
             if (viewer.hasPermission("voxen.mod.warn")) {
                 add(button(label(viewer, "dialog-warn"), reasonAction(viewer, "voxen.mod.warn") { reason ->
@@ -60,8 +63,17 @@ class ModeratorDialogs(private val plugin: Voxen) {
             if (viewer.hasPermission("voxen.mod.history")) {
                 add(button(label(viewer, "dialog-history"), run("voxen history ${target.name}")))
             }
-            if (viewer.hasPermission("voxen.mod.delete")) {
-                add(button(label(viewer, "dialog-delete"), run("voxen delete ${target.name} 5")))
+            if (canDelete) {
+                add(
+                    button(label(viewer, "dialog-delete"), action(viewer, "voxen.mod.delete") { response ->
+                        val amount = response.getFloat("amount")?.toInt() ?: 1
+                        plugin.moderatorService.deleteMessages(viewer, target, amount.coerceIn(1, 100))
+                    })
+                )
+            }
+            for (custom in plugin.configManager.config.moderatorTools.dialogButtons) {
+                if (custom.permission != null && !viewer.hasPermission(custom.permission)) continue
+                add(customButton(viewer, target, custom))
             }
         }
         viewer.showDialog(
@@ -70,7 +82,13 @@ class ModeratorDialogs(private val plugin: Voxen) {
                     .base(
                         base(viewer, "dialog-inspect-title", target)
                             .body(lines.map { DialogBody.plainMessage(it, 320) })
-                            .inputs(listOf(reasonInput(viewer), nickInput(viewer)))
+                            .inputs(
+                                buildList {
+                                    add(reasonInput(viewer))
+                                    add(nickInput(viewer))
+                                    if (canDelete) add(amountInput(viewer))
+                                }
+                            )
                             .build()
                     )
                     .type(DialogType.multiAction(buttons).columns(2).build())
@@ -166,6 +184,32 @@ class ModeratorDialogs(private val plugin: Voxen) {
             .maxLength(200)
             .build()
 
+    private fun amountInput(viewer: Player): DialogInput =
+        DialogInput.numberRange("amount", label(viewer, "dialog-delete-amount"), 1f, deleteMax())
+            .step(1f)
+            .initial(minOf(5f, deleteMax()))
+            .width(300)
+            .build()
+
+    private fun deleteMax(): Float =
+        plugin.configManager.config.moderatorTools.deleteKeep.coerceIn(2, 100).toFloat()
+
+    private fun customButton(
+        viewer: Player,
+        target: ModeratorService.Target,
+        entry: ModeratorToolsConfig.DialogButton,
+    ): ActionButton {
+        val command = entry.command
+            .replace("<player>", target.name)
+            .replace("<uuid>", target.uuid.toString())
+            .replace("<moderator>", viewer.name)
+        return button(MiniMessage.miniMessage().deserialize(entry.label), action(viewer, entry.permission) {
+            val executor = if (entry.console) plugin.server.consoleSender else viewer
+            runCatching { plugin.server.dispatchCommand(executor, command) }
+                .onFailure { plugin.logger.warning("Dialog button command '$command' failed: ${it.message}") }
+        })
+    }
+
     private fun nickInput(viewer: Player): DialogInput =
         DialogInput.text("nick", label(viewer, "dialog-nick-input"))
             .width(300)
@@ -186,10 +230,10 @@ class ModeratorDialogs(private val plugin: Voxen) {
     private fun input(viewer: Player, key: String, permission: String, body: (String) -> Unit): DialogAction =
         action(viewer, permission) { response -> body(response.getText(key).orEmpty().trim()) }
 
-    private fun action(viewer: Player, permission: String, body: (DialogResponseView) -> Unit): DialogAction =
+    private fun action(viewer: Player, permission: String?, body: (DialogResponseView) -> Unit): DialogAction =
         DialogAction.customClick({ response, _ ->
             plugin.threads.main {
-                if (!viewer.hasPermission(permission)) {
+                if (permission != null && !viewer.hasPermission(permission)) {
                     plugin.messages().send(viewer, "no-permission")
                     return@main
                 }

@@ -13,10 +13,18 @@ data class ModeratorToolsConfig(
     val deleteKeep: Int,
     val deleteButton: Boolean,
     val manageButton: Boolean,
+    val dialogButtons: List<DialogButton>,
 ) {
 
     val warningCutoff: Long
         get() = if (warningExpireMillis <= 0L) 0L else System.currentTimeMillis() - warningExpireMillis
+
+    data class DialogButton(
+        val label: String,
+        val command: String,
+        val permission: String?,
+        val console: Boolean,
+    )
 
     data class WarningRule(
         val at: Int,
