@@ -22,6 +22,7 @@ import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
 import zone.vao.voxen.mail.MailService
 import zone.vao.voxen.mention.MentionService
+import zone.vao.voxen.moderation.AiModerationService
 import zone.vao.voxen.moderation.ModeratorDialogs
 import zone.vao.voxen.moderation.ModeratorService
 import zone.vao.voxen.moderation.MuteService
@@ -79,6 +80,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var groupService: GroupService
         private set
     lateinit var moderatorService: ModeratorService
+    lateinit var aiModerationService: AiModerationService
         private set
     lateinit var wordFilter: WordFilter
         private set
@@ -276,8 +278,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         moderatorService.notesDialog = { viewer, target, lines -> dialogs.notes(viewer, target, lines) }
         server.pluginManager.registerEvents(moderatorService, this)
         purgeWarnings()
+        aiModerationService = AiModerationService(server, { configManager.config }, moderatorService, threads, logger)
         server.pluginManager.registerEvents(
-            ChatListener(chatService, { configManager.config.chatDelivery }, moderatorService),
+            ChatListener(chatService, { configManager.config.chatDelivery }, moderatorService, aiModerationService),
             this,
         )
 
@@ -299,6 +302,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         presenceTask?.cancel()
         if (::brokerService.isInitialized) brokerService.shutdown()
         if (::playerDataService.isInitialized) playerDataService.shutdown()
+        if (::aiModerationService.isInitialized) aiModerationService.shutdown()
         VoxenApi.shutdown()
     }
 

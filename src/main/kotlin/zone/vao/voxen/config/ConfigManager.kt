@@ -42,6 +42,7 @@ class ConfigManager(
         val presence = YamlConfiguration.loadConfiguration(file("modules/presence.yml"))
         val mail = YamlConfiguration.loadConfiguration(file("modules/mail.yml"))
         val moderatorTools = YamlConfiguration.loadConfiguration(file("modules/moderator-tools.yml"))
+        val aiModeration = YamlConfiguration.loadConfiguration(file("modules/ai-moderation.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -61,6 +62,7 @@ class ConfigManager(
             presence = parsePresence(presence),
             mail = parseMail(mail),
             moderatorTools = parseModeratorTools(moderatorTools),
+            aiModeration = parseAiModeration(aiModeration),
             storage = parseStorage(storage),
             commands = parseCommands(main.getConfigurationSection("commands")),
             chatDelivery = ChatDelivery.from(main.getString("chat-delivery")),
@@ -552,6 +554,58 @@ class ConfigManager(
         )
     }
 
+    private fun parseAiModeration(yaml: YamlConfiguration): AiModerationConfig {
+        val endpoint = yaml.getString("endpoint", "")!!.trim()
+        val enabled = yaml.getBoolean("enabled", false)
+        if (enabled && endpoint.isEmpty()) {
+            plugin.logger.warning("modules/ai-moderation.yml: 'enabled' is on but 'endpoint' is empty, so nothing will be checked.")
+        }
+        val headers = yaml.getConfigurationSection("headers")?.getValues(false)
+            ?.mapNotNull { (key, value) -> value?.toString()?.let { key to it } }
+            ?.toMap()
+            .orEmpty()
+        return AiModerationConfig(
+            enabled = enabled && endpoint.isNotEmpty(),
+            endpoint = endpoint,
+            headers = headers,
+            model = yaml.getString("model", "")!!.trim(),
+            label = yaml.getString("label", "unsafe")!!.trim().ifEmpty { "unsafe" },
+            requestBody = yaml.getString("request-body", "")!!.trim()
+                .ifEmpty { """{"text": {text}, "model": {model}, "labels": ["safe", {label}]}""" },
+            scorePath = yaml.getString("score-path", "")!!.trim(),
+            timeoutMillis = yaml.getLong("timeout-millis", 1500L).coerceIn(100L, 30_000L),
+            queueSize = yaml.getInt("queue-size", 500).coerceIn(1, 100_000),
+            minLength = yaml.getInt("min-length", 3).coerceAtLeast(0),
+            rules = aiRules(yaml),
+        )
+    }
+
+    private fun aiRules(yaml: YamlConfiguration): List<AiModerationConfig.Rule> =
+        yaml.getMapList("rules").mapNotNull { entry ->
+            val score = (entry["score"] as? Number)?.toDouble()
+            if (score == null) {
+                plugin.logger.warning("modules/ai-moderation.yml: every 'rules' entry needs a numeric 'score'; skipping one.")
+                return@mapNotNull null
+            }
+            @Suppress("UNCHECKED_CAST")
+            val actions = (entry["actions"] as? List<Any?>).orEmpty().mapNotNull { raw ->
+                AiModerationConfig.Action.from(raw?.toString().orEmpty()).also {
+                    if (it == null) plugin.logger.warning("modules/ai-moderation.yml: unknown action '$raw'; ignoring it.")
+                }
+            }
+            val commands = (entry["commands"] as? List<Any?>).orEmpty()
+                .mapNotNull { it?.toString()?.trim()?.removePrefix("/")?.ifEmpty { null } }
+            if (actions.isEmpty() && commands.isEmpty()) {
+                plugin.logger.warning("modules/ai-moderation.yml: the rule at score $score does nothing; skipping it.")
+                return@mapNotNull null
+            }
+            AiModerationConfig.Rule(
+                score = if (score > 1.0) score / 100.0 else score,
+                actions = actions.toSet(),
+                commands = commands,
+            )
+        }.sortedByDescending { it.score }
+
     private fun dialogButtons(yaml: YamlConfiguration): List<ModeratorToolsConfig.DialogButton> =
         yaml.getMapList("dialog-buttons").mapNotNull { entry ->
             val label = entry["label"]?.toString()?.trim().orEmpty()
@@ -688,6 +742,7 @@ class ConfigManager(
             "modules/presence.yml",
             "modules/mail.yml",
             "modules/moderator-tools.yml",
+            "modules/ai-moderation.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )

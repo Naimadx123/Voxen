@@ -12,12 +12,14 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerQuitEvent
 import zone.vao.voxen.config.ChatDelivery
+import zone.vao.voxen.moderation.AiModerationService
 import zone.vao.voxen.moderation.ModeratorService
 
 class ChatListener(
     private val chatService: ChatService,
     private val delivery: () -> ChatDelivery,
     private val moderator: ModeratorService,
+    private val ai: AiModerationService,
 ) : Listener {
 
     private val plain = PlainTextComponentSerializer.plainText()
@@ -29,6 +31,7 @@ class ChatListener(
             event.isCancelled = true
             return
         }
+        ai.inspect(event.player, raw)
         if (delivery() == ChatDelivery.SYSTEM) {
             event.isCancelled = true
             chatService.chat(event.player, raw)

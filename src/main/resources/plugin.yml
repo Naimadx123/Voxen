@@ -55,6 +55,9 @@ permissions:
   voxen.mod.alerts:
     description: Receives staff alerts about warnings and flagged joins.
     default: op
+  voxen.ai.bypass:
+    description: Skips AI chat moderation.
+    default: false
   voxen.mod.delete:
     description: Allows deleting a player's recent chat messages.
     default: op

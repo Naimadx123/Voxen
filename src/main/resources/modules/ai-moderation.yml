@@ -1,0 +1,78 @@
+# AI chat moderation: every message is scored by an HTTP model on a background thread and the first
+# matching rule below is applied.
+#
+# Any provider works. 'request-body' is sent as-is with {text}, {model} and {label} replaced by
+# JSON-escaped values, and 'score-path' says where the score sits in the answer ('*' = largest
+# branch, digits = array index). Leave 'score-path' empty and Voxen guesses the common shapes
+# ({"score":x}, {"label":l,"score":x}, {"unsafe":x} and lists of those).
+enabled: false
+
+endpoint: "http://127.0.0.1:8099/classify"
+model: ""
+label: "unsafe"
+# Must match your provider's schema exactly, a mismatch is the usual cause of a 400.
+# Blank values ("model": "" when 'model' is empty) are dropped before sending.
+request-body: '{"text": {text}, "model": {model}, "labels": ["safe", {label}]}'
+score-path: ""
+headers: {}
+#  Authorization: "Bearer secret"
+
+timeout-millis: 1500
+# Messages waiting for the model; the oldest are dropped (and counted in /voxen status) when full.
+queue-size: 500
+min-length: 3
+
+# First rule whose score is reached wins, so keep the harshest one strictest.
+# score: 98 and 0.98 mean the same thing. actions: delete, kick, warn, report.
+rules:
+  - score: 98
+    actions: [delete, kick, report]
+  - score: 60
+    actions: [report]
+#  - score: 80
+#    actions: [delete, warn]
+#    commands:
+#      - "voxen mute <player> 10m all AI: <score>%"
+
+# ---------------------------------------------------------------------------
+# Provider examples
+#
+# OpenAI moderations (free endpoint, scores per category from 0 to 1):
+#   endpoint: "https://api.openai.com/v1/moderations"
+#   model: "omni-moderation-latest"
+#   request-body: '{"input": {text}, "model": {model}}'
+#   headers:
+#     Authorization: "Bearer sk-..."
+#   # any category:
+#   score-path: "results.0.category_scores.*"
+#   # or only the ones you police, worst wins:
+#   score-path: "results.0.category_scores.harassment, results.0.category_scores.hate, results.0.category_scores.sexual/minors, results.0.category_scores.violence"
+#
+# Hugging Face inference endpoint (text-classification):
+#   endpoint: "https://<id>.endpoints.huggingface.cloud"
+#   request-body: '{"inputs": {text}}'
+#   score-path: ""          # [[{"label":"unsafe","score":0.98}, ...]] is guessed
+#   headers:
+#     Authorization: "Bearer hf_..."
+#
+# Ollama with a small instruct model asked for a bare number:
+#   endpoint: "http://127.0.0.1:11434/api/generate"
+#   model: "llama3.2:1b"
+#   request-body: '{"model": {model}, "stream": false, "format": "json", "prompt": "Rate how toxic this chat line is from 0 to 1 and answer {\"score\": n} only: "}'
+#   score-path: ""
+#
+# Self-hosted classifier, e.g. knowledgator/opir-edge-multilang-v1.0 (no hosted API, ~15 ms/message):
+#   pip install fastapi uvicorn gliclass
+#   from fastapi import FastAPI
+#   from gliclass import ZeroShotClassificationPipeline
+#   from transformers import AutoModelForSequenceClassification, AutoTokenizer
+#   name = "knowledgator/opir-edge-multilang-v1.0"
+#   pipe = ZeroShotClassificationPipeline(
+#       AutoModelForSequenceClassification.from_pretrained(name, trust_remote_code=True),
+#       AutoTokenizer.from_pretrained(name), classification_type="single-label")
+#   app = FastAPI()
+#   @app.post("/classify")
+#   def classify(body: dict):
+#       best = pipe(body["text"], body.get("labels", ["safe", "unsafe"]))[0][0]
+#       return {"label": best["label"], "score": best["score"]}
+#   uvicorn sidecar:app --port 8099
