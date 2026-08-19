@@ -397,11 +397,15 @@ class PrivateMessageService(
 
     internal fun notifySpies(senderId: UUID?, targetId: UUID?, resolvers: Array<TagResolver>, onSpied: () -> Unit) {
         val settings = config().privateMessages
-        val spies = server.onlinePlayers.filter { spy ->
-            spy.uniqueId != senderId && spy.uniqueId != targetId &&
-                spy.hasPermission(SPY_PERMISSION) && playerData.get(spy.uniqueId).socialSpy
+        var found: MutableList<Player>? = null
+        for (spy in server.onlinePlayers) {
+            if (spy.uniqueId == senderId || spy.uniqueId == targetId) continue
+            if (playerData.cached(spy.uniqueId)?.socialSpy != true) continue
+            if (!spy.hasPermission(SPY_PERMISSION)) continue
+            val list = found ?: ArrayList<Player>(2).also { found = it }
+            list += spy
         }
-        if (spies.isEmpty()) return
+        val spies = found ?: return
         val spyMessage = mm.deserialize(settings.spyFormat, *resolvers)
         for (spy in spies) threads.forPlayer(spy) { spy.sendMessage(spyMessage) }
         onSpied()
