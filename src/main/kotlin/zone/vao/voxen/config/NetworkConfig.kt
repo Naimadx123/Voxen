@@ -7,6 +7,7 @@ data class NetworkConfig(
     val timeoutMillis: Long,
     val syncMutes: Boolean,
     val secret: String,
+    val allowUnsigned: Boolean,
     val maxAgeSeconds: Long,
     val queueSize: Int,
     val redis: Redis,

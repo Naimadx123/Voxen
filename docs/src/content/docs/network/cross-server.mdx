@@ -83,7 +83,8 @@ servers pointed at the same Redis work just as well.
    ```
 
    Every outgoing message is signed with it (HMAC-SHA256) and anything arriving with a
-   wrong or missing signature is dropped.
+   wrong or missing signature is dropped. Without a secret Voxen refuses to start the
+   network at all; set `allow-unsigned: true` if you really want an unauthenticated broker.
 
    If you run behind Velocity you can skip this. With `secret` left empty Voxen picks up
    the forwarding secret from `config/paper-global.yml`, which every backend server behind

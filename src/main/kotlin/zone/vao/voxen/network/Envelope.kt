@@ -40,7 +40,7 @@ object Envelope {
         maxAgeMillis: Long,
         now: Long = System.currentTimeMillis(),
     ): Result {
-        if (raw.length > MAX_BYTES) return Result.Rejected.TOO_BIG
+        if (utf8Size(raw) > MAX_BYTES) return Result.Rejected.TOO_BIG
 
         val version = raw.substringBefore(SEPARATOR, "")
         val afterVersion = raw.indexOf(SEPARATOR) + 1
@@ -65,6 +65,19 @@ object Envelope {
         if (maxAgeMillis > 0 && Math.abs(now - sentAt) > maxAgeMillis) return Result.Rejected.EXPIRED
 
         return Result.Ok(payload)
+    }
+
+    private fun utf8Size(text: String): Int {
+        var size = 0
+        for (char in text) {
+            size += when {
+                char.code < 0x80 -> 1
+                char.code < 0x800 -> 2
+                char.isSurrogate() -> 2 // a surrogate pair is four bytes, so two per char
+                else -> 3
+            }
+        }
+        return size
     }
 
     private fun sign(text: String, secret: String): String {

@@ -463,6 +463,7 @@ class ConfigManager(
         timeoutMillis = (section?.getLong("timeout-millis", 5000L) ?: 5000L).coerceAtLeast(500L),
         syncMutes = section?.getBoolean("sync-mutes", true) ?: true,
         secret = networkSecret(section, transport),
+        allowUnsigned = section?.getBoolean("allow-unsigned", false) ?: false,
         maxAgeSeconds = (section?.getLong("max-age-seconds", 60L) ?: 60L).coerceAtLeast(0L),
         queueSize = (section?.getInt("queue-size", 1000) ?: 1000).coerceAtLeast(1),
         redis = NetworkConfig.Redis(

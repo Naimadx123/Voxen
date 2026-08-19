@@ -22,6 +22,8 @@ network:
   # string on every server. Empty means no signing, and then anyone who can reach the
   # broker can fake chat, private messages and mutes.
   secret: ""
+  # Starting the network with an empty 'secret' is refused unless you say so here.
+  allow-unsigned: false
   # When 'secret' is empty, take the key from the Velocity forwarding secret in
   # config/paper-global.yml instead, so you do not have to invent a second shared string.
   # Every server behind the same proxy already has it. Voxen does not use it directly, it

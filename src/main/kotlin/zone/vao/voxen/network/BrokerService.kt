@@ -35,9 +35,8 @@ class BrokerService(
         logger,
         "The broker is unreachable or too slow, so cross-server messages are being dropped.",
     )
-    private val seen = object : LinkedHashMap<String, Boolean>(256, 0.75f, false) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>): Boolean = size > 1024
-    }
+    // message id -> when it may be forgotten, in insertion (and therefore expiry) order
+    private val seen = LinkedHashMap<String, Long>(256)
 
     fun active(): Boolean = broker != null
 
@@ -48,9 +47,18 @@ class BrokerService(
         warned.clear()
         val config = network()
         if (config.transport != NetworkConfig.Transport.NONE && config.secret.isEmpty()) {
+            if (!config.allowUnsigned) {
+                logger.severe(
+                    "network.secret in integrations.yml is empty, so cross-server messages could not be " +
+                        "authenticated and anyone who can reach the broker could fake chat, private messages and " +
+                        "mutes. The network stays off. Set network.secret on every server, or accept the risk with " +
+                        "network.allow-unsigned: true.",
+                )
+                return
+            }
             logger.warning(
-                "network.secret in integrations.yml is empty, so incoming cross-server messages are not " +
-                    "authenticated. Anyone who can reach the broker can fake chat, private messages and mutes.",
+                "network.allow-unsigned is true and network.secret is empty, so incoming cross-server messages " +
+                    "are not authenticated. Anyone who can reach the broker can fake chat, private messages and mutes.",
             )
         }
         val created = when (config.transport) {
@@ -99,10 +107,7 @@ class BrokerService(
         val message = runCatching { gson.fromJson(payload, BrokerMessage::class.java) }.getOrNull() ?: return
         val id = message.id
         if (id.isNullOrEmpty() || message.server == network().serverId) return
-        synchronized(seen) {
-            if (seen.containsKey(id)) return
-            seen[id] = true
-        }
+        if (!markSeen(id)) return
         if (message.type == TYPE_PM || message.type == TYPE_PM_ACK || message.type == TYPE_PM_SPY || message.type == TYPE_PM_GROUP) {
             onPmMessage?.invoke(message)
             return
@@ -119,8 +124,24 @@ class BrokerService(
         onChatMessage?.invoke(message)
     }
 
-    private fun markSeen(id: String) {
-        synchronized(seen) { seen[id] = true }
+    /** Remembers an id for the whole replay window. Returns false when it was already known. */
+    private fun markSeen(id: String): Boolean {
+        val now = System.currentTimeMillis()
+        val expiresAt = now + ((network().maxAgeSeconds * 1000L).takeIf { it > 0 } ?: DEFAULT_REPLAY_MILLIS)
+        synchronized(seen) {
+            val entries = seen.entries.iterator()
+            while (entries.hasNext()) {
+                if (entries.next().value > now) break
+                entries.remove()
+            }
+            // ponytail: hard cap in case the window is huge; raise it if a busy network needs more
+            while (seen.size >= MAX_SEEN) {
+                val oldest = seen.entries.iterator()
+                oldest.next()
+                oldest.remove()
+            }
+            return seen.put(id, expiresAt) == null
+        }
     }
 
     private fun verify(raw: String): String? {
@@ -146,6 +167,9 @@ class BrokerService(
     }
 
     companion object {
+        private const val DEFAULT_REPLAY_MILLIS = 60_000L
+        private const val MAX_SEEN = 100_000
+
         const val TYPE_PM = "pm"
         const val TYPE_PM_ACK = "pm_ack"
         const val TYPE_PM_SPY = "pm_spy"
