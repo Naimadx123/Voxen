@@ -394,6 +394,14 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     private fun createStorage(): zone.vao.voxen.storage.PlayerStorage {
         val config = configManager.config.storage
         return runCatching { StorageFactory.create(this, config) }.getOrElse { first ->
+            if (config.type != StorageType.SQLITE && !config.sqliteFallback) {
+                // silently writing to a local file would split data across servers, so refuse to start
+                throw IllegalStateException(
+                    "Failed to initialise ${config.type.name.lowercase()} storage: ${first.message}. " +
+                        "Fix the connection or set sqlite-fallback: true in storage.yml.",
+                    first,
+                )
+            }
             logger.warning("Failed to initialise ${config.type.name.lowercase()} storage (${first.message}); falling back to SQLite.")
             StorageFactory.create(
                 this,

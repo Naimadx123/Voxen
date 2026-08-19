@@ -11,4 +11,5 @@ data class StorageConfig(
     val poolSize: Int,
     val queueSize: Int,
     val chatLogBatch: Int,
+    val sqliteFallback: Boolean = false,
 )

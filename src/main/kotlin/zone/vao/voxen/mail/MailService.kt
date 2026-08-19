@@ -106,7 +106,7 @@ class MailService(
             createdAt = System.currentTimeMillis(),
         )
         val bypassIgnore = sender.hasPermission(PrivateMessageService.BYPASS_IGNORE)
-        playerData.async { storage ->
+        playerData.durable({ storage ->
             val ignored = !bypassIgnore && storage.loadIgnores(targetUuid).contains(sender.uniqueId)
             val stored = !ignored && storage.saveMailIfRoom(entry, settings.maxPerPlayer)
             if (!stored) releaseCooldown()
@@ -128,7 +128,10 @@ class MailService(
                     }
                 }
             }
-        }
+        }, {
+            releaseCooldown()
+            threads.forPlayer(sender) { messages.send(sender, "storage-busy") }
+        })
     }
 
     fun show(player: Player, markRead: Boolean) {

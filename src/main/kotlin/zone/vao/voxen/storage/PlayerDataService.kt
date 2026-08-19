@@ -59,9 +59,29 @@ class PlayerDataService(
         scheduleFlush()
     }
 
-    fun async(task: (PlayerStorage) -> Unit) {
-        val current = storage ?: return
-        io.submit { runCatching { task(current) }.onFailure(::warn) }
+    fun async(task: (PlayerStorage) -> Unit): Boolean {
+        val current = storage ?: return false
+        return io.submit { runCatching { task(current) }.onFailure(::warn) }
+    }
+
+    /** Durable write with no caller to notify: a rejected op is logged loudly instead of vanishing. */
+    fun durable(label: String, task: (PlayerStorage) -> Unit) {
+        durable(task) { plugin.logger.severe("$label was not persisted: the storage queue is full or failing.") }
+    }
+
+    /** Like [async], but a write that cannot be queued or fails calls [onReject] instead of vanishing. */
+    fun durable(task: (PlayerStorage) -> Unit, onReject: () -> Unit) {
+        val current = storage ?: run {
+            onReject()
+            return
+        }
+        val queued = io.submit {
+            runCatching { task(current) }.onFailure { failure ->
+                warn(failure)
+                onReject()
+            }
+        }
+        if (!queued) onReject()
     }
 
     fun <T> blocking(task: (PlayerStorage) -> T): T? {
@@ -70,12 +90,12 @@ class PlayerDataService(
     }
 
     fun shutdown() {
-        for (data in cache.values) {
-            runCatching { storage?.savePlayer(data) }.onFailure(::warn)
-        }
-        dirty.clear()
-        flushChatLog()
+        // drain queued work first, otherwise the pool writes through a closed data source
         io.shutdown(5)
+        for (data in cache.values) dirty[data.uuid] = data
+        cache.clear()
+        flushPlayers()
+        flushChatLog()
         runCatching { storage?.close() }
         storage = null
     }
@@ -125,7 +145,17 @@ class PlayerDataService(
             }
             if (batch.isEmpty()) return
             chatLogSize.addAndGet(-batch.size)
-            runCatching { current.logChat(batch) }.onFailure(::warn)
+            runCatching { current.logChat(batch) }.onFailure { failure ->
+                warn(failure)
+                // ponytail: the batch goes back for the next flush, so a hiccup costs order, not rows
+                if (chatLogSize.get() + batch.size <= queueCapacity) {
+                    chatLog += batch
+                    chatLogSize.addAndGet(batch.size)
+                } else {
+                    io.noteDrop()
+                }
+                return
+            }
         }
     }
 

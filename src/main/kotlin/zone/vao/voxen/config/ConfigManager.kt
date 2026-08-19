@@ -610,6 +610,7 @@ class ConfigManager(
         poolSize = yaml.getInt("pool-size", 10).coerceAtLeast(1),
         queueSize = yaml.getInt("queue-size", 500).coerceAtLeast(1),
         chatLogBatch = yaml.getInt("chat-log-batch", 100).coerceAtLeast(1),
+        sqliteFallback = yaml.getBoolean("sqlite-fallback", false),
     )
 
     private fun parseItemShare(yaml: YamlConfiguration): ItemShareConfig {

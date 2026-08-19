@@ -154,6 +154,7 @@ find-entry: "<gray>- <white><player></white> <dark_gray>on</dark_gray> <white><s
 mail-disabled: "<red>Offline mail is disabled in modules/mail.yml."
 mail-sent: "<green>Mail to <white><player></white> has been left in their mailbox."
 mail-self: "<red>You cannot send mail to yourself."
+storage-busy: "<red>The database is busy, so that could not be saved. Try again."
 mail-full: "<red><player>'s mailbox is full."
 mail-ignored: "<red><player> is ignoring you."
 mail-target-online: "<red><player> is online, use a private message instead."

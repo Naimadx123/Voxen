@@ -154,6 +154,7 @@ find-entry: "<gray>- <white><player></white> <dark_gray>na</dark_gray> <white><s
 mail-disabled: "<red>Poczta offline jest wyłączona w modules/mail.yml."
 mail-sent: "<green>Wiadomość dla <white><player></white> czeka w skrzynce."
 mail-self: "<red>Nie możesz wysłać poczty do siebie."
+storage-busy: "<red>Baza danych jest zajęta, więc nie udało się tego zapisać. Spróbuj ponownie."
 mail-full: "<red>Skrzynka gracza <player> jest pełna."
 mail-ignored: "<red><player> cię ignoruje."
 mail-target-online: "<red><player> jest online, wyślij prywatną wiadomość."

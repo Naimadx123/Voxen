@@ -13,3 +13,6 @@ pool-size: 10
 queue-size: 500
 # How many chat history rows go into one insert.
 chat-log-batch: 100
+# When an external database cannot be reached the plugin refuses to start, because writing to a
+# local file instead would split data across servers. Set this to true to fall back to SQLite.
+sqlite-fallback: false

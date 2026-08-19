@@ -13,6 +13,13 @@ class SqlPlayerStorage(
     private val type: StorageType,
 ) : PlayerStorage {
 
+    init {
+        // every statement interpolates the prefix, so anything but plain identifiers is refused outright
+        require(tablePrefix.matches(Regex("[A-Za-z0-9_]*"))) {
+            "table-prefix '$tablePrefix' may only contain letters, digits and underscores"
+        }
+    }
+
     private val playersTable = "${tablePrefix}players"
     private val ignoresTable = "${tablePrefix}ignores"
     private val mutesTable = "${tablePrefix}mutes"
@@ -25,7 +32,29 @@ class SqlPlayerStorage(
     private val dataSource = HikariDataSource(hikariConfig)
 
     init {
-        dataSource.connection.use { conn -> migrate(conn) }
+        dataSource.connection.use { conn ->
+            // one server at a time, or two starting together race the same CREATE/ALTER statements
+            val lock = lockStatement(tablePrefix)
+            if (lock != null) conn.createStatement().use { st -> st.executeQuery(lock).use { it.next() } }
+            try {
+                migrate(conn)
+            } finally {
+                val release = unlockStatement(tablePrefix)
+                if (release != null) runCatching { conn.createStatement().use { st -> st.executeQuery(release).use { } } }
+            }
+        }
+    }
+
+    private fun lockStatement(prefix: String): String? = when (type) {
+        StorageType.MYSQL, StorageType.MARIADB -> "SELECT GET_LOCK('${prefix}migrate', 30)"
+        StorageType.POSTGRES -> "SELECT pg_advisory_lock(${"${prefix}migrate".hashCode()})"
+        StorageType.SQLITE -> null // a single file writer already serialises this
+    }
+
+    private fun unlockStatement(prefix: String): String? = when (type) {
+        StorageType.MYSQL, StorageType.MARIADB -> "SELECT RELEASE_LOCK('${prefix}migrate')"
+        StorageType.POSTGRES -> "SELECT pg_advisory_unlock(${"${prefix}migrate".hashCode()})"
+        StorageType.SQLITE -> null
     }
 
     private fun migrate(conn: Connection) {

@@ -63,7 +63,7 @@ class ModeratorService(
             kind = StaffNote.Kind.WARN,
             createdAt = System.currentTimeMillis(),
         )
-        playerData.async { storage ->
+        playerData.durable({ storage ->
             storage.saveStaffNote(note)
             val count = storage.staffNotes(target.uuid, StaffNote.Kind.WARN, settings.warningCutoff).size
             threads.main {
@@ -94,7 +94,7 @@ class ModeratorService(
                 )
                 runRules(sender, target, count, text)
             }
-        }
+        }, { threads.main { messages.send(sender, "storage-busy") } })
     }
 
     fun warnings(sender: CommandSender, target: Target) {
@@ -158,13 +158,13 @@ class ModeratorService(
             kind = StaffNote.Kind.NOTE,
             createdAt = System.currentTimeMillis(),
         )
-        playerData.async { storage ->
+        playerData.durable({ storage ->
             storage.saveStaffNote(note)
             threads.main {
                 messages.send(sender, "note-added", Placeholder.unparsed("player", target.name))
                 then?.invoke()
             }
-        }
+        }, { threads.main { messages.send(sender, "storage-busy") } })
     }
 
     fun deleteNote(sender: CommandSender, target: Target, index: Int, then: (() -> Unit)? = null) {
