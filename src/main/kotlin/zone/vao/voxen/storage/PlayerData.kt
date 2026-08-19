@@ -17,6 +17,7 @@ class PlayerData(
     @Volatile var nickname: String? = null,
     @Volatile var lastPmUuid: String? = null,
     @Volatile var lastPmName: String? = null,
+    @Volatile var lastName: String? = null,
 ) {
     val joinedChannels: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { addAll(joinedChannels) }
     val leftChannels: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { addAll(leftChannels) }

@@ -83,7 +83,13 @@ class PlayerDataService(
     @EventHandler(priority = EventPriority.MONITOR)
     fun onPreLogin(event: AsyncPlayerPreLoginEvent) {
         if (event.loginResult != AsyncPlayerPreLoginEvent.Result.ALLOWED) return
-        cache[event.uniqueId] = load(event.uniqueId)
+        val data = load(event.uniqueId)
+        cache[event.uniqueId] = data
+        // the name is what cross-server lookups (mail, mutes) search by, so keep it current
+        if (!data.lastName.equals(event.name, ignoreCase = true)) {
+            data.lastName = event.name
+            save(data)
+        }
     }
 
     @EventHandler

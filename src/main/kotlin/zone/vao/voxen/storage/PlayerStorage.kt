@@ -21,7 +21,12 @@ interface PlayerStorage {
     fun logChat(entries: List<ChatLogEntry>)
     fun chatHistory(uuid: UUID, limit: Int): List<ChatLogEntry>
     fun purgeChatLog(before: Long)
+    fun findByName(name: String): Pair<UUID, String>?
+
     fun saveMail(entry: MailEntry)
+
+    /** Inserts only when the mailbox holds fewer than [max] entries; false means it was full. */
+    fun saveMailIfRoom(entry: MailEntry, max: Int): Boolean
     fun mailFor(recipient: UUID, unreadOnly: Boolean): List<MailEntry>
     fun markMailRead(recipient: UUID)
     fun deleteMail(recipient: UUID, id: UUID): Boolean

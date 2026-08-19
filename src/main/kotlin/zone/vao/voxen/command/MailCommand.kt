@@ -6,7 +6,6 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.tree.LiteralCommandNode
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
-import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
 import zone.vao.voxen.mail.MailService
@@ -26,19 +25,9 @@ object MailCommand {
                                 Commands.argument("message", StringArgumentType.greedyString())
                                     .executes { ctx ->
                                         val sender = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
-                                        val targetName = StringArgumentType.getString(ctx, "player")
-                                        val target = VoxenCommand.resolve(plugin, targetName) ?: run {
-                                            plugin.messages().send(
-                                                sender,
-                                                "player-not-found",
-                                                Placeholder.unparsed("player", targetName),
-                                            )
-                                            return@executes Command.SINGLE_SUCCESS
-                                        }
                                         plugin.mailService.send(
                                             sender,
-                                            target.first,
-                                            target.second,
+                                            StringArgumentType.getString(ctx, "player"),
                                             StringArgumentType.getString(ctx, "message"),
                                         )
                                         Command.SINGLE_SUCCESS

@@ -30,6 +30,28 @@ class MailService(
 
     private val lastSent = ConcurrentHashMap<UUID, Long>()
 
+    /** Resolves [targetName] locally, falling back to a storage lookup for players who never joined here. */
+    fun send(sender: Player, targetName: String, content: String) {
+        val local = runCatching { UUID.fromString(targetName) }.getOrNull()
+            ?.let { id -> id to (server.getOfflinePlayer(id).name ?: id.toString()) }
+            ?: server.getPlayerExact(targetName)?.let { it.uniqueId to it.name }
+        if (local != null) {
+            send(sender, local.first, local.second, content)
+            return
+        }
+        playerData.async { storage ->
+            val found = storage.findByName(targetName)
+            threads.forPlayer(sender) {
+                if (!sender.isOnline) return@forPlayer
+                if (found == null) {
+                    config().messages.send(sender, "player-not-found", Placeholder.unparsed("player", targetName))
+                } else {
+                    send(sender, found.first, found.second, content)
+                }
+            }
+        }
+    }
+
     fun send(sender: Player, targetUuid: UUID, targetName: String, content: String) {
         val settings = config().mail
         val messages = config().messages
@@ -49,15 +71,30 @@ class MailService(
             return
         }
         val cooldown = settings.cooldownMillis
-        if (cooldown > 0 && !sender.hasPermission(BYPASS_COOLDOWN)) {
-            val remaining = cooldown - (System.currentTimeMillis() - (lastSent[sender.uniqueId] ?: 0L))
-            if (remaining > 0) {
+        val guarded = cooldown > 0 && !sender.hasPermission(BYPASS_COOLDOWN)
+        val now = System.currentTimeMillis()
+        if (guarded) {
+            // claimed before anything async runs, otherwise two quick commands both pass the check
+            val previous = lastSent.merge(sender.uniqueId, now) { old, fresh ->
+                if (fresh - old >= cooldown) fresh else old
+            } ?: now
+            if (previous != now) {
+                val remaining = cooldown - (now - previous)
                 messages.send(sender, "mail-cooldown", Placeholder.unparsed("remaining", Durations.humanize(remaining)))
                 return
             }
         }
-        if (pm.isMuted(sender)) return
-        val text = pm.moderate(sender, content) ?: return
+        fun releaseCooldown() {
+            if (guarded) lastSent.remove(sender.uniqueId, now)
+        }
+        if (pm.isMuted(sender)) {
+            releaseCooldown()
+            return
+        }
+        val text = pm.moderate(sender, content) ?: run {
+            releaseCooldown()
+            return
+        }
 
         val entry = MailEntry(
             id = UUID.randomUUID(),
@@ -71,14 +108,13 @@ class MailService(
         val bypassIgnore = sender.hasPermission(PrivateMessageService.BYPASS_IGNORE)
         playerData.async { storage ->
             val ignored = !bypassIgnore && storage.loadIgnores(targetUuid).contains(sender.uniqueId)
-            val full = storage.mailFor(targetUuid, unreadOnly = false).size >= settings.maxPerPlayer
-            if (!ignored && !full) storage.saveMail(entry)
+            val stored = !ignored && storage.saveMailIfRoom(entry, settings.maxPerPlayer)
+            if (!stored) releaseCooldown()
             threads.forPlayer(sender) {
                 when {
                     ignored -> messages.send(sender, "mail-ignored", target)
-                    full -> messages.send(sender, "mail-full", target)
+                    !stored -> messages.send(sender, "mail-full", target)
                     else -> {
-                        lastSent[sender.uniqueId] = System.currentTimeMillis()
                         messages.send(sender, "mail-sent", target)
                         server.getPlayer(targetUuid)?.let { online ->
                             threads.forPlayer(online) {

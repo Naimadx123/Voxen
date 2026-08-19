@@ -121,6 +121,14 @@ class SqlPlayerStorage(
                 }
             }
             writeVersion(conn, 6)
+            version = 6
+        }
+        if (version < 7) {
+            addColumn(conn, playersTable, "last_name", "VARCHAR(16)")
+            conn.createStatement().use { st ->
+                runCatching { st.executeUpdate("CREATE INDEX ${playersTable}_name ON $playersTable (last_name)") }
+            }
+            writeVersion(conn, 7)
         }
     }
 
@@ -157,7 +165,7 @@ class SqlPlayerStorage(
         dataSource.connection.use { conn ->
             conn.prepareStatement(
                 "SELECT active_channel, joined_channels, left_channels, pm_enabled, mentions_enabled, chat_enabled, social_spy, language, " +
-                    "filter_enabled, nickname, last_pm_uuid, last_pm_name FROM $playersTable WHERE uuid = ?"
+                    "filter_enabled, nickname, last_pm_uuid, last_pm_name, last_name FROM $playersTable WHERE uuid = ?"
             ).use { ps ->
                 ps.setString(1, uuid.toString())
                 ps.executeQuery().use { rs ->
@@ -176,6 +184,7 @@ class SqlPlayerStorage(
                         nickname = rs.getString(10),
                         lastPmUuid = rs.getString(11),
                         lastPmName = rs.getString(12),
+                        lastName = rs.getString(13),
                     )
                 }
             }
@@ -190,6 +199,7 @@ class SqlPlayerStorage(
                     listOf(
                         "uuid", "active_channel", "joined_channels", "left_channels", "pm_enabled", "mentions_enabled",
                         "chat_enabled", "social_spy", "language", "filter_enabled", "nickname", "last_pm_uuid", "last_pm_name",
+                        "last_name",
                     ),
                     listOf("uuid"),
                 )
@@ -207,6 +217,7 @@ class SqlPlayerStorage(
                 ps.setString(11, data.nickname)
                 ps.setString(12, data.lastPmUuid)
                 ps.setString(13, data.lastPmName)
+                ps.setString(14, data.lastName)
                 ps.executeUpdate()
             }
         }
@@ -454,22 +465,48 @@ class SqlPlayerStorage(
         }
     }
 
-    override fun saveMail(entry: MailEntry) {
+    override fun findByName(name: String): Pair<UUID, String>? {
         dataSource.connection.use { conn ->
             conn.prepareStatement(
-                "INSERT INTO $mailTable (id, recipient, sender, sender_name, content, server, created_at, read_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                "SELECT uuid, last_name FROM $playersTable WHERE LOWER(last_name) = ? LIMIT 1"
             ).use { ps ->
-                ps.setString(1, entry.id.toString())
-                ps.setString(2, entry.recipient.toString())
-                ps.setString(3, entry.senderUuid.toString())
-                ps.setString(4, entry.senderName)
-                ps.setString(5, entry.content)
-                ps.setString(6, entry.server)
-                ps.setLong(7, entry.createdAt)
-                if (entry.readAt != null) ps.setLong(8, entry.readAt) else ps.setNull(8, java.sql.Types.BIGINT)
-                ps.executeUpdate()
+                ps.setString(1, name.lowercase())
+                ps.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    val uuid = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: return null
+                    return uuid to rs.getString(2)
+                }
             }
+        }
+    }
+
+    override fun saveMailIfRoom(entry: MailEntry, max: Int): Boolean =
+        transaction { conn ->
+            val count = conn.prepareStatement("SELECT COUNT(*) FROM $mailTable WHERE recipient = ?").use { ps ->
+                ps.setString(1, entry.recipient.toString())
+                ps.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
+            }
+            if (count >= max) false else { insertMail(conn, entry); true }
+        }
+
+    override fun saveMail(entry: MailEntry) {
+        dataSource.connection.use { conn -> insertMail(conn, entry) }
+    }
+
+    private fun insertMail(conn: Connection, entry: MailEntry) {
+        conn.prepareStatement(
+            "INSERT INTO $mailTable (id, recipient, sender, sender_name, content, server, created_at, read_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ).use { ps ->
+            ps.setString(1, entry.id.toString())
+            ps.setString(2, entry.recipient.toString())
+            ps.setString(3, entry.senderUuid.toString())
+            ps.setString(4, entry.senderName)
+            ps.setString(5, entry.content)
+            ps.setString(6, entry.server)
+            ps.setLong(7, entry.createdAt)
+            if (entry.readAt != null) ps.setLong(8, entry.readAt) else ps.setNull(8, java.sql.Types.BIGINT)
+            ps.executeUpdate()
         }
     }
 
