@@ -704,6 +704,7 @@ class ConfigManager(
         realName = names(section, "real-name", listOf("realname")),
         mail = names(section, "mail", listOf("mail")),
         group = names(section, "group", listOf("gm", "groupchat")),
+        helpop = names(section, "helpop", listOf("helpop")),
     )
 
     private fun names(section: ConfigurationSection?, key: String, defaults: List<String>): List<String> {

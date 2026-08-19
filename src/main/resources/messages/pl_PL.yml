@@ -116,6 +116,10 @@ realname-found: "<gray><white><nickname></white> to <white><player></white>."
 realname-none: "<red>Żaden gracz online nie używa pseudonimu <white><nickname></white>."
 
 item-empty: "<gray><italic>nic</italic></gray>"
+helpop-sent: "<green>Twoje zgłoszenie zostało wysłane do administracji."
+helpop-alert: "<gold>[HelpOp] <white><player></white>: <gray><message>"
+helpop-nobody: "<yellow>Nikt z administracji nie jest teraz online, zgłoszenie zapisano w konsoli."
+helpop-cooldown: "<red>Poczekaj <white><remaining></white> przed kolejnym zgłoszeniem."
 item-share-cooldown: "<red>Poczekaj <white><remaining></white> przed ponownym pokazaniem przedmiotu."
 
 party-disabled: "<red>System drużyn jest wyłączony."

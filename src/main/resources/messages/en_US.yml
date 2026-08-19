@@ -116,6 +116,10 @@ realname-found: "<gray><white><nickname></white> is <white><player></white>."
 realname-none: "<red>No online player uses the nickname <white><nickname></white>."
 
 item-empty: "<gray><italic>nothing</italic></gray>"
+helpop-sent: "<green>Your request was sent to the staff."
+helpop-alert: "<gold>[HelpOp] <white><player></white>: <gray><message>"
+helpop-nobody: "<yellow>No staff member is online right now, your request was logged."
+helpop-cooldown: "<red>Wait <white><remaining></white> before asking for help again."
 item-share-cooldown: "<red>Wait <white><remaining></white> before sharing an item again."
 
 party-disabled: "<red>The party system is disabled."

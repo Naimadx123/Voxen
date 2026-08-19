@@ -14,6 +14,7 @@ data class CommandNames(
     val realName: List<String>,
     val mail: List<String>,
     val group: List<String>,
+    val helpop: List<String>,
 ) {
     fun primary(names: List<String>, fallback: String): String =
         names.firstOrNull()?.lowercase() ?: fallback

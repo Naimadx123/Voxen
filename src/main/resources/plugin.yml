@@ -70,6 +70,12 @@ permissions:
   voxen.find:
     description: Allows looking up which server a player is on.
     default: op
+  voxen.helpop:
+    description: Allows asking staff for help with /helpop.
+    default: true
+  voxen.helpop.receive:
+    description: Receives /helpop requests.
+    default: op
   voxen.socialspy:
     description: Allows toggling the private message spy.
     default: op

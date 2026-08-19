@@ -53,5 +53,6 @@ commands:
   chat-toggle: [chattoggle]
   language: [language, lang]
   filter: [filter]
+  helpop: [helpop]
   nickname: [nick, nickname]
   real-name: [realname]
