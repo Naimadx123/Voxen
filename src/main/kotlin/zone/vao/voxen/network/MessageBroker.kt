@@ -3,8 +3,11 @@ package zone.vao.voxen.network
 interface MessageBroker : AutoCloseable {
     fun start(onMessage: (String) -> Unit)
 
-    /** A null route goes to every server, otherwise only to that server id. */
-    fun publish(payload: String, route: String?)
+    /** False while the transport is still connecting or has dropped, so nothing pretends to be networked. */
+    fun connected(): Boolean
+
+    /** A null route goes to every server, otherwise only to that server id. Returns false when nothing was sent. */
+    fun publish(payload: String, route: String?): Boolean
 
     override fun close()
 }

@@ -61,9 +61,13 @@ class NatsBroker(
         }
     }
 
-    override fun publish(payload: String, route: String?) {
+    override fun connected(): Boolean = connection?.status == Connection.Status.CONNECTED
+
+    override fun publish(payload: String, route: String?): Boolean {
         val subject = if (route == null) broadcast else Addresses.server(config.subject, route)
-        connection?.publish(subject, payload.toByteArray(Charsets.UTF_8))
+        val conn = connection ?: return false
+        conn.publish(subject, payload.toByteArray(Charsets.UTF_8))
+        return true
     }
 
     override fun close() {

@@ -38,7 +38,8 @@ class BrokerService(
     // message id -> when it may be forgotten, in insertion (and therefore expiry) order
     private val seen = LinkedHashMap<String, Long>(256)
 
-    fun active(): Boolean = broker != null
+    /** True only with a live transport: a half-connected broker must not be told "go ahead, send it". */
+    fun active(): Boolean = broker?.connected() == true
 
     fun transportName(): String = network().transport.name.lowercase()
 
@@ -87,8 +88,11 @@ class BrokerService(
         val current = broker ?: return
         message.id?.let(::markSeen)
         io.submit {
-            runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret), message.route) }
+            val sent = runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret), message.route) }
                 .onFailure { logger.warning("Failed to publish a cross-server message: ${it.message}") }
+                .getOrDefault(false)
+            // a disconnected transport used to swallow the payload without a word
+            if (!sent) io.noteDrop()
         }
     }
 

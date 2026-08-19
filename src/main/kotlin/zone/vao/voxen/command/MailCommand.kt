@@ -43,11 +43,20 @@ object MailCommand {
                 }
             )
             .then(
-                Commands.literal("list").executes { ctx ->
-                    val sender = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
-                    plugin.mailService.show(sender, markRead = false)
-                    Command.SINGLE_SUCCESS
-                }
+                Commands.literal("list")
+                    .then(
+                        Commands.argument("page", IntegerArgumentType.integer(1))
+                            .executes { ctx ->
+                                val sender = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
+                                plugin.mailService.show(sender, markRead = false, page = IntegerArgumentType.getInteger(ctx, "page"))
+                                Command.SINGLE_SUCCESS
+                            }
+                    )
+                    .executes { ctx ->
+                        val sender = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
+                        plugin.mailService.show(sender, markRead = false)
+                        Command.SINGLE_SUCCESS
+                    }
             )
             .then(
                 Commands.literal("delete")

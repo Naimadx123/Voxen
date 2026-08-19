@@ -231,8 +231,15 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             if (configManager.config.network.syncMutes) muteService.handleRemote(message)
         }
         brokerService.onChatMessage = { message ->
-            val component = message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
-                ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()
+            val channel = message.channel?.let { channelService.channel(it) }
+            val component = when {
+                // external-format is a receiver-side format, so the raw text is re-rendered here
+                channel?.externalFormat != null && message.sender != null && message.content != null ->
+                    formatService.renderExternal(channel, message.sender, message.server.orEmpty(), message.content)
+
+                else -> message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
+                    ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()
+            }
             if (component != null && message.channel != null) {
                 chatService.deliverRemote(
                     message.channel,

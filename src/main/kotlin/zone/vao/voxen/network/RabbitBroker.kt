@@ -76,9 +76,13 @@ class RabbitBroker(
         }
     }
 
-    override fun publish(payload: String, route: String?) {
+    override fun connected(): Boolean = channel?.isOpen == true
+
+    override fun publish(payload: String, route: String?): Boolean {
         val key = if (route == null) broadcast else Addresses.server(config.exchange, route)
-        channel?.basicPublish(config.exchange, key, null, payload.toByteArray(Charsets.UTF_8))
+        val ch = channel ?: return false
+        ch.basicPublish(config.exchange, key, null, payload.toByteArray(Charsets.UTF_8))
+        return true
     }
 
     override fun close() {

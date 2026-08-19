@@ -85,8 +85,12 @@ class RedisBroker(
         }
     }
 
-    override fun publish(payload: String, route: String?) {
-        pool?.publish(if (route == null) broadcast else Addresses.server(config.channel, route), payload)
+    override fun connected(): Boolean = subscriber?.isConnected == true
+
+    override fun publish(payload: String, route: String?): Boolean {
+        val current = pool ?: return false
+        current.publish(if (route == null) broadcast else Addresses.server(config.channel, route), payload)
+        return true
     }
 
     override fun close() {

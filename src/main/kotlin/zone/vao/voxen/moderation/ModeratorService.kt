@@ -15,6 +15,7 @@ import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.StaffNote
+import zone.vao.voxen.util.Pages
 import zone.vao.voxen.util.Threads
 import java.time.Duration
 import java.time.Instant
@@ -97,14 +98,14 @@ class ModeratorService(
         }, { threads.main { messages.send(sender, "storage-busy") } })
     }
 
-    fun warnings(sender: CommandSender, target: Target) {
+    fun warnings(sender: CommandSender, target: Target, page: Int = 1) {
         val settings = config().moderatorTools
         val messages = config().messages
         if (!enabled(sender) || !settings.warningsEnabled) {
             if (settings.enabled) messages.send(sender, "warn-disabled")
             return
         }
-        list(sender, target, StaffNote.Kind.WARN, "warn-list-header", "warn-list-entry", "warn-list-empty")
+        list(sender, target, StaffNote.Kind.WARN, "warn-list-header", "warn-list-entry", "warn-list-empty", page, "warns")
     }
 
     fun unwarn(sender: CommandSender, target: Target, index: Int) {
@@ -116,9 +117,9 @@ class ModeratorService(
         remove(sender, target, StaffNote.Kind.WARN, index, "warn-removed", "warn-invalid-index")
     }
 
-    fun notes(sender: CommandSender, target: Target) {
+    fun notes(sender: CommandSender, target: Target, page: Int = 1) {
         if (!enabled(sender) || !notesEnabled(sender)) return
-        list(sender, target, StaffNote.Kind.NOTE, "note-list-header", "note-list-entry", "note-list-empty")
+        list(sender, target, StaffNote.Kind.NOTE, "note-list-header", "note-list-entry", "note-list-empty", page, "notes")
     }
 
     fun notesPage(viewer: Player, target: Target) {
@@ -226,6 +227,11 @@ class ModeratorService(
         if (!enabled(sender)) return
         if (!settings.deleteEnabled) {
             messages.send(sender, "delete-disabled")
+            return
+        }
+        // the [x] button already honours this, so the command has to as well
+        if (server.getPlayer(target.uuid)?.hasPermission(DELETE_EXEMPT) == true) {
+            messages.send(sender, "delete-exempt", Placeholder.unparsed("player", target.name))
             return
         }
         val picked = synchronized(recent) {
@@ -356,6 +362,8 @@ class ModeratorService(
         headerKey: String,
         entryKey: String,
         emptyKey: String,
+        page: Int,
+        command: String,
     ) {
         val messages = config().messages
         val since = if (kind == StaffNote.Kind.WARN) config().moderatorTools.warningCutoff else 0L
@@ -372,7 +380,9 @@ class ModeratorService(
                     Placeholder.unparsed("player", target.name),
                     Placeholder.unparsed("amount", entries.size.toString()),
                 )
-                entries.forEachIndexed { index, entry ->
+                val view = Pages.of(entries, page)
+                view.items.forEachIndexed { offsetIndex, entry ->
+                    val index = view.offset + offsetIndex
                     sender.sendMessage(
                         messages.line(
                             sender,
@@ -381,6 +391,17 @@ class ModeratorService(
                             Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
                             Placeholder.unparsed("moderator", entry.author),
                             Placeholder.unparsed("reason", entry.content),
+                        )
+                    )
+                }
+                if (view.hasNext) {
+                    sender.sendMessage(
+                        messages.line(
+                            sender,
+                            "page-footer",
+                            Placeholder.unparsed("page", view.number.toString()),
+                            Placeholder.unparsed("pages", view.count.toString()),
+                            Placeholder.unparsed("command", "/voxen $command ${target.name} ${view.number + 1}"),
                         )
                     )
                 }

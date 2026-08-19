@@ -12,6 +12,7 @@ import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.MailEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.util.Durations
+import zone.vao.voxen.util.Pages
 import zone.vao.voxen.util.Threads
 import java.time.Instant
 import java.time.ZoneId
@@ -134,7 +135,7 @@ class MailService(
         })
     }
 
-    fun show(player: Player, markRead: Boolean) {
+    fun show(player: Player, markRead: Boolean, page: Int = 1) {
         val messages = config().messages
         if (!config().mail.enabled) {
             messages.send(player, "mail-disabled")
@@ -148,8 +149,10 @@ class MailService(
                     messages.send(player, "mail-empty")
                     return@forPlayer
                 }
+                val view = Pages.of(entries, page)
                 messages.send(player, "mail-header", Placeholder.unparsed("amount", entries.size.toString()))
-                entries.forEachIndexed { index, entry ->
+                view.items.forEachIndexed { offsetIndex, entry ->
+                    val index = view.offset + offsetIndex
                     player.sendMessage(
                         messages.line(
                             player,
@@ -159,6 +162,17 @@ class MailService(
                             Placeholder.unparsed("player", entry.senderName),
                             Placeholder.unparsed("server", entry.server),
                             Placeholder.unparsed("message", entry.content),
+                        )
+                    )
+                }
+                if (view.hasNext) {
+                    player.sendMessage(
+                        messages.line(
+                            player,
+                            "page-footer",
+                            Placeholder.unparsed("page", view.number.toString()),
+                            Placeholder.unparsed("pages", view.count.toString()),
+                            Placeholder.unparsed("command", "/mail list ${view.number + 1}"),
                         )
                     )
                 }

@@ -188,6 +188,15 @@ object VoxenCommand {
                         Commands.argument("player", StringArgumentType.word())
                             .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
                             .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.warnings(sender, target) } }
+                            .then(
+                                Commands.argument("page", IntegerArgumentType.integer(1))
+                                    .executes { ctx ->
+                                        val page = IntegerArgumentType.getInteger(ctx, "page")
+                                        staff(plugin, ctx) { sender, target ->
+                                            plugin.moderatorService.warnings(sender, target, page)
+                                        }
+                                    }
+                            )
                     )
             )
             .then(
@@ -210,6 +219,15 @@ object VoxenCommand {
                         Commands.argument("player", StringArgumentType.word())
                             .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
                             .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.notes(sender, target) } }
+                            .then(
+                                Commands.argument("page", IntegerArgumentType.integer(1))
+                                    .executes { ctx ->
+                                        val page = IntegerArgumentType.getInteger(ctx, "page")
+                                        staff(plugin, ctx) { sender, target ->
+                                            plugin.moderatorService.notes(sender, target, page)
+                                        }
+                                    }
+                            )
                             .then(
                                 Commands.literal("add")
                                     .then(

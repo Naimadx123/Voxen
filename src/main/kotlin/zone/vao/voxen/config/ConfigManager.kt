@@ -560,11 +560,21 @@ class ConfigManager(
                 plugin.logger.warning("modules/moderator-tools.yml: every 'dialog-buttons' entry needs a 'label' and a 'command'; skipping one.")
                 return@mapNotNull null
             }
+            val permission = entry["permission"]?.toString()?.trim()?.ifEmpty { null }
+            val console = entry["console"] as? Boolean ?: false
+            if (console && permission == null) {
+                // a console button without a gate would let any viewer of the dialog run it as console
+                plugin.logger.warning(
+                    "modules/moderator-tools.yml: the 'dialog-buttons' entry '$label' runs from the console, " +
+                        "so it needs a 'permission'; skipping it."
+                )
+                return@mapNotNull null
+            }
             ModeratorToolsConfig.DialogButton(
                 label = label,
                 command = command,
-                permission = entry["permission"]?.toString()?.trim()?.ifEmpty { null },
-                console = entry["console"] as? Boolean ?: false,
+                permission = permission,
+                console = console,
             )
         }
 

@@ -61,8 +61,27 @@ class FormatService(
     fun renderConsole(channel: Channel, player: Player, message: Component): Component =
         render(channel.consoleFormat ?: formatFor(channel, player), player, channel, message)
 
-    fun renderExternal(channel: Channel, player: Player, message: Component): Component =
-        render(channel.externalFormat ?: formatFor(channel, player), player, channel, message)
+    /**
+     * Renders a message that arrived from another server. The sender is not online here, so only the
+     * placeholders the network carries are available and [message] is inserted as plain text.
+     */
+    fun renderExternal(channel: Channel, senderName: String, senderServer: String, message: String): Component {
+        val format = channel.externalFormat ?: return Component.text(message)
+        val trimmed = Components.stripEmptyPlaceholders(format) { token ->
+            if (token == "<prefix>" || token == "<suffix>") "" else token
+        }
+        return Components.tidy(
+            mm.deserialize(
+                trimmed,
+                Placeholder.unparsed("message", message),
+                Placeholder.unparsed("player", senderName),
+                Placeholder.unparsed("username", senderName),
+                Placeholder.parsed("channel", channel.displayName),
+                Placeholder.unparsed("channel_id", channel.id),
+                Placeholder.unparsed("server", senderServer),
+            )
+        )
+    }
 
     fun metaComponent(raw: String): Component {
         if (raw.isBlank()) return Component.empty()
