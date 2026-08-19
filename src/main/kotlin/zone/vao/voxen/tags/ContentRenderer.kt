@@ -25,6 +25,7 @@ class ContentRenderer(
         modeOverride: TagsConfig.UnauthorizedMode? = null,
         isPermissionSet: (String) -> Boolean = { false },
     ): Component {
+        if (visible(content).isEmpty()) return Component.text(content)
         val config = tagsConfig()
         val mode = modeOverride ?: config.mode
         var raw = content
@@ -74,6 +75,9 @@ class ContentRenderer(
 
     fun plain(content: String): String =
         MiniMessage.miniMessage().stripTags(content)
+
+    fun visible(content: String): String =
+        LEGACY_CODES.replace(plain(VISUAL_TAGS.replace(content, "*")), "").trim()
 
     private fun permitted(config: TagsConfig, name: String, hasPermission: (String) -> Boolean): Boolean {
         val rule = config.rules[name] ?: return false
@@ -263,6 +267,8 @@ class ContentRenderer(
 
     companion object {
         private val REGEX_CACHE = ConcurrentHashMap<String, Regex>()
+        private val LEGACY_CODES = Regex("&#[0-9a-fA-F]{6}|[&§][0-9a-fk-orA-FK-OR]")
+        private val VISUAL_TAGS = Regex("""(?<!\\)<(?:sprite|head)(?::[^>]*)?>""", RegexOption.IGNORE_CASE)
 
         const val TAG_WILDCARD = "voxen.chat.tag.*"
 
