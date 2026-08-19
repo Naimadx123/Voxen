@@ -139,6 +139,9 @@ permissions:
   voxen.bypass.ignore:
     description: Messages reach players even when they ignore the sender.
     default: op
+  voxen.bypass.chattoggle:
+    description: Messages reach players who disabled chat with /chattoggle.
+    default: op
   voxen.bypass.pmtoggle:
     description: Private messages reach players who disabled them.
     default: op

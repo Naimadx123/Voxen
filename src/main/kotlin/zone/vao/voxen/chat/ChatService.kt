@@ -348,12 +348,13 @@ class ChatService(
         content: String? = null,
         senderUuid: UUID? = null,
         bypassIgnore: Boolean = false,
+        bypassChatToggle: Boolean = false,
     ) {
         val channel = channels.channel(channelId) ?: return
         if (!channel.enabled || !channel.crossServer) return
         val mentioned = if (!content.isNullOrEmpty() && config().mentions.enabled) mentions.mentionedNames(content) else emptySet()
         threads.main {
-            for (reader in channels.readers(channel, senderUuid, bypassIgnore)) {
+            for (reader in channels.readers(channel, senderUuid, bypassIgnore, bypassChatToggle)) {
                 var delivered = message
                 val notify = reader.name.lowercase() in mentioned && mentions.accepts(reader)
                 if (notify) delivered = mentions.highlight(delivered, reader)
