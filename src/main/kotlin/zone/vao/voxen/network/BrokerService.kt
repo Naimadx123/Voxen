@@ -27,6 +27,9 @@ class BrokerService(
     @Volatile
     var onPresenceMessage: ((BrokerMessage) -> Unit)? = null
 
+    @Volatile
+    private var lastMessageAt = 0L
+
     private val gson = Gson()
     private val warned = ConcurrentHashMap.newKeySet<Envelope.Result.Rejected>()
     private val io = WorkQueue(
@@ -42,6 +45,9 @@ class BrokerService(
     fun active(): Boolean = broker?.connected() == true
 
     fun transportName(): String = network().transport.name.lowercase()
+
+    /** Queue depth, messages dropped so far and when the last verified message arrived (0 = none). */
+    fun stats(): Triple<Int, Long, Long> = Triple(io.pending(), io.dropped(), lastMessageAt)
 
     fun start() {
         stop()
@@ -109,6 +115,7 @@ class BrokerService(
     private fun handleIncoming(raw: String) {
         val payload = verify(raw) ?: return
         val message = runCatching { gson.fromJson(payload, BrokerMessage::class.java) }.getOrNull() ?: return
+        lastMessageAt = System.currentTimeMillis()
         val id = message.id
         if (id.isNullOrEmpty() || message.server == network().serverId) return
         if (!markSeen(id)) return

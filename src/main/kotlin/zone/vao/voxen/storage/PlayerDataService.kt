@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class PlayerDataService(
     private val plugin: JavaPlugin,
@@ -26,6 +27,7 @@ class PlayerDataService(
     private val chatLog = ConcurrentLinkedQueue<ChatLogEntry>()
     private val chatLogSize = AtomicInteger()
     private val flushQueued = AtomicBoolean(false)
+    private val lastWriteMillis = AtomicLong()
     private val io = WorkQueue(
         "voxen-storage",
         queueCapacity,
@@ -128,12 +130,19 @@ class PlayerDataService(
         if (!queued) flushQueued.set(false)
     }
 
+    /** Queue depth, writes dropped so far and how long the last player flush took, for /voxen status. */
+    fun stats(): Triple<Int, Long, Long> = Triple(io.pending(), io.dropped(), lastWriteMillis.get())
+
     private fun flushPlayers() {
         val current = storage ?: return
+        val started = System.nanoTime()
+        var wrote = false
         for (uuid in dirty.keys) {
             val data = dirty.remove(uuid) ?: continue
             runCatching { current.savePlayer(data) }.onFailure(::warn)
+            wrote = true
         }
+        if (wrote) lastWriteMillis.set((System.nanoTime() - started) / 1_000_000)
     }
 
     private fun flushChatLog() {

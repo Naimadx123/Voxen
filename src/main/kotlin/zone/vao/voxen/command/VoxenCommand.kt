@@ -318,8 +318,15 @@ object VoxenCommand {
         val messages = plugin.messages()
         val config = plugin.configManager.config
         messages.send(sender, "status-header", Placeholder.unparsed("version", plugin.pluginMeta.version))
+        val (dbQueued, dbDropped, dbMillis) = plugin.playerDataService.stats()
+        val (netQueued, netDropped, netLastAt) = plugin.brokerService.stats()
         val lines = listOf(
             "storage" to config.storage.type.name.lowercase(),
+            "storage-queue" to "$dbQueued queued, $dbDropped dropped, last write ${dbMillis}ms",
+            "network-queue" to "$netQueued queued, $netDropped dropped",
+            "network-last-message" to
+                if (netLastAt == 0L) "never"
+                else "${Durations.humanize(System.currentTimeMillis() - netLastAt)} ago",
             "transport" to if (plugin.brokerService.active()) plugin.brokerService.transportName() else "none",
             "server-id" to config.network.serverId,
             "meta-source" to plugin.hookManager.metaSource,

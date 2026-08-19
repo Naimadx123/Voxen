@@ -624,6 +624,29 @@ class SqlPlayerStorage(
         }
     }
 
+    override fun mailCount(recipient: UUID, unreadOnly: Boolean): Int {
+        val filter = if (unreadOnly) " AND read_at IS NULL" else ""
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("SELECT COUNT(*) FROM $mailTable WHERE recipient = ?$filter").use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.executeQuery().use { rs -> return if (rs.next()) rs.getInt(1) else 0 }
+            }
+        }
+    }
+
+    override fun staffNoteCount(target: UUID, kind: StaffNote.Kind, since: Long): Int {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT COUNT(*) FROM $staffNotesTable WHERE target = ? AND kind = ? AND created_at >= ?"
+            ).use { ps ->
+                ps.setString(1, target.toString())
+                ps.setString(2, kind.id)
+                ps.setLong(3, since)
+                ps.executeQuery().use { rs -> return if (rs.next()) rs.getInt(1) else 0 }
+            }
+        }
+    }
+
     override fun staffNotes(target: UUID, kind: StaffNote.Kind, since: Long): List<StaffNote> {
         val result = ArrayList<StaffNote>()
         dataSource.connection.use { conn ->

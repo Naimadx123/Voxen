@@ -19,10 +19,15 @@ class PresenceService(
 
     private val remote = ConcurrentHashMap<UUID, Entry>()
 
+    // every cross-server /msg looked the target up by scanning the whole roster, so names get an index
+    private val byName = ConcurrentHashMap<String, UUID>()
+
     fun find(name: String): Entry? {
         if (!settings().enabled) return null
         val fresh = clock() - settings().ttlMillis
-        return remote.values.firstOrNull { it.name.equals(name, ignoreCase = true) && it.seenAt >= fresh }
+        val entry = byName[name.lowercase()]?.let { remote[it] } ?: return null
+        // a renamed player can leave a stale key behind, so the hit is verified before it is trusted
+        return entry.takeIf { it.name.equals(name, ignoreCase = true) && it.seenAt >= fresh }
     }
 
     fun serverOf(name: String): String? = find(name)?.server
@@ -58,13 +63,13 @@ class PresenceService(
         val from = message.server?.takeIf { it.isNotEmpty() && it != serverId() } ?: return
         when (message.type) {
             BrokerService.TYPE_PRESENCE_JOIN -> parse(message.senderUuid, message.sender)?.let { (uuid, name) ->
-                remote[uuid] = Entry(uuid, name, from, clock())
+                put(Entry(uuid, name, from, clock()))
             }
 
             // only the server the player was last seen on may drop them, or a quit from the
             // server they just left would erase the join from the server they moved to
             BrokerService.TYPE_PRESENCE_QUIT -> parse(message.senderUuid, message.sender)?.let { (uuid, _) ->
-                remote.computeIfPresent(uuid) { _, entry -> if (entry.server == from) null else entry }
+                if (remote[uuid]?.server == from) drop(uuid)
             }
 
             BrokerService.TYPE_PRESENCE_SYNC -> replaceServer(from, message.roster.orEmpty())
@@ -73,11 +78,21 @@ class PresenceService(
     }
 
     fun forget(uuid: UUID) {
-        remote.remove(uuid)
+        drop(uuid)
     }
 
     fun clear() {
         remote.clear()
+        byName.clear()
+    }
+
+    private fun put(entry: Entry) {
+        remote[entry.uuid] = entry
+        byName[entry.name.lowercase()] = entry.uuid
+    }
+
+    private fun drop(uuid: UUID) {
+        remote.remove(uuid)?.let { byName.remove(it.name.lowercase(), uuid) }
     }
 
     private fun replaceServer(from: String, roster: List<String>) {
@@ -86,14 +101,18 @@ class PresenceService(
         for (raw in roster) {
             val (uuid, name) = parse(raw.substringBefore(':'), raw.substringAfter(':', "")) ?: continue
             listed += uuid
-            remote[uuid] = Entry(uuid, name, from, now)
+            put(Entry(uuid, name, from, now))
         }
-        remote.values.removeIf { it.server == from && it.uuid !in listed }
+        for (entry in remote.values.toList()) {
+            if (entry.server == from && entry.uuid !in listed) drop(entry.uuid)
+        }
     }
 
     private fun purge() {
         val cutoff = clock() - settings().ttlMillis
-        remote.values.removeIf { it.seenAt < cutoff }
+        for (entry in remote.values.toList()) {
+            if (entry.seenAt < cutoff) drop(entry.uuid)
+        }
     }
 
     private fun parse(rawUuid: String?, name: String?): Pair<UUID, String>? {

@@ -184,18 +184,19 @@ class ModeratorService(
         }
         val active = mutes.mutesFor(target.uuid)
         playerData.async { storage ->
+            // counts only, so inspecting a veteran does not drag every note across the wire
             val warns =
-                if (settings.warningsEnabled) storage.staffNotes(target.uuid, StaffNote.Kind.WARN, settings.warningCutoff)
-                else emptyList()
-            val notes = if (settings.notesEnabled) storage.staffNotes(target.uuid, StaffNote.Kind.NOTE, 0L) else emptyList()
+                if (settings.warningsEnabled) storage.staffNoteCount(target.uuid, StaffNote.Kind.WARN, settings.warningCutoff)
+                else 0
+            val notes = if (settings.notesEnabled) storage.staffNoteCount(target.uuid, StaffNote.Kind.NOTE, 0L) else 0
             val channel = playerData.cached(target.uuid)?.activeChannel ?: storage.loadPlayer(target.uuid)?.activeChannel
             threads.main {
                 val lines = listOf(
                     "server" to where,
                     "channel" to (channel ?: "-"),
                     "mutes" to active.joinToString(", ") { it.channel ?: "all" }.ifEmpty { "-" },
-                    "warnings" to warns.size.toString(),
-                    "notes" to notes.size.toString(),
+                    "warnings" to warns.toString(),
+                    "notes" to notes.toString(),
                 ).map { (key, value) ->
                     messages.line(
                         sender,

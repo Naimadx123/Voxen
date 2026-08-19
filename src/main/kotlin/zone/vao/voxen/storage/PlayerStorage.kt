@@ -28,12 +28,17 @@ interface PlayerStorage {
     /** Inserts only when the mailbox holds fewer than [max] entries; false means it was full. */
     fun saveMailIfRoom(entry: MailEntry, max: Int): Boolean
     fun mailFor(recipient: UUID, unreadOnly: Boolean): List<MailEntry>
+
+    /** Counts without loading the rows, for notifications and summaries. */
+    fun mailCount(recipient: UUID, unreadOnly: Boolean): Int
     fun markMailRead(recipient: UUID)
     fun deleteMail(recipient: UUID, id: UUID): Boolean
     fun clearMail(recipient: UUID): Int
     fun purgeMail(before: Long)
     fun saveStaffNote(entry: StaffNote)
     fun staffNotes(target: UUID, kind: StaffNote.Kind, since: Long): List<StaffNote>
+
+    fun staffNoteCount(target: UUID, kind: StaffNote.Kind, since: Long): Int
     fun deleteStaffNote(id: UUID): Boolean
     fun purgeStaffNotes(before: Long, kind: StaffNote.Kind)
     fun close()

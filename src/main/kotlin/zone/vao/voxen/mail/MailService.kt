@@ -216,7 +216,7 @@ class MailService(
         if (!settings.enabled || !settings.notifyOnJoin) return
         val player = event.player
         playerData.async { storage ->
-            val unread = storage.mailFor(player.uniqueId, unreadOnly = true).size
+            val unread = storage.mailCount(player.uniqueId, unreadOnly = true)
             if (unread == 0) return@async
             threads.forPlayer(player) {
                 if (!player.isOnline) return@forPlayer
