@@ -110,10 +110,11 @@ object VoxenCommand {
                     .executes { ctx ->
                         val muted = !plugin.muteService.globalChatMuted
                         plugin.muteService.setGlobalChatMuted(muted)
+                        val key = if (muted) "chatmute-on" else "chatmute-off"
                         for (player in plugin.server.onlinePlayers) {
-                            plugin.messages().send(player, if (muted) "chatmute-on" else "chatmute-off")
+                            plugin.messages().send(player, key)
                         }
-                        plugin.messages().send(ctx.source.sender, if (muted) "chatmute-on" else "chatmute-off")
+                        if (ctx.source.sender !is Player) plugin.messages().send(ctx.source.sender, key)
                         Command.SINGLE_SUCCESS
                     }
             )
