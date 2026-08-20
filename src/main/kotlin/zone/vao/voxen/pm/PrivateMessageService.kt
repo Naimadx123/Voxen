@@ -78,7 +78,7 @@ class PrivateMessageService(
         }
 
         val text = moderate(sender, content) ?: return false
-        val message = renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+        val message = renderContent(sender, text)
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
             Placeholder.unparsed("player", sender.name),
@@ -123,7 +123,7 @@ class PrivateMessageService(
         }
         if (isMuted(sender)) return false
         val text = moderate(sender, content) ?: return false
-        val message = renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+        val message = renderContent(sender, text)
         val requestId = UUID.randomUUID().toString()
         pending.add(requestId, sender.uniqueId, targetName, message)
         val flags = buildList {
@@ -200,7 +200,8 @@ class PrivateMessageService(
     }
 
     internal fun renderContent(sender: Player, text: String): Component =
-        renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+        if (renderer.visible(text).isEmpty()) Component.text(text)
+        else renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
 
     internal fun moderate(sender: Player, content: String): String? {
         val moderation = config().moderation
