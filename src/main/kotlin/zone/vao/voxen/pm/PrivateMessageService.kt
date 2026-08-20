@@ -138,6 +138,7 @@ class PrivateMessageService(
                 sender = sender.name,
                 component = null,
                 mm = mm.serialize(message),
+                content = text,
                 type = BrokerService.TYPE_PM,
                 target = targetName,
                 senderUuid = sender.uniqueId.toString(),
@@ -299,7 +300,9 @@ class PrivateMessageService(
             ack(request, target.name, target.uniqueId.toString(), "pm-ignored")
             return
         }
-        val message = runCatching { mm.deserialize(request.mm ?: return) }.getOrNull() ?: return
+        val message = request.content?.takeIf { renderer.visible(it).isEmpty() }?.let { Component.text(it) }
+            ?: runCatching { mm.deserialize(request.mm ?: return) }.getOrNull()
+            ?: return
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
             Placeholder.unparsed("player", senderName),
