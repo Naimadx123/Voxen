@@ -60,28 +60,6 @@ anyway. Ignoring someone with `/ignore` also blocks their private messages, and
 to one channel never applies here. The other moderation checks have their own `affect-pm`
 switches in `modules/moderation.yml`, see [Moderation](/configuration/moderation/#private-messages).
 
-### Group conversations
-
-```yaml title="plugins/Voxen/modules/private-messages.yml"
-group:
-  enabled: true
-  max-members: 6
-  idle-timeout: 30m
-  format: "<gray>[<aqua>Group</aqua>] <gold><player></gold><dark_gray>:</dark_gray> <white><message></white>"
-```
-
-`/gm create <players>` opens a group, then `/gm <text>` talks to everyone in it. `/gm invite`,
-`/gm leave` and `/gm list` handle the rest. A player is in one group at a time, and a group with
-no traffic for `idle-timeout` disappears. `max-members` counts the founder and is clamped to 2 to 32.
-
-Group messages go through the same mute, moderation, ignore, social spy and history paths as
-`/msg`. Members on other servers need [Presence](#presence) enabled, otherwise groups stay local
-to one server.
-
-<Aside title="A message starting with a subcommand">
-	`/gm list` always means the subcommand. To say the word itself, use `/gm the list is long`.
-</Aside>
-
 ### Social spy
 
 `/voxen spy` with `voxen.socialspy` shows other players' conversations using
