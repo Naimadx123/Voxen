@@ -7,7 +7,7 @@ import java.io.File
 object StorageFactory {
 
     fun create(plugin: Plugin, config: StorageConfig): PlayerStorage =
-        SqlPlayerStorage(buildHikari(plugin, config), config.tablePrefix)
+        SqlPlayerStorage(buildHikari(plugin, config), config.tablePrefix, config.type)
 
     private fun buildHikari(plugin: Plugin, config: StorageConfig): HikariConfig {
         val hikari = HikariConfig()
@@ -26,6 +26,14 @@ object StorageFactory {
             StorageType.MYSQL, StorageType.MARIADB -> {
                 hikari.jdbcUrl = "jdbc:mysql://${config.host}:${config.port}/${config.database}"
                 hikari.driverClassName = "com.mysql.cj.jdbc.Driver"
+                hikari.username = config.username
+                hikari.password = config.password
+                hikari.maximumPoolSize = config.poolSize
+            }
+
+            StorageType.POSTGRES -> {
+                hikari.jdbcUrl = "jdbc:postgresql://${config.host}:${config.port}/${config.database}"
+                hikari.driverClassName = "org.postgresql.Driver"
                 hikari.username = config.username
                 hikari.password = config.password
                 hikari.maximumPoolSize = config.poolSize

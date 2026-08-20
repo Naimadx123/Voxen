@@ -14,10 +14,13 @@ Names below are the defaults. Every player command can be renamed and aliased un
 | --- | --- | --- |
 | `/msg <player> <text>` (`/tell`, `/whisper`, `/w`) | private message | `voxen.pm.send` |
 | `/r <text>` (`/reply`) | reply to the last conversation | `voxen.pm.send` |
+| `/gm create\|invite\|leave\|list` (`/groupchat`) | group private messages | `voxen.pm.group` |
+| `/gm <text>` | talk to your group | `voxen.pm.group` |
 | `/channel join\|leave\|set\|list` (`/ch`) | manage channels | per channel |
 | `/ignore <player>` | toggle ignoring a player | `voxen.ignore` |
 | `/ignorelist` | list ignored players | `voxen.ignore` |
 | `/party create\|invite\|accept\|deny\|leave\|kick\|transfer\|disband\|chat\|list` | party system | `voxen.party` |
+| `/mail send\|read\|list\|delete\|clear` | offline mail | `voxen.mail` |
 | `/chattoggle` | hide or show the chat | everyone |
 | `/lang <language\|auto>` | choose the message language | everyone |
 | `/nick <nickname\|reset>` | manage your nickname | `voxen.nick` |
@@ -43,12 +46,19 @@ switching channel.
 | `/voxen mute <player\|uuid> [time] [channel\|all] [reason]` | mute a player | `voxen.mod.mute` |
 | `/voxen unmute <player\|uuid> [channel\|all]` | lift a mute | `voxen.mod.mute` |
 | `/voxen mutes` | list active mutes | `voxen.mod.mute` |
+| `/voxen find [player]` | which server a player is on | `voxen.find` |
 | `/voxen muteinfo <player\|uuid>` | one player's mutes | `voxen.mod.mute` |
 | `/voxen mutechat` | mute the whole chat | `voxen.mod.mutechat` |
 | `/voxen mutechannel <channel>` | mute one channel | `voxen.mod.mutechannel` |
 | `/voxen slowmode <channel> <time\|off>` | raise a channel's cooldown live | `voxen.mod.slowmode` |
 | `/voxen history <player\|uuid>` | read stored messages | `voxen.mod.history` |
 | `/voxen chatclear [player]` | clear the chat | `voxen.mod.chatclear` |
+| `/voxen inspect <player>` | one-screen player summary | `voxen.mod.inspect` |
+| `/voxen warn <player> [reason]` | warn a player | `voxen.mod.warn` |
+| `/voxen warns <player>` | list active warnings | `voxen.mod.warn` |
+| `/voxen unwarn <player> <number>` | drop one warning | `voxen.mod.warn` |
+| `/voxen notes <player> [add <text>\|del <number>]` | staff notes on a player | `voxen.mod.notes` |
+| `/voxen delete <player> [amount]` | delete recent messages | `voxen.mod.delete` |
 | `/voxen spy` | toggle social spy | `voxen.socialspy` |
 | `/voxen mentions` / `/voxen pm` | personal toggles | everyone |
 
@@ -63,7 +73,9 @@ Default: **everyone**.
 | --- | --- |
 | `voxen.party` | using the party system |
 | `voxen.ignore` | ignoring other players |
+| `voxen.mail` | sending and reading offline mail |
 | `voxen.pm.send` | sending private messages |
+| `voxen.pm.group` | using group private messages |
 | `voxen.chat.mention` | mentioning players with `@name` |
 | `voxen.chat.tag.item` | sharing held and worn items in chat |
 | `voxen.chat.emote` | every emote shortcode (`voxen.chat.emote.<name>` for one) |
@@ -75,6 +87,7 @@ Default: **OP**.
 | Permission | What it allows |
 | --- | --- |
 | `voxen.admin` | `/voxen reload` and `/voxen status` |
+| `voxen.find` | looking up which server a player is on |
 | `voxen.mod.mute` | muting and unmuting players |
 | `voxen.mod.mutechat` | muting the whole chat |
 | `voxen.mod.mutechannel` | muting single channels |
@@ -82,6 +95,12 @@ Default: **OP**.
 | `voxen.mod.history` | reading stored chat history |
 | `voxen.mod.chatclear` | clearing the chat |
 | `voxen.mod.chatclear.exempt` | keeps chat visible during a global clear |
+| `voxen.mod.inspect` | inspecting players |
+| `voxen.mod.warn` | warning players and managing warnings |
+| `voxen.mod.notes` | reading and writing staff notes |
+| `voxen.mod.alerts` | receiving staff alerts |
+| `voxen.mod.delete` | deleting recent chat messages |
+| `voxen.mod.delete.exempt` | protects a player's messages from deletion |
 | `voxen.mute.exempt` | cannot be muted |
 | `voxen.socialspy` | `/voxen spy`, viewing private messages |
 | `voxen.filter.toggle` | `/filter`, chat without the word filter |

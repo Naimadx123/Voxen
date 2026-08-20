@@ -106,7 +106,7 @@ object NickCommand {
         return apply(plugin, sender, target, StringArgumentType.getString(ctx, "nickname"))
     }
 
-    private fun apply(plugin: Voxen, sender: CommandSender, target: Player, input: String): Int {
+    internal fun apply(plugin: Voxen, sender: CommandSender, target: Player, input: String): Int {
         val messages = plugin.messages()
         val config = plugin.configManager.config.nicknames
         if (!config.enabled) {

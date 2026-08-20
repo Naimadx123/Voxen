@@ -41,6 +41,7 @@ sender-format: "<gray>[<gold>You</gold> → <gold><target></gold>]</gray> <white
 receiver-format: "<gray>[<gold><player></gold> → <gold>You</gold>]</gray> <white><message></white>"
 spy-format: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>"
 notify-monitored: false
+respect-mutes: true
 sound:
   enabled: true
   key: "minecraft:block.note_block.pling"
@@ -54,6 +55,32 @@ The three formats take `<player>` (sender), `<target>` and `<message>`.
 Players refuse private messages with `/voxen pm`; `voxen.bypass.pmtoggle` gets through
 anyway. Ignoring someone with `/ignore` also blocks their private messages, and
 `voxen.bypass.ignore` overrides that.
+
+`respect-mutes: true` makes a server-wide mute cover `/msg` and `/r` as well. A mute limited
+to one channel never applies here. The other moderation checks have their own `affect-pm`
+switches in `modules/moderation.yml`, see [Moderation](/configuration/moderation/#private-messages).
+
+### Group conversations
+
+```yaml title="plugins/Voxen/modules/private-messages.yml"
+group:
+  enabled: true
+  max-members: 6
+  idle-timeout: 30m
+  format: "<gray>[<aqua>Group</aqua>] <gold><player></gold><dark_gray>:</dark_gray> <white><message></white>"
+```
+
+`/gm create <players>` opens a group, then `/gm <text>` talks to everyone in it. `/gm invite`,
+`/gm leave` and `/gm list` handle the rest. A player is in one group at a time, and a group with
+no traffic for `idle-timeout` disappears. `max-members` counts the founder and is clamped to 2 to 32.
+
+Group messages go through the same mute, moderation, ignore, social spy and history paths as
+`/msg`. Members on other servers need [Presence](#presence) enabled, otherwise groups stay local
+to one server.
+
+<Aside title="A message starting with a subcommand">
+	`/gm list` always means the subcommand. To say the word itself, use `/gm the list is long`.
+</Aside>
 
 ### Social spy
 
@@ -79,6 +106,138 @@ you want when another plugin already handles parties.
 
 Party chat goes through the `party` channel, or the `#` quick prefix from anywhere.
 Membership is stored in the database, so with MySQL a party survives a server hop.
+
+## Offline mail
+
+```yaml title="plugins/Voxen/modules/mail.yml"
+enabled: true
+max-per-player: 30
+expire-days: 30
+notify-on-join: true
+allow-when-online: false
+cooldown: 30s
+```
+
+`/mail send <player> <text>` leaves a message for someone who is not online. Mail lives in
+the database, so on a network every server sees the same mailbox and no broker traffic is
+needed. On join a player is told how much unread mail is waiting.
+
+Mail goes through the same checks as a private message: mutes, the word and link filters,
+the spam guard and the maximum length from `modules/private-messages.yml`. It also respects
+`/ignore`, and a full mailbox refuses new mail instead of dropping the oldest message.
+
+`expire-days: 0` keeps mail forever, otherwise anything older is deleted on startup.
+`allow-when-online: false` points players at `/msg` when the recipient is reachable, on this
+server or anywhere on the network.
+
+## Moderator tools
+
+```yaml title="plugins/Voxen/modules/moderator-tools.yml"
+enabled: true
+dialogs: true
+manage-button: true
+dialog-buttons: []
+warnings:
+  enabled: true
+  expire: 30d
+  notify-target: true
+  rules:
+    - at: 3
+      repeat: false
+      commands:
+        - "voxen mute <player> 1h Too many warnings"
+    - at: 5
+      repeat: false
+      commands:
+        - "voxen mute <player> 1d Too many warnings"
+        - "kick <player> Too many warnings (<count>)"
+notes:
+  enabled: true
+join-alerts: true
+message-delete:
+  enabled: true
+  keep: 200
+  button: true
+```
+
+`/voxen inspect <player>` sums a player up in one screen: their server, active channel, mutes,
+warning count and note count. `/voxen warn <player> <reason>` stores a warning, tells staff with
+`voxen.mod.alerts` and runs whatever rules you set up. `/voxen warns` lists them,
+`/voxen unwarn <player> <number>` drops one.
+
+Every entry under `rules` fires its commands from the console when the player's active warning
+count hits `at`. `repeat: false` fires on that exact count only, `repeat: true` fires again on
+every multiple of it, so `at: 3` with `repeat: true` also fires at 6 and 9. The commands accept
+`<player>`, `<uuid>`, `<count>`, `<moderator>` and `<reason>`, and can be anything your server
+knows: `voxen mute`, `kick`, a ban plugin, a broadcast. An empty `rules` list means a warning
+only gets recorded.
+
+`expire` says how long a warning counts, taking values like `30d`, `12h` or `1w`. Older warnings
+stop counting and are deleted on startup; `never` keeps them forever.
+
+`/voxen notes <player>` holds staff-only notes the player never sees, with `add` and `del`
+subcommands. `join-alerts` pings staff when someone with active mutes or warnings logs in.
+
+`/voxen delete <player> [amount]` wipes that player's newest messages from everyone's chat.
+It needs `chat-delivery: player` in `config.yml`, because messages Voxen sends itself are not
+signed and clients refuse to delete them. `keep` is how many recent messages stay deletable.
+
+Both staff buttons sit at the very start of the line, in front of the channel's own formatting.
+`manage-button: true` draws a yellow `[🔧]` for staff holding `voxen.mod.inspect`,
+which runs `/voxen inspect` on the author and so opens the management screen straight from chat.
+
+With `button: true` staff holding `voxen.mod.delete` also get a red `[x]` in front of every message,
+which deletes that one message for everyone. It is only drawn when the click would actually
+work, so it stays hidden for unsigned messages and for players with `voxen.mod.delete.exempt`,
+and the permission is checked again when clicked.
+
+### Dialog screens
+
+With `dialogs: true`, `/voxen inspect` also opens a dialog screen with a reason field and
+buttons for warn, mute (10m, 1h, 1d), unmute, notes, nickname, history and delete, and `/voxen warn`
+without a reason opens a confirmation screen instead of complaining. Every button is filtered
+by permission and rechecks it when clicked, so a dialog left open grants nothing. The screen carries a
+reason field and a nickname field, the latter needing `voxen.nick.others` and an online target,
+and an empty nickname resets it.
+
+The delete button comes with a slider for how many of the player's newest messages to wipe,
+starting at 5 and capped at `message-delete.keep` or 100, whichever is lower.
+
+`dialog-buttons` adds your own buttons to that screen. Each entry takes a MiniMessage `label`
+and a `command`, optionally a `permission` that hides the button from staff without it and
+`console: true` to run the command from the console instead of as the clicking moderator.
+`<player>`, `<uuid>` and `<moderator>` are replaced before the command runs.
+
+```yaml title="plugins/Voxen/modules/moderator-tools.yml"
+dialog-buttons:
+  - label: "<red>Ban"
+    command: "ban <player> Cheating"
+    permission: "voxen.mod.ban"
+    console: true
+  - label: "Teleport"
+    command: "tp <player>"
+```
+
+The notes button opens a page of its own listing the player's notes, with a field for a new one,
+an add button and a delete button per note (first ten), plus a back button to the main screen.
+Every write reopens the page with the fresh list.
+
+<Aside type="caution">
+Dialog screens need a 1.21.6+ client. The chat summary is always sent as well, so older
+clients lose nothing but the buttons. Set `dialogs: false` to skip them entirely.
+</Aside>
+
+## Presence
+
+```yaml title="plugins/Voxen/modules/presence.yml"
+enabled: true
+heartbeat: 15s
+ttl: 60s
+suggest-remote-players: true
+```
+
+Tracks which server each player on the network is on so private messages go straight there.
+Does nothing without `network.transport`, see [Cross-server](/network/cross-server/#player-tracking).
 
 ## Emotes
 

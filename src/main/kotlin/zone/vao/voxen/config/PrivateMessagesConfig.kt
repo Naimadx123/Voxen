@@ -6,5 +6,6 @@ data class PrivateMessagesConfig(
     val receiverFormat: String,
     val spyFormat: String,
     val notifyMonitored: Boolean,
+    val respectMutes: Boolean,
     val sound: SoundConfig,
 )

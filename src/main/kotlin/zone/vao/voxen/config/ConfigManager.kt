@@ -7,7 +7,10 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 import zone.vao.voxen.channel.Channel
+import zone.vao.voxen.channel.ChannelService
 import zone.vao.voxen.channel.ChannelType
+import zone.vao.voxen.network.Envelope
+import zone.vao.voxen.network.ProxySecret
 import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.util.Durations
@@ -36,6 +39,10 @@ class ConfigManager(
         val tags = YamlConfiguration.loadConfiguration(file("modules/minimessage-tags.yml"))
         val party = YamlConfiguration.loadConfiguration(file("modules/party.yml"))
         val emotes = YamlConfiguration.loadConfiguration(file("modules/emotes.yml"))
+        val presence = YamlConfiguration.loadConfiguration(file("modules/presence.yml"))
+        val mail = YamlConfiguration.loadConfiguration(file("modules/mail.yml"))
+        val moderatorTools = YamlConfiguration.loadConfiguration(file("modules/moderator-tools.yml"))
+        val aiModeration = YamlConfiguration.loadConfiguration(file("modules/ai-moderation.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -52,6 +59,10 @@ class ConfigManager(
             emotes = parseEmotes(emotes),
             integrations = parseIntegrations(integrations),
             network = parseNetwork(integrations.getConfigurationSection("network")),
+            presence = parsePresence(presence),
+            mail = parseMail(mail),
+            moderatorTools = parseModeratorTools(moderatorTools),
+            aiModeration = parseAiModeration(aiModeration),
             storage = parseStorage(storage),
             commands = parseCommands(main.getConfigurationSection("commands")),
             chatDelivery = ChatDelivery.from(main.getString("chat-delivery")),
@@ -164,6 +175,15 @@ class ConfigManager(
         if (scope != null && scope !in VALID_SCOPES) {
             plugin.logger.warning("$CHANNELS_DIR/$fileName: unknown scope '$scope' (expected one of $VALID_SCOPES); ignoring it.")
         }
+        val localOnly = ChannelService.localOnlyReason(type, radius, scope?.takeIf { it in VALID_SCOPES })
+        var crossServer = section.getBoolean("cross-server", type == ChannelType.SERVER)
+        if (crossServer && localOnly != null) {
+            plugin.logger.warning(
+                "$CHANNELS_DIR/$fileName: 'cross-server' does not work with $localOnly, because the other " +
+                    "servers cannot check it. Turning cross-server off for this channel.",
+            )
+            crossServer = false
+        }
         return Channel(
             id = id,
             displayName = section.getString("display-name")?.ifEmpty { null } ?: id,
@@ -172,7 +192,7 @@ class ConfigManager(
             defaultChannel = section.getBoolean("default", false),
             defaultActive = section.getBoolean("default-active", false),
             readOnly = section.getBoolean("read-only", false),
-            crossServer = section.getBoolean("cross-server", type == ChannelType.SERVER),
+            crossServer = crossServer,
             radius = radius.coerceAtLeast(-1),
             worlds = section.getStringList("worlds").mapTo(LinkedHashSet()) { it.trim() },
             format = section.getString("format")?.ifEmpty { null }
@@ -257,6 +277,14 @@ class ConfigManager(
             historyEnabled = yaml.getBoolean("history.enabled", false),
             historyKeepDays = yaml.getInt("history.keep-days", 14).coerceIn(0, 3650),
             historyEntries = yaml.getInt("history.entries", 15).coerceIn(1, 100),
+            maxLength = yaml.getInt("max-length.chars", 0).coerceAtLeast(0),
+            cooldownAffectsPm = yaml.getBoolean("cooldown-affect-pm", false),
+            repeatAffectsPm = yaml.getBoolean("anti-repeat.affect-pm", false),
+            floodAffectsPm = yaml.getBoolean("anti-flood.affect-pm", true),
+            filterAffectsPm = yaml.getBoolean("filter.affect-pm", true),
+            linksAffectsPm = yaml.getBoolean("links.affect-pm", true),
+            historyAffectsPm = yaml.getBoolean("history.affect-pm", false),
+            maxLengthAffectsPm = yaml.getBoolean("max-length.affect-pm", true),
         )
     }
 
@@ -304,6 +332,7 @@ class ConfigManager(
         spyFormat = yaml.getString("spy-format")
             ?: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>",
         notifyMonitored = yaml.getBoolean("notify-monitored", false),
+        respectMutes = yaml.getBoolean("respect-mutes", true),
         sound = parseSound("modules/private-messages.yml", yaml.getConfigurationSection("sound")),
     )
 
@@ -410,12 +439,21 @@ class ConfigManager(
         mcmmo = yaml.getBoolean("mcmmo", true),
     )
 
-    private fun parseNetwork(section: ConfigurationSection?): NetworkConfig = NetworkConfig(
-        transport = NetworkConfig.Transport.from(section?.getString("transport")),
+    private fun parseNetwork(section: ConfigurationSection?): NetworkConfig = parseNetwork(
+        section,
+        NetworkConfig.Transport.from(section?.getString("transport")),
+    )
+
+    private fun parseNetwork(section: ConfigurationSection?, transport: NetworkConfig.Transport): NetworkConfig = NetworkConfig(
+        transport = transport,
         serverId = section?.getString("server-id")?.trim()?.ifEmpty { null } ?: "server-1",
         reconnectSeconds = (section?.getLong("reconnect-seconds", 5L) ?: 5L).coerceAtLeast(1L),
         timeoutMillis = (section?.getLong("timeout-millis", 5000L) ?: 5000L).coerceAtLeast(500L),
         syncMutes = section?.getBoolean("sync-mutes", true) ?: true,
+        secret = networkSecret(section, transport),
+        allowUnsigned = section?.getBoolean("allow-unsigned", false) ?: false,
+        maxAgeSeconds = (section?.getLong("max-age-seconds", 60L) ?: 60L).coerceAtLeast(0L),
+        queueSize = (section?.getInt("queue-size", 1000) ?: 1000).coerceAtLeast(1),
         redis = NetworkConfig.Redis(
             host = section?.getString("redis.host") ?: "localhost",
             port = section?.getInt("redis.port", 6379) ?: 6379,
@@ -440,6 +478,177 @@ class ConfigManager(
         ),
     )
 
+    private fun networkSecret(section: ConfigurationSection?, transport: NetworkConfig.Transport): String {
+        val configured = section?.getString("secret")?.trim().orEmpty()
+        if (configured.isNotEmpty()) return configured
+        if (transport == NetworkConfig.Transport.NONE) return ""
+        if (section?.getBoolean("use-velocity-secret", true) == false) return ""
+        val serverDirectory = plugin.dataFolder.absoluteFile.parentFile?.parentFile ?: return ""
+        val proxy = ProxySecret.velocity(serverDirectory) ?: return ""
+        plugin.logger.info("network.secret is empty, using the Velocity forwarding secret to sign cross-server messages.")
+        return Envelope.derive(proxy)
+    }
+
+    private fun parsePresence(yaml: YamlConfiguration): PresenceConfig {
+        fun millis(key: String, fallback: String): Long {
+            val raw = yaml.getString(key)?.trim().orEmpty().ifEmpty { fallback }
+            return Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/presence.yml: invalid '$key' value '$raw'; using $fallback.")
+                Durations.parseMillis(fallback)!!
+            }
+        }
+        return PresenceConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            heartbeatMillis = millis("heartbeat", "15s").coerceAtLeast(1000L),
+            ttlMillis = millis("ttl", "60s").coerceAtLeast(5000L),
+            suggestRemotePlayers = yaml.getBoolean("suggest-remote-players", true),
+        )
+    }
+
+    private fun parseMail(yaml: YamlConfiguration): MailConfig {
+        val cooldown = yaml.getString("cooldown")?.trim().orEmpty().let { raw ->
+            if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/mail.yml: invalid 'cooldown' value '$raw'; ignoring it.")
+                0L
+            }
+        }
+        return MailConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            maxPerPlayer = yaml.getInt("max-per-player", 30).coerceAtLeast(1),
+            expireDays = yaml.getInt("expire-days", 30).coerceAtLeast(0),
+            notifyOnJoin = yaml.getBoolean("notify-on-join", true),
+            allowWhenOnline = yaml.getBoolean("allow-when-online", false),
+            cooldownMillis = cooldown,
+        )
+    }
+
+    private fun parseModeratorTools(yaml: YamlConfiguration): ModeratorToolsConfig {
+        return ModeratorToolsConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            dialogs = yaml.getBoolean("dialogs", true),
+            warningsEnabled = yaml.getBoolean("warnings.enabled", true),
+            warningExpireMillis = warningExpiry(yaml),
+            notifyTarget = yaml.getBoolean("warnings.notify-target", true),
+            warningRules = warningRules(yaml),
+            notesEnabled = yaml.getBoolean("notes.enabled", true),
+            joinAlerts = yaml.getBoolean("join-alerts", true),
+            deleteEnabled = yaml.getBoolean("message-delete.enabled", true),
+            deleteKeep = yaml.getInt("message-delete.keep", 200).coerceIn(1, 5000),
+            deleteButton = yaml.getBoolean("message-delete.button", true),
+            manageButton = yaml.getBoolean("manage-button", true),
+            dialogButtons = dialogButtons(yaml),
+        )
+    }
+
+    private fun parseAiModeration(yaml: YamlConfiguration): AiModerationConfig {
+        val endpoint = yaml.getString("endpoint", "")!!.trim()
+        val enabled = yaml.getBoolean("enabled", false)
+        if (enabled && endpoint.isEmpty()) {
+            plugin.logger.warning("modules/ai-moderation.yml: 'enabled' is on but 'endpoint' is empty, so nothing will be checked.")
+        }
+        val headers = yaml.getConfigurationSection("headers")?.getValues(false)
+            ?.mapNotNull { (key, value) -> value?.toString()?.let { key to it } }
+            ?.toMap()
+            .orEmpty()
+        return AiModerationConfig(
+            enabled = enabled && endpoint.isNotEmpty(),
+            endpoint = endpoint,
+            headers = headers,
+            model = yaml.getString("model", "")!!.trim(),
+            label = yaml.getString("label", "unsafe")!!.trim().ifEmpty { "unsafe" },
+            requestBody = yaml.getString("request-body", "")!!.trim()
+                .ifEmpty { """{"text": {text}, "model": {model}, "labels": ["safe", {label}]}""" },
+            scorePath = yaml.getString("score-path", "")!!.trim(),
+            timeoutMillis = yaml.getLong("timeout-millis", 1500L).coerceIn(100L, 30_000L),
+            queueSize = yaml.getInt("queue-size", 500).coerceIn(1, 100_000),
+            minLength = yaml.getInt("min-length", 3).coerceAtLeast(0),
+            rules = aiRules(yaml),
+        )
+    }
+
+    private fun aiRules(yaml: YamlConfiguration): List<AiModerationConfig.Rule> =
+        yaml.getMapList("rules").mapNotNull { entry ->
+            val score = (entry["score"] as? Number)?.toDouble()
+            if (score == null) {
+                plugin.logger.warning("modules/ai-moderation.yml: every 'rules' entry needs a numeric 'score'; skipping one.")
+                return@mapNotNull null
+            }
+            @Suppress("UNCHECKED_CAST")
+            val actions = (entry["actions"] as? List<Any?>).orEmpty().mapNotNull { raw ->
+                AiModerationConfig.Action.from(raw?.toString().orEmpty()).also {
+                    if (it == null) plugin.logger.warning("modules/ai-moderation.yml: unknown action '$raw'; ignoring it.")
+                }
+            }
+            val commands = (entry["commands"] as? List<Any?>).orEmpty()
+                .mapNotNull { it?.toString()?.trim()?.removePrefix("/")?.ifEmpty { null } }
+            if (actions.isEmpty() && commands.isEmpty()) {
+                plugin.logger.warning("modules/ai-moderation.yml: the rule at score $score does nothing; skipping it.")
+                return@mapNotNull null
+            }
+            AiModerationConfig.Rule(
+                score = if (score > 1.0) score / 100.0 else score,
+                actions = actions.toSet(),
+                commands = commands,
+            )
+        }.sortedByDescending { it.score }
+
+    private fun dialogButtons(yaml: YamlConfiguration): List<ModeratorToolsConfig.DialogButton> =
+        yaml.getMapList("dialog-buttons").mapNotNull { entry ->
+            val label = entry["label"]?.toString()?.trim().orEmpty()
+            val command = entry["command"]?.toString()?.trim()?.removePrefix("/").orEmpty()
+            if (label.isEmpty() || command.isEmpty()) {
+                plugin.logger.warning("modules/moderator-tools.yml: every 'dialog-buttons' entry needs a 'label' and a 'command'; skipping one.")
+                return@mapNotNull null
+            }
+            val permission = entry["permission"]?.toString()?.trim()?.ifEmpty { null }
+            val console = entry["console"] as? Boolean ?: false
+            if (console && permission == null) {
+                // a console button without a gate would let any viewer of the dialog run it as console
+                plugin.logger.warning(
+                    "modules/moderator-tools.yml: the 'dialog-buttons' entry '$label' runs from the console, " +
+                        "so it needs a 'permission'; skipping it."
+                )
+                return@mapNotNull null
+            }
+            ModeratorToolsConfig.DialogButton(
+                label = label,
+                command = command,
+                permission = permission,
+                console = console,
+            )
+        }
+
+    private fun warningExpiry(yaml: YamlConfiguration): Long {
+        val raw = yaml.getString("warnings.expire")?.trim().orEmpty()
+        if (raw.isEmpty() || raw.equals("never", ignoreCase = true) || raw == "0") {
+            val days = yaml.getInt("warnings.expire-days", 0).coerceAtLeast(0)
+            return days * 86_400_000L
+        }
+        return Durations.parseMillis(raw) ?: run {
+            plugin.logger.warning("modules/moderator-tools.yml: invalid 'warnings.expire' value '$raw'; warnings never expire.")
+            0L
+        }
+    }
+
+    private fun warningRules(yaml: YamlConfiguration): List<ModeratorToolsConfig.WarningRule> {
+        val list = yaml.getMapList("warnings.rules")
+        return list.mapNotNull { entry ->
+            val at = (entry["at"] as? Number)?.toInt() ?: return@mapNotNull null
+            val commands = (entry["commands"] as? List<*>)
+                ?.mapNotNull { it?.toString()?.trim()?.ifEmpty { null } }
+                .orEmpty()
+            if (at <= 0 || commands.isEmpty()) {
+                plugin.logger.warning("modules/moderator-tools.yml: skipping a warnings rule without a positive 'at' and at least one command.")
+                return@mapNotNull null
+            }
+            ModeratorToolsConfig.WarningRule(
+                at = at,
+                repeat = entry["repeat"] as? Boolean ?: false,
+                commands = commands,
+            )
+        }
+    }
+
     private fun parseStorage(yaml: YamlConfiguration): StorageConfig = StorageConfig(
         type = StorageType.from(yaml.getString("type")),
         host = yaml.getString("host") ?: "localhost",
@@ -449,6 +658,9 @@ class ConfigManager(
         password = yaml.getString("password") ?: "",
         tablePrefix = yaml.getString("table-prefix") ?: "voxen_",
         poolSize = yaml.getInt("pool-size", 10).coerceAtLeast(1),
+        queueSize = yaml.getInt("queue-size", 500).coerceAtLeast(1),
+        chatLogBatch = yaml.getInt("chat-log-batch", 100).coerceAtLeast(1),
+        sqliteFallback = yaml.getBoolean("sqlite-fallback", false),
     )
 
     private fun parseItemShare(yaml: YamlConfiguration): ItemShareConfig {
@@ -476,6 +688,8 @@ class ConfigManager(
         filter = names(section, "filter", listOf("filter")),
         nickname = names(section, "nickname", listOf("nick", "nickname")),
         realName = names(section, "real-name", listOf("realname")),
+        mail = names(section, "mail", listOf("mail")),
+        helpop = names(section, "helpop", listOf("helpop")),
     )
 
     private fun names(section: ConfigurationSection?, key: String, defaults: List<String>): List<String> {
@@ -511,6 +725,10 @@ class ConfigManager(
             "modules/minimessage-tags.yml",
             "modules/party.yml",
             "modules/emotes.yml",
+            "modules/presence.yml",
+            "modules/mail.yml",
+            "modules/moderator-tools.yml",
+            "modules/ai-moderation.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )

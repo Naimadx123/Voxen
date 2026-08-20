@@ -13,7 +13,10 @@ data class BrokerMessage(
     val senderUuid: String? = null,
     val targetUuid: String? = null,
     val status: String? = null,
+    val replyTo: String? = null,
     val flags: String? = null,
+    val route: String? = null,
+    val roster: List<String>? = null,
     val expiresAt: Long? = null,
     val createdAt: Long? = null,
 )

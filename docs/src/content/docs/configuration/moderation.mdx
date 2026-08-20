@@ -12,9 +12,15 @@ commands rather than config.
 
 ```yaml title="plugins/Voxen/modules/moderation.yml"
 cooldown: 1s
+cooldown-affect-pm: false
+
+max-length:
+  chars: 0
+  affect-pm: true
 
 anti-repeat:
   enabled: true
+  affect-pm: false
   window-seconds: 30
   similarity:
     enabled: false
@@ -23,11 +29,13 @@ anti-repeat:
 
 anti-flood:
   enabled: true
+  affect-pm: true
   max-run: 8
   max-word-length: 30
 
 filter:
   enabled: true
+  affect-pm: true
   mode: censor
   censor-char: "*"
   words: []
@@ -41,6 +49,7 @@ filter:
 
 links:
   enabled: false
+  affect-pm: true
   mode: block
   ips: true
   whitelist:
@@ -52,11 +61,56 @@ slowmode:
 
 history:
   enabled: false
+  affect-pm: false
   keep-days: 14
   entries: 15
 
 chat-clear-lines: 100
 ```
+
+## Private messages
+
+Every check on this page is written for public chat first. Each one has its own `affect-pm`
+switch that decides whether `/msg` and `/r` go through it as well, so you pick what belongs
+in a private conversation and what does not.
+
+| Key | Default | Applies to PM |
+| --- | --- | --- |
+| `cooldown-affect-pm` | `false` | the delay between messages |
+| `max-length.affect-pm` | `true` | the character limit |
+| `anti-repeat.affect-pm` | `false` | exact and similar repeats |
+| `anti-flood.affect-pm` | `true` | character runs and mashed keys |
+| `filter.affect-pm` | `true` | blocked words and patterns |
+| `links.affect-pm` | `true` | links and IP addresses |
+| `history.affect-pm` | `false` | writing the message to the chat log |
+
+The defaults say no to the two rate limits and yes to the content checks. A conversation
+sends "ok" twice and answers within a second, which is not spam, but a slur or an
+advertised address is just as unwelcome in a PM as in chat.
+
+The bypass permissions are the same nodes as in chat, so `voxen.bypass.filter` covers both.
+Cooldowns are shared with chat rather than counted separately, so switching
+`cooldown-affect-pm` on means a PM also delays the next public message. Mutes have their own
+switch, `respect-mutes` in `modules/private-messages.yml`.
+
+With `history.affect-pm` on, private messages land in the same `chat_log` table under the
+channel name `@pm`, so `/voxen history <player>` shows them alongside public messages. Only
+the sender's server writes the row.
+
+## Message length
+
+```yaml
+max-length:
+  chars: 0
+  affect-pm: true
+```
+
+`chars: 0` is off, which is the default. Anything above that rejects messages longer than
+that many characters before formatting, counted on what the player typed. The
+`message-too-long` message gets `<max>`.
+
+Clients cap chat input at 256 characters anyway, so this mostly matters for messages that
+arrive through a command or another plugin.
 
 ## Cooldown and anti-repeat
 

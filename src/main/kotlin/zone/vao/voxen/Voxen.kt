@@ -5,6 +5,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import org.bstats.bukkit.Metrics
 import org.bukkit.entity.Player
@@ -19,20 +20,29 @@ import zone.vao.voxen.config.Messages
 import zone.vao.voxen.hook.HookManager
 import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
+import zone.vao.voxen.mail.MailService
 import zone.vao.voxen.mention.MentionService
+import zone.vao.voxen.moderation.AiModerationService
+import zone.vao.voxen.moderation.ModeratorDialogs
+import zone.vao.voxen.moderation.ModeratorService
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
 import zone.vao.voxen.moderation.WordFilter
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.party.PartyService
+import zone.vao.voxen.presence.PresenceListener
+import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.PlayerDataService
+import zone.vao.voxen.storage.StaffNote
 import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
+import zone.vao.voxen.util.Vanish
 import java.util.*
 
 @Suppress("UnstableApiUsage")
@@ -62,8 +72,19 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
     lateinit var brokerService: BrokerService
         private set
+    lateinit var presenceService: PresenceService
+        private set
+    lateinit var mailService: MailService
+        private set
+    lateinit var moderatorService: ModeratorService
+    lateinit var aiModerationService: AiModerationService
+        private set
     lateinit var wordFilter: WordFilter
         private set
+    lateinit var threads: Threads
+        private set
+
+    private var presenceTask: ScheduledTask? = null
 
     private val componentCodec = GsonComponentSerializer.gson()
     private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
@@ -74,7 +95,12 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         }
         configManager.load()
 
-        playerDataService = PlayerDataService(this)
+        threads = Threads(this)
+        playerDataService = PlayerDataService(
+            this,
+            configManager.config.storage.queueSize,
+            configManager.config.storage.chatLogBatch,
+        )
         server.pluginManager.registerEvents(playerDataService, this)
         playerDataService.attach(createStorage())
         purgeChatLog()
@@ -127,17 +153,25 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             mentionService,
             playerDataService,
             hookManager,
+            threads,
         )
         privateMessageService = PrivateMessageService(
             server,
             { configManager.config },
             playerDataService,
             ignoreService,
+            muteService,
+            spamGuard,
+            wordFilter,
             contentRenderer,
+            threads,
         )
-        server.pluginManager.registerEvents(ChatListener(chatService) { configManager.config.chatDelivery }, this)
 
-        brokerService = BrokerService(this) { configManager.config.network }
+        brokerService = BrokerService(
+            logger,
+            { configManager.config.network },
+            configManager.config.network.queueSize,
+        )
         chatService.remotePublisher = { channel, player, component, content ->
             brokerService.publish(
                 BrokerMessage(
@@ -148,16 +182,38 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                     component = componentCodec.serialize(component),
                     content = content.ifEmpty { null },
                     mm = miniMessageCodec.serialize(component),
+                    senderUuid = player.uniqueId.toString(),
+                    flags = buildList {
+                        if (player.hasPermission(ChannelService.BYPASS_IGNORE)) add("ignore")
+                        if (player.hasPermission(ChannelService.BYPASS_CHAT_TOGGLE)) add("chattoggle")
+                    }.joinToString(",").ifEmpty { null },
                 )
             )
         }
+        presenceService = PresenceService(
+            { configManager.config.presence },
+            { configManager.config.network.serverId },
+        )
+        presenceService.remotePublisher = { message -> brokerService.publish(message) }
+        brokerService.onPresenceMessage = { message -> presenceService.handleRemote(message) }
+        server.pluginManager.registerEvents(PresenceListener(presenceService), this)
+        privateMessageService.routeLookup = { name -> presenceService.serverOf(name) }
+        startPresenceHeartbeat()
+
         privateMessageService.remotePublisher = { message ->
             brokerService.publish(message.copy(server = configManager.config.network.serverId))
         }
         privateMessageService.scheduleTimeout = { delayMillis, task ->
-            server.asyncScheduler.runDelayed(this, { task() }, delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+            server.asyncScheduler.runDelayed(
+                this,
+                { threads.main { task() } },
+                delayMillis,
+                java.util.concurrent.TimeUnit.MILLISECONDS,
+            )
         }
-        brokerService.onPmMessage = { privateMessageService.handleRemote(it) }
+        brokerService.onPmMessage = { message ->
+            threads.main { privateMessageService.handleRemote(message) }
+        }
         muteService.remotePublisher = { message ->
             if (configManager.config.network.syncMutes) {
                 brokerService.publish(message.copy(server = configManager.config.network.serverId))
@@ -167,13 +223,57 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             if (configManager.config.network.syncMutes) muteService.handleRemote(message)
         }
         brokerService.onChatMessage = { message ->
-            val component = message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
-                ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()
+            val channel = message.channel?.let { channelService.channel(it) }
+            val component = when {
+                // external-format is a receiver-side format, so the raw text is re-rendered here
+                channel?.externalFormat != null && message.sender != null && message.content != null ->
+                    formatService.renderExternal(channel, message.sender, message.server.orEmpty(), message.content)
+
+                else -> message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
+                    ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()
+            }
             if (component != null && message.channel != null) {
-                chatService.deliverRemote(message.channel, component, message.content)
+                chatService.deliverRemote(
+                    message.channel,
+                    component,
+                    message.content,
+                    senderUuid = runCatching { UUID.fromString(message.senderUuid) }.getOrNull(),
+                    bypassIgnore = "ignore" in message.flags.orEmpty().split(','),
+                    bypassChatToggle = "chattoggle" in message.flags.orEmpty().split(','),
+                )
             }
         }
         brokerService.start()
+
+        mailService = MailService(
+            server,
+            { configManager.config },
+            playerDataService,
+            privateMessageService,
+            threads,
+        ) { name -> presenceService.serverOf(name) != null }
+        server.pluginManager.registerEvents(mailService, this)
+        purgeMail()
+
+        moderatorService = ModeratorService(
+            server,
+            { configManager.config },
+            playerDataService,
+            muteService,
+            presenceService,
+            threads,
+        )
+        val dialogs = ModeratorDialogs(this)
+        moderatorService.dialogs = { viewer, target, lines -> dialogs.inspect(viewer, target, lines) }
+        moderatorService.warnDialog = { viewer, target -> dialogs.warn(viewer, target) }
+        moderatorService.notesDialog = { viewer, target, lines -> dialogs.notes(viewer, target, lines) }
+        server.pluginManager.registerEvents(moderatorService, this)
+        purgeWarnings()
+        aiModerationService = AiModerationService(server, { configManager.config }, moderatorService, threads, logger)
+        server.pluginManager.registerEvents(
+            ChatListener(chatService, { configManager.config.chatDelivery }, moderatorService, aiModerationService),
+            this,
+        )
 
         VoxenApi.init(this)
         server.servicesManager.register(VoxenService::class.java, this, this, org.bukkit.plugin.ServicePriority.Normal)
@@ -190,8 +290,10 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     }
 
     override fun onDisable() {
+        presenceTask?.cancel()
         if (::brokerService.isInitialized) brokerService.shutdown()
         if (::playerDataService.isInitialized) playerDataService.shutdown()
+        if (::aiModerationService.isInitialized) aiModerationService.shutdown()
         VoxenApi.shutdown()
     }
 
@@ -201,6 +303,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         muteService.load()
         partyService.load()
         brokerService.start()
+        presenceService.clear()
+        startPresenceHeartbeat()
         refreshClientCommands()
     }
 
@@ -291,21 +395,44 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     private fun createStorage(): zone.vao.voxen.storage.PlayerStorage {
         val config = configManager.config.storage
         return runCatching { StorageFactory.create(this, config) }.getOrElse { first ->
+            if (config.type != StorageType.SQLITE && !config.sqliteFallback) {
+                // silently writing to a local file would split data across servers, so refuse to start
+                throw IllegalStateException(
+                    "Failed to initialise ${config.type.name.lowercase()} storage: ${first.message}. " +
+                        "Fix the connection or set sqlite-fallback: true in storage.yml.",
+                    first,
+                )
+            }
             logger.warning("Failed to initialise ${config.type.name.lowercase()} storage (${first.message}); falling back to SQLite.")
             StorageFactory.create(
                 this,
-                StorageConfig(
+                config.copy(
                     type = StorageType.SQLITE,
-                    host = config.host,
-                    port = config.port,
-                    database = config.database,
                     username = "",
                     password = "",
-                    tablePrefix = config.tablePrefix,
                     poolSize = 1,
                 ),
             )
         }
+    }
+
+    private fun startPresenceHeartbeat() {
+        presenceTask?.cancel()
+        presenceTask = null
+        val presence = configManager.config.presence
+        if (!presence.enabled) return
+        presenceTask = server.globalRegionScheduler.runAtFixedRate(
+            this,
+            {
+                if (brokerService.active() && configManager.config.presence.enabled) {
+                    presenceService.announceRoster(
+                        server.onlinePlayers.filterNot(Vanish::hidden).map { it.uniqueId to it.name },
+                    )
+                }
+            },
+            1L,
+            (presence.heartbeatMillis / 50L).coerceAtLeast(20L),
+        )
     }
 
     private fun purgeChatLog() {
@@ -313,6 +440,20 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         if (!moderation.historyEnabled || moderation.historyKeepDays <= 0) return
         val cutoff = System.currentTimeMillis() - moderation.historyKeepDays * 86_400_000L
         playerDataService.async { it.purgeChatLog(cutoff) }
+    }
+
+    private fun purgeMail() {
+        val mail = configManager.config.mail
+        if (!mail.enabled || mail.expireDays <= 0) return
+        val cutoff = System.currentTimeMillis() - mail.expireDays * 86_400_000L
+        playerDataService.async { it.purgeMail(cutoff) }
+    }
+
+    private fun purgeWarnings() {
+        val tools = configManager.config.moderatorTools
+        if (!tools.enabled || !tools.warningsEnabled || tools.warningExpireMillis <= 0L) return
+        val cutoff = tools.warningCutoff
+        playerDataService.async { it.purgeStaffNotes(cutoff, StaffNote.Kind.WARN) }
     }
 
     private fun refreshClientCommands() {
@@ -363,12 +504,16 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             register(commands.chatToggle, "Toggle chat visibility") { ToggleCommands.buildChatToggle(this, it) }
             register(commands.language, "Choose your Voxen language") { ToggleCommands.buildLanguage(this, it) }
             register(commands.filter, "Toggle the chat filter for yourself") { ToggleCommands.buildFilterToggle(this, it) }
+            register(commands.helpop, "Ask staff for help") { HelpopCommand.build(this, it) }
             if (configManager.config.nicknames.enabled) {
                 register(commands.nickname, "Manage nicknames") { NickCommand.build(this, it) }
                 register(commands.realName, "Look up who is using a nickname") { NickCommand.buildRealName(this, it) }
             }
             if (configManager.config.party.enabled) {
                 register(commands.party, "Manage your party") { PartyCommand.build(this, it) }
+            }
+            if (configManager.config.mail.enabled) {
+                register(commands.mail, "Send and read offline mail") { MailCommand.build(this, it) }
             }
 
             for (channel in channels.values) {

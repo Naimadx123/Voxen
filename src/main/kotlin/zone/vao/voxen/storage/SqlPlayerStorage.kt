@@ -7,7 +7,18 @@ import zone.vao.voxen.party.PartyRecord
 import java.sql.Connection
 import java.util.UUID
 
-class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : PlayerStorage {
+class SqlPlayerStorage(
+    hikariConfig: HikariConfig,
+    tablePrefix: String,
+    private val type: StorageType,
+) : PlayerStorage {
+
+    init {
+        // every statement interpolates the prefix, so anything but plain identifiers is refused outright
+        require(tablePrefix.matches(Regex("[A-Za-z0-9_]*"))) {
+            "table-prefix '$tablePrefix' may only contain letters, digits and underscores"
+        }
+    }
 
     private val playersTable = "${tablePrefix}players"
     private val ignoresTable = "${tablePrefix}ignores"
@@ -15,11 +26,35 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
     private val partiesTable = "${tablePrefix}parties"
     private val partyMembersTable = "${tablePrefix}party_members"
     private val chatLogTable = "${tablePrefix}chat_log"
+    private val mailTable = "${tablePrefix}mail"
+    private val staffNotesTable = "${tablePrefix}staff_notes"
     private val schemaTable = "${tablePrefix}schema"
     private val dataSource = HikariDataSource(hikariConfig)
 
     init {
-        dataSource.connection.use { conn -> migrate(conn) }
+        dataSource.connection.use { conn ->
+            // one server at a time, or two starting together race the same CREATE/ALTER statements
+            val lock = lockStatement(tablePrefix)
+            if (lock != null) conn.createStatement().use { st -> st.executeQuery(lock).use { it.next() } }
+            try {
+                migrate(conn)
+            } finally {
+                val release = unlockStatement(tablePrefix)
+                if (release != null) runCatching { conn.createStatement().use { st -> st.executeQuery(release).use { } } }
+            }
+        }
+    }
+
+    private fun lockStatement(prefix: String): String? = when (type) {
+        StorageType.MYSQL, StorageType.MARIADB -> "SELECT GET_LOCK('${prefix}migrate', 30)"
+        StorageType.POSTGRES -> "SELECT pg_advisory_lock(${"${prefix}migrate".hashCode()})"
+        StorageType.SQLITE -> null // a single file writer already serialises this
+    }
+
+    private fun unlockStatement(prefix: String): String? = when (type) {
+        StorageType.MYSQL, StorageType.MARIADB -> "SELECT RELEASE_LOCK('${prefix}migrate')"
+        StorageType.POSTGRES -> "SELECT pg_advisory_unlock(${"${prefix}migrate".hashCode()})"
+        StorageType.SQLITE -> null
     }
 
     private fun migrate(conn: Connection) {
@@ -56,20 +91,19 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                         "(party_id VARCHAR(36) NOT NULL, uuid VARCHAR(36) PRIMARY KEY)"
                 )
             }
+            writeVersion(conn, 1)
             version = 1
         }
         if (version < 2) {
-            conn.createStatement().use { st ->
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN filter_enabled INT NOT NULL DEFAULT 1")
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN nickname VARCHAR(64)")
-            }
+            addColumn(conn, playersTable, "filter_enabled", "INT NOT NULL DEFAULT 1")
+            addColumn(conn, playersTable, "nickname", "VARCHAR(64)")
+            writeVersion(conn, 2)
             version = 2
         }
         if (version < 3) {
-            conn.createStatement().use { st ->
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN last_pm_uuid VARCHAR(36)")
-                st.executeUpdate("ALTER TABLE $playersTable ADD COLUMN last_pm_name VARCHAR(16)")
-            }
+            addColumn(conn, playersTable, "last_pm_uuid", "VARCHAR(36)")
+            addColumn(conn, playersTable, "last_pm_name", "VARCHAR(16)")
+            writeVersion(conn, 3)
             version = 3
         }
         if (version < 4) {
@@ -83,12 +117,76 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                     st.executeUpdate("CREATE INDEX ${chatLogTable}_lookup ON $chatLogTable (uuid, created_at)")
                 }
             }
+            writeVersion(conn, 4)
             version = 4
         }
-        conn.createStatement().use { st -> st.executeUpdate("DELETE FROM $schemaTable") }
-        conn.prepareStatement("INSERT INTO $schemaTable (version) VALUES (?)").use { ps ->
-            ps.setInt(1, version)
-            ps.executeUpdate()
+        if (version < 5) {
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $mailTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, recipient VARCHAR(36) NOT NULL, sender VARCHAR(36) NOT NULL, " +
+                        "sender_name VARCHAR(16) NOT NULL, content TEXT NOT NULL, server VARCHAR(64) NOT NULL, " +
+                        "created_at BIGINT NOT NULL, read_at BIGINT)"
+                )
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${mailTable}_inbox ON $mailTable (recipient, created_at)")
+                }
+            }
+            writeVersion(conn, 5)
+            version = 5
+        }
+        if (version < 6) {
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $staffNotesTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, target VARCHAR(36) NOT NULL, target_name VARCHAR(16) NOT NULL, " +
+                        "author VARCHAR(32) NOT NULL, content TEXT NOT NULL, kind VARCHAR(8) NOT NULL, " +
+                        "created_at BIGINT NOT NULL)"
+                )
+                runCatching {
+                    st.executeUpdate(
+                        "CREATE INDEX ${staffNotesTable}_lookup ON $staffNotesTable (target, kind, created_at)"
+                    )
+                }
+            }
+            writeVersion(conn, 6)
+            version = 6
+        }
+        if (version < 7) {
+            addColumn(conn, playersTable, "last_name", "VARCHAR(16)")
+            conn.createStatement().use { st ->
+                runCatching { st.executeUpdate("CREATE INDEX ${playersTable}_name ON $playersTable (last_name)") }
+            }
+            writeVersion(conn, 7)
+        }
+    }
+
+    private fun addColumn(conn: Connection, table: String, column: String, definition: String) {
+        val lookup = if (type == StorageType.POSTGRES) table.lowercase() else table
+        val existing = conn.metaData.getColumns(null, null, lookup, null).use { rs ->
+            buildSet { while (rs.next()) add(rs.getString("COLUMN_NAME").lowercase()) }
+        }
+        if (column.lowercase() in existing) return
+        conn.createStatement().use { st ->
+            st.executeUpdate("ALTER TABLE $table ADD COLUMN $column $definition")
+        }
+    }
+
+    private fun writeVersion(conn: Connection, version: Int) {
+        val restore = conn.autoCommit
+        conn.autoCommit = false
+        try {
+            conn.createStatement().use { st -> st.executeUpdate("DELETE FROM $schemaTable") }
+            conn.prepareStatement("INSERT INTO $schemaTable (version) VALUES (?)").use { ps ->
+                ps.setInt(1, version)
+                ps.executeUpdate()
+            }
+            conn.commit()
+        } catch (ex: Exception) {
+            runCatching { conn.rollback() }
+            throw ex
+        } finally {
+            runCatching { conn.autoCommit = restore }
         }
     }
 
@@ -96,7 +194,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
         dataSource.connection.use { conn ->
             conn.prepareStatement(
                 "SELECT active_channel, joined_channels, left_channels, pm_enabled, mentions_enabled, chat_enabled, social_spy, language, " +
-                    "filter_enabled, nickname, last_pm_uuid, last_pm_name FROM $playersTable WHERE uuid = ?"
+                    "filter_enabled, nickname, last_pm_uuid, last_pm_name, last_name FROM $playersTable WHERE uuid = ?"
             ).use { ps ->
                 ps.setString(1, uuid.toString())
                 ps.executeQuery().use { rs ->
@@ -115,6 +213,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                         nickname = rs.getString(10),
                         lastPmUuid = rs.getString(11),
                         lastPmName = rs.getString(12),
+                        lastName = rs.getString(13),
                     )
                 }
             }
@@ -123,14 +222,16 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
 
     override fun savePlayer(data: PlayerData) {
         dataSource.connection.use { conn ->
-            conn.prepareStatement("DELETE FROM $playersTable WHERE uuid = ?").use { ps ->
-                ps.setString(1, data.uuid.toString())
-                ps.executeUpdate()
-            }
             conn.prepareStatement(
-                "INSERT INTO $playersTable " +
-                    "(uuid, active_channel, joined_channels, left_channels, pm_enabled, mentions_enabled, chat_enabled, social_spy, language, filter_enabled, nickname, last_pm_uuid, last_pm_name) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                upsert(
+                    playersTable,
+                    listOf(
+                        "uuid", "active_channel", "joined_channels", "left_channels", "pm_enabled", "mentions_enabled",
+                        "chat_enabled", "social_spy", "language", "filter_enabled", "nickname", "last_pm_uuid", "last_pm_name",
+                        "last_name",
+                    ),
+                    listOf("uuid"),
+                )
             ).use { ps ->
                 ps.setString(1, data.uuid.toString())
                 ps.setString(2, data.activeChannel)
@@ -145,6 +246,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                 ps.setString(11, data.nickname)
                 ps.setString(12, data.lastPmUuid)
                 ps.setString(13, data.lastPmName)
+                ps.setString(14, data.lastName)
                 ps.executeUpdate()
             }
         }
@@ -213,14 +315,12 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
 
     override fun saveMute(entry: MuteEntry) {
         dataSource.connection.use { conn ->
-            conn.prepareStatement("DELETE FROM $mutesTable WHERE uuid = ? AND channel = ?").use { ps ->
-                ps.setString(1, entry.uuid.toString())
-                ps.setString(2, entry.channel.orEmpty())
-                ps.executeUpdate()
-            }
             conn.prepareStatement(
-                "INSERT INTO $mutesTable (uuid, player, channel, reason, moderator, expires_at, created_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                upsert(
+                    mutesTable,
+                    listOf("uuid", "player", "channel", "reason", "moderator", "expires_at", "created_at"),
+                    listOf("uuid", "channel"),
+                )
             ).use { ps ->
                 ps.setString(1, entry.uuid.toString())
                 ps.setString(2, entry.playerName)
@@ -275,7 +375,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
     }
 
     override fun saveParty(record: PartyRecord) {
-        dataSource.connection.use { conn ->
+        transaction { conn ->
             conn.prepareStatement("DELETE FROM $partiesTable WHERE id = ?").use { ps ->
                 ps.setString(1, record.id.toString())
                 ps.executeUpdate()
@@ -303,7 +403,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
     }
 
     override fun deleteParty(id: UUID) {
-        dataSource.connection.use { conn ->
+        transaction { conn ->
             conn.prepareStatement("DELETE FROM $partyMembersTable WHERE party_id = ?").use { ps ->
                 ps.setString(1, id.toString())
                 ps.executeUpdate()
@@ -316,7 +416,7 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
     }
 
     override fun addPartyMember(id: UUID, member: UUID) {
-        dataSource.connection.use { conn ->
+        transaction { conn ->
             conn.prepareStatement("DELETE FROM $partyMembersTable WHERE uuid = ?").use { ps ->
                 ps.setString(1, member.toString())
                 ps.executeUpdate()
@@ -339,18 +439,22 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
         }
     }
 
-    override fun logChat(entry: ChatLogEntry) {
-        dataSource.connection.use { conn ->
+    override fun logChat(entries: List<ChatLogEntry>) {
+        if (entries.isEmpty()) return
+        transaction { conn ->
             conn.prepareStatement(
                 "INSERT INTO $chatLogTable (uuid, player, channel, content, server, created_at) VALUES (?, ?, ?, ?, ?, ?)"
             ).use { ps ->
-                ps.setString(1, entry.uuid.toString())
-                ps.setString(2, entry.playerName)
-                ps.setString(3, entry.channel)
-                ps.setString(4, entry.content)
-                ps.setString(5, entry.server)
-                ps.setLong(6, entry.createdAt)
-                ps.executeUpdate()
+                for (entry in entries) {
+                    ps.setString(1, entry.uuid.toString())
+                    ps.setString(2, entry.playerName)
+                    ps.setString(3, entry.channel)
+                    ps.setString(4, entry.content)
+                    ps.setString(5, entry.server)
+                    ps.setLong(6, entry.createdAt)
+                    ps.addBatch()
+                }
+                ps.executeBatch()
             }
         }
     }
@@ -387,6 +491,236 @@ class SqlPlayerStorage(hikariConfig: HikariConfig, tablePrefix: String) : Player
                 ps.setLong(1, before)
                 ps.executeUpdate()
             }
+        }
+    }
+
+    override fun findByName(name: String): Pair<UUID, String>? {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT uuid, last_name FROM $playersTable WHERE LOWER(last_name) = ? LIMIT 1"
+            ).use { ps ->
+                ps.setString(1, name.lowercase())
+                ps.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    val uuid = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: return null
+                    return uuid to rs.getString(2)
+                }
+            }
+        }
+    }
+
+    override fun saveMailIfRoom(entry: MailEntry, max: Int): Boolean =
+        transaction { conn ->
+            val count = conn.prepareStatement("SELECT COUNT(*) FROM $mailTable WHERE recipient = ?").use { ps ->
+                ps.setString(1, entry.recipient.toString())
+                ps.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
+            }
+            if (count >= max) false else { insertMail(conn, entry); true }
+        }
+
+    override fun saveMail(entry: MailEntry) {
+        dataSource.connection.use { conn -> insertMail(conn, entry) }
+    }
+
+    private fun insertMail(conn: Connection, entry: MailEntry) {
+        conn.prepareStatement(
+            "INSERT INTO $mailTable (id, recipient, sender, sender_name, content, server, created_at, read_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ).use { ps ->
+            ps.setString(1, entry.id.toString())
+            ps.setString(2, entry.recipient.toString())
+            ps.setString(3, entry.senderUuid.toString())
+            ps.setString(4, entry.senderName)
+            ps.setString(5, entry.content)
+            ps.setString(6, entry.server)
+            ps.setLong(7, entry.createdAt)
+            if (entry.readAt != null) ps.setLong(8, entry.readAt) else ps.setNull(8, java.sql.Types.BIGINT)
+            ps.executeUpdate()
+        }
+    }
+
+    override fun mailFor(recipient: UUID, unreadOnly: Boolean): List<MailEntry> {
+        val result = ArrayList<MailEntry>()
+        val filter = if (unreadOnly) " AND read_at IS NULL" else ""
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT id, sender, sender_name, content, server, created_at, read_at FROM $mailTable " +
+                    "WHERE recipient = ?$filter ORDER BY created_at DESC"
+            ).use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: continue
+                        val sender = runCatching { UUID.fromString(rs.getString(2)) }.getOrNull() ?: continue
+                        val readAt = rs.getLong(7).let { if (rs.wasNull()) null else it }
+                        result += MailEntry(
+                            id = id,
+                            recipient = recipient,
+                            senderUuid = sender,
+                            senderName = rs.getString(3),
+                            content = rs.getString(4),
+                            server = rs.getString(5),
+                            createdAt = rs.getLong(6),
+                            readAt = readAt,
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    override fun markMailRead(recipient: UUID) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("UPDATE $mailTable SET read_at = ? WHERE recipient = ? AND read_at IS NULL").use { ps ->
+                ps.setLong(1, System.currentTimeMillis())
+                ps.setString(2, recipient.toString())
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun deleteMail(recipient: UUID, id: UUID): Boolean =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $mailTable WHERE recipient = ? AND id = ?").use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.setString(2, id.toString())
+                ps.executeUpdate() > 0
+            }
+        }
+
+    override fun clearMail(recipient: UUID): Int =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $mailTable WHERE recipient = ?").use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.executeUpdate()
+            }
+        }
+
+    override fun purgeMail(before: Long) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $mailTable WHERE created_at < ?").use { ps ->
+                ps.setLong(1, before)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun saveStaffNote(entry: StaffNote) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $staffNotesTable (id, target, target_name, author, content, kind, created_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, entry.id.toString())
+                ps.setString(2, entry.target.toString())
+                ps.setString(3, entry.targetName)
+                ps.setString(4, entry.author)
+                ps.setString(5, entry.content)
+                ps.setString(6, entry.kind.id)
+                ps.setLong(7, entry.createdAt)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun mailCount(recipient: UUID, unreadOnly: Boolean): Int {
+        val filter = if (unreadOnly) " AND read_at IS NULL" else ""
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("SELECT COUNT(*) FROM $mailTable WHERE recipient = ?$filter").use { ps ->
+                ps.setString(1, recipient.toString())
+                ps.executeQuery().use { rs -> return if (rs.next()) rs.getInt(1) else 0 }
+            }
+        }
+    }
+
+    override fun staffNoteCount(target: UUID, kind: StaffNote.Kind, since: Long): Int {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT COUNT(*) FROM $staffNotesTable WHERE target = ? AND kind = ? AND created_at >= ?"
+            ).use { ps ->
+                ps.setString(1, target.toString())
+                ps.setString(2, kind.id)
+                ps.setLong(3, since)
+                ps.executeQuery().use { rs -> return if (rs.next()) rs.getInt(1) else 0 }
+            }
+        }
+    }
+
+    override fun staffNotes(target: UUID, kind: StaffNote.Kind, since: Long): List<StaffNote> {
+        val result = ArrayList<StaffNote>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT id, target_name, author, content, created_at FROM $staffNotesTable " +
+                    "WHERE target = ? AND kind = ? AND created_at >= ? ORDER BY created_at DESC"
+            ).use { ps ->
+                ps.setString(1, target.toString())
+                ps.setString(2, kind.id)
+                ps.setLong(3, since)
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: continue
+                        result += StaffNote(
+                            id = id,
+                            target = target,
+                            targetName = rs.getString(2),
+                            author = rs.getString(3),
+                            content = rs.getString(4),
+                            kind = kind,
+                            createdAt = rs.getLong(5),
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    override fun deleteStaffNote(id: UUID): Boolean =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $staffNotesTable WHERE id = ?").use { ps ->
+                ps.setString(1, id.toString())
+                ps.executeUpdate() > 0
+            }
+        }
+
+    override fun purgeStaffNotes(before: Long, kind: StaffNote.Kind) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("DELETE FROM $staffNotesTable WHERE kind = ? AND created_at < ?").use { ps ->
+                ps.setString(1, kind.id)
+                ps.setLong(2, before)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    private fun <T> transaction(block: (Connection) -> T): T =
+        dataSource.connection.use { conn ->
+            val restore = conn.autoCommit
+            conn.autoCommit = false
+            try {
+                val result = block(conn)
+                conn.commit()
+                result
+            } catch (ex: Exception) {
+                runCatching { conn.rollback() }
+                throw ex
+            } finally {
+                runCatching { conn.autoCommit = restore }
+            }
+        }
+
+    private fun upsert(table: String, columns: List<String>, keys: List<String>): String {
+        val head = "INSERT INTO $table (${columns.joinToString(", ")}) " +
+            "VALUES (${columns.joinToString(", ") { "?" }})"
+        val updates = columns.filterNot { it in keys }
+        return when (type) {
+            StorageType.SQLITE, StorageType.POSTGRES ->
+                "$head ON CONFLICT(${keys.joinToString(", ")}) DO UPDATE SET " +
+                    updates.joinToString(", ") { "$it = excluded.$it" }
+
+            StorageType.MYSQL, StorageType.MARIADB ->
+                "$head ON DUPLICATE KEY UPDATE " + updates.joinToString(", ") { "$it = VALUES($it)" }
         }
     }
 

@@ -13,6 +13,7 @@ libraries:
   - "com.zaxxer:HikariCP:${hikariVersion}"
   - "org.xerial:sqlite-jdbc:${sqliteVersion}"
   - "com.mysql:mysql-connector-j:${mysqlVersion}"
+  - "org.postgresql:postgresql:${postgresVersion}"
   - "redis.clients:jedis:${jedisVersion}"
   - "io.nats:jnats:${natsVersion}"
   - "com.rabbitmq:amqp-client:${amqpVersion}"
@@ -42,8 +43,38 @@ permissions:
   voxen.mod.chatclear.exempt:
     description: Keeps the chat visible during a global chat clear.
     default: op
+  voxen.mod.inspect:
+    description: Allows inspecting a player with /voxen inspect.
+    default: op
+  voxen.mod.warn:
+    description: Allows warning players and managing their warnings.
+    default: op
+  voxen.mod.notes:
+    description: Allows reading and writing staff notes on players.
+    default: op
+  voxen.mod.alerts:
+    description: Receives staff alerts about warnings and flagged joins.
+    default: op
+  voxen.ai.bypass:
+    description: Skips AI chat moderation.
+    default: false
+  voxen.mod.delete:
+    description: Allows deleting a player's recent chat messages.
+    default: op
+  voxen.mod.delete.exempt:
+    description: Protects a player's messages from being deleted.
+    default: op
   voxen.mute.exempt:
     description: Protects against being muted.
+    default: op
+  voxen.find:
+    description: Allows looking up which server a player is on.
+    default: op
+  voxen.helpop:
+    description: Allows asking staff for help with /helpop.
+    default: true
+  voxen.helpop.receive:
+    description: Receives /helpop requests.
     default: op
   voxen.socialspy:
     description: Allows toggling the private message spy.
@@ -65,6 +96,9 @@ permissions:
     default: true
   voxen.ignore:
     description: Allows ignoring other players.
+    default: true
+  voxen.mail:
+    description: Allows sending and reading offline mail.
     default: true
   voxen.pm.send:
     description: Allows sending private messages.
@@ -107,6 +141,9 @@ permissions:
     default: op
   voxen.bypass.ignore:
     description: Messages reach players even when they ignore the sender.
+    default: op
+  voxen.bypass.chattoggle:
+    description: Messages reach players who disabled chat with /chattoggle.
     default: op
   voxen.bypass.pmtoggle:
     description: Private messages reach players who disabled them.

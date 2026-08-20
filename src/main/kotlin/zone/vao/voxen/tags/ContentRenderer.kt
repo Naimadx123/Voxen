@@ -11,7 +11,9 @@ import net.kyori.adventure.text.minimessage.tag.Tag
 import net.kyori.adventure.text.minimessage.tag.resolver.ArgumentQueue
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.minimessage.tag.standard.StandardTags
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import zone.vao.voxen.config.TagsConfig
+import java.util.concurrent.ConcurrentHashMap
 
 class ContentRenderer(
     private val tagsConfig: () -> TagsConfig,
@@ -24,23 +26,27 @@ class ContentRenderer(
         modeOverride: TagsConfig.UnauthorizedMode? = null,
         isPermissionSet: (String) -> Boolean = { false },
     ): Component {
+        if (visible(content).isEmpty()) return Component.text(content)
         val config = tagsConfig()
         val mode = modeOverride ?: config.mode
         var raw = content
-        if (config.legacyEnabled) {
+        val cached = HashMap<String, Boolean>()
+        val has: (String) -> Boolean = { node -> cached.getOrPut(node) { hasPermission(node) } }
+        if (config.legacyEnabled && raw.contains('&')) {
             raw = LegacyColors.translate(
                 raw,
-                hasPermission(LEGACY_COLOR) || hasPermission(LEGACY_WILDCARD),
-                hasPermission(LEGACY_HEX) || hasPermission(LEGACY_WILDCARD),
-                hasPermission(LEGACY_FORMAT) || hasPermission(LEGACY_WILDCARD),
+                has(LEGACY_COLOR) || has(LEGACY_WILDCARD),
+                has(LEGACY_HEX) || has(LEGACY_WILDCARD),
+                has(LEGACY_FORMAT) || has(LEGACY_WILDCARD),
             )
         }
+        if (!raw.contains('<')) return Component.text(raw)
         raw = escapeBlockedParams(raw, config)
-        raw = escapeNegatedArgs(raw, config, mode, hasPermission, isPermissionSet)
-        raw = filterCustomTags(raw, config, mode, hasPermission)
+        raw = escapeNegatedArgs(raw, config, mode, has, isPermissionSet)
+        raw = filterCustomTags(raw, config, mode, has)
 
-        val allowColor = permitted(config, "color", hasPermission)
-        val allowHex = permitted(config, "hex", hasPermission)
+        val allowColor = permitted(config, "color", has)
+        val allowHex = permitted(config, "hex", has)
         val allowed = mutableListOf<TagResolver>()
         val denied = mutableListOf<TagResolver>()
         if (allowColor || allowHex) allowed += ColorTag(allowColor, allowHex, keyword = true)
@@ -49,8 +55,8 @@ class ContentRenderer(
         }
         for ((name, rule) in config.rules) {
             if (name == "color" || name == "hex") continue
-            val resolver = standardResolver(name, rule, hasPermission) ?: continue
-            if (permitted(config, name, hasPermission) || argsPermitted(rule, raw, hasPermission)) {
+            val resolver = standardResolver(name, rule, has) ?: continue
+            if (permitted(config, name, has) || argsPermitted(rule, raw, has)) {
                 allowed += resolver
             } else {
                 denied += resolver
@@ -62,11 +68,24 @@ class ContentRenderer(
             raw = stripper.stripTags(raw)
         }
         val mm = MiniMessage.builder().tags(TagResolver.resolver(allowed + extraResolvers)).build()
-        return mm.deserialize(raw)
+        val rendered = mm.deserialize(raw)
+        if (mode != TagsConfig.UnauthorizedMode.STRIP &&
+            !VISUAL_TAGS.containsMatchIn(content) &&
+            PLAIN.serialize(rendered).isBlank()
+        ) {
+            return Component.text(content)
+        }
+        return rendered
     }
+
+    private fun regex(pattern: String): Regex =
+        REGEX_CACHE.getOrPut(pattern) { Regex(pattern, RegexOption.IGNORE_CASE) }
 
     fun plain(content: String): String =
         MiniMessage.miniMessage().stripTags(content)
+
+    fun visible(content: String): String =
+        LEGACY_CODES.replace(plain(VISUAL_TAGS.replace(content, "*")), "").trim()
 
     private fun permitted(config: TagsConfig, name: String, hasPermission: (String) -> Boolean): Boolean {
         val rule = config.rules[name] ?: return false
@@ -77,7 +96,7 @@ class ContentRenderer(
     private fun argsPermitted(rule: TagsConfig.TagRule, raw: String, hasPermission: (String) -> Boolean): Boolean {
         if (!rule.enabled) return false
         val names = rule.names().joinToString("|") { Regex.escape(it) }
-        val pattern = Regex("(?<!\\\\)<(?:$names):([^>]*)>", RegexOption.IGNORE_CASE)
+        val pattern = regex("(?<!\\\\)<(?:$names):([^>]*)>")
         val matches = pattern.findAll(raw).toList()
         if (matches.isEmpty()) return false
         return matches.all { match ->
@@ -127,7 +146,7 @@ class ContentRenderer(
         var result = raw
         for (rule in config.custom.values + config.replacements.values) {
             val names = rule.names().joinToString("|") { Regex.escape(it) }
-            val pattern = Regex("(?<!\\\\)</?(?:$names)(?::([^>]*))?>", RegexOption.IGNORE_CASE)
+            val pattern = regex("(?<!\\\\)</?(?:$names)(?::([^>]*))?>")
             result = pattern.replace(result) { match ->
                 when {
                     customPermitted(rule, match.groupValues[1], hasPermission) -> match.value
@@ -161,7 +180,7 @@ class ContentRenderer(
         for (rule in config.rules.values + config.custom.values + config.replacements.values) {
             val aliases = rule.names() + if (rule.name == "color") listOf("colour", "c") else emptyList()
             val names = aliases.joinToString("|") { Regex.escape(it) }
-            val pattern = Regex("(?<!\\\\)<(?:$names):([^>]*)>", RegexOption.IGNORE_CASE)
+            val pattern = regex("(?<!\\\\)<(?:$names):([^>]*)>")
             result = pattern.replace(result) { match ->
                 val node = "${rule.permission}.${match.groupValues[1].trim().lowercase().replace(':', '.')}"
                 if (negated(node)) blocked(match.value) else match.value
@@ -170,7 +189,7 @@ class ContentRenderer(
                 val deniedColors = NamedTextColor.NAMES.keys().filter { negated("${rule.permission}.$it") }
                 if (deniedColors.isNotEmpty()) {
                     val colorNames = deniedColors.joinToString("|") { Regex.escape(it) }
-                    val direct = Regex("(?<!\\\\)</?(?:$colorNames)>", RegexOption.IGNORE_CASE)
+                    val direct = regex("(?<!\\\\)</?(?:$colorNames)>")
                     result = direct.replace(result) { match -> blocked(match.value) }
                 }
             }
@@ -183,7 +202,7 @@ class ContentRenderer(
         for (rule in config.rules.values + config.custom.values + config.replacements.values) {
             if (rule.blockedParams.isEmpty()) continue
             val names = rule.names().joinToString("|") { Regex.escape(it) }
-            val pattern = Regex("<(?:$names):([^>]*)>", RegexOption.IGNORE_CASE)
+            val pattern = regex("<(?:$names):([^>]*)>")
             result = pattern.replace(result) { match ->
                 val params = match.groupValues[1]
                 if (rule.blockedParams.any { it.matcher(params).find() }) {
@@ -255,6 +274,11 @@ class ContentRenderer(
     }
 
     companion object {
+        private val PLAIN = PlainTextComponentSerializer.plainText()
+        private val REGEX_CACHE = ConcurrentHashMap<String, Regex>()
+        private val LEGACY_CODES = Regex("&#[0-9a-fA-F]{6}|[&§][0-9a-fk-orA-FK-OR]")
+        private val VISUAL_TAGS = Regex("""(?<!\\)<(?:sprite|head)(?::[^>]*)?>""", RegexOption.IGNORE_CASE)
+
         const val TAG_WILDCARD = "voxen.chat.tag.*"
 
         private val SPRITE: TagResolver? by lazy { optionalStandardTag("sprite") }

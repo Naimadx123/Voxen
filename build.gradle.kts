@@ -8,6 +8,7 @@ val kotlinVersion = "2.4.20-Beta1"
 val hikariVersion = "6.3.0"
 val sqliteVersion = "3.50.1.0"
 val mysqlVersion = "9.3.0"
+val postgresVersion = "42.7.7"
 val jedisVersion = "5.2.0"
 val natsVersion = "2.20.5"
 val amqpVersion = "5.25.0"
@@ -35,6 +36,9 @@ dependencies {
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("com.zaxxer:HikariCP:$hikariVersion")
+    testImplementation("org.xerial:sqlite-jdbc:$sqliteVersion")
+    testImplementation("org.postgresql:postgresql:$postgresVersion")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -97,6 +101,7 @@ tasks {
             "hikariVersion" to hikariVersion,
             "sqliteVersion" to sqliteVersion,
             "mysqlVersion" to mysqlVersion,
+            "postgresVersion" to postgresVersion,
             "jedisVersion" to jedisVersion,
             "natsVersion" to natsVersion,
             "amqpVersion" to amqpVersion,

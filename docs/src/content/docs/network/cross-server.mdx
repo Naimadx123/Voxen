@@ -70,14 +70,55 @@ servers pointed at the same Redis work just as well.
    The bundled `server` channel already has it, so you have a local-only channel from the
    start.
 
-4. Restart every server. Repeat the same `integrations.yml` everywhere except
+   Some channels cannot be shared, because the other servers have no way to check who
+   belongs to them: anything with a `radius`, type `world`, type `party` and any channel
+   with a `scope`. If you set `cross-server: true` on one of those, Voxen turns it back off
+   and says so in the console.
+
+4. Set a shared `network.secret`, the same random string on every server:
+
+   ```yaml title="plugins/Voxen/integrations.yml"
+   network:
+     secret: "a-long-random-string"
+   ```
+
+   Every outgoing message is signed with it (HMAC-SHA256) and anything arriving with a
+   wrong or missing signature is dropped. Without a secret Voxen refuses to start the
+   network at all; set `allow-unsigned: true` if you really want an unauthenticated broker.
+
+   If you run behind Velocity you can skip this. With `secret` left empty Voxen picks up
+   the forwarding secret from `config/paper-global.yml`, which every backend server behind
+   the proxy already shares, and derives its own key from it. Set
+   `use-velocity-secret: false` if you would rather it did not.
+
+   Servers also have to agree on the time, because a message older than
+   `network.max-age-seconds` (60 by default) is thrown away. If your machines run NTP,
+   which they should, there is nothing to do here.
+
+5. Restart every server. Repeat the same `integrations.yml` everywhere except
    `server-id`.
 
 </Steps>
 
+Every transport uses the configured name as a base only. Voxen subscribes to
+`<name>.broadcast` and to its own `<name>.server.<server-id>`, and a message meant for one
+server (a private message to a player Voxen knows the location of) is published straight to
+that server's address instead of to everyone. RabbitMQ therefore uses a `topic` exchange; if
+you are upgrading from an older Voxen, restart every server so the old `fanout` exchange goes
+away.
+
 `transport: none` is the default and keeps Voxen in single-server mode.
 `reconnect-seconds` and `timeout-millis` control connection recovery and how long a lookup
 of a player on another server may take.
+
+## Send queue
+
+Outgoing messages are handed to a background thread so a slow broker never holds up the
+main thread. `queue-size` (1000 by default) caps how many may wait. When the broker is
+unreachable the queue fills up and further messages are dropped, with one warning every 30
+seconds. Without a cap the queue would grow until the server ran out of memory, and a chat
+line that arrives ten minutes late is worthless anyway. The value takes effect after a
+restart.
 
 ## What crosses the network
 
@@ -95,16 +136,53 @@ Formatting permissions are applied **on the sending server**. The message is ren
 there and travels as finished MiniMessage text, so what a player may write depends on
 their permissions where they typed it. Servers can run different Paper builds.
 
-The receiving side decides what belongs to it: the mention toggle, the PM toggle and the
-ignore list are checked on the recipient's server.
+The receiving side decides what belongs to it: the mention toggle, the PM toggle, chat
+visibility and the ignore list are all checked on the recipient's server. Chat carries the
+sender's UUID for that reason, so ignoring someone works no matter which server they are on.
+A sender with `voxen.bypass.ignore` still gets through, the same as locally.
+
+## Player tracking
+
+Every server publishes its own player list every `heartbeat` and announces single joins and
+quits as they happen, so each server knows which server the rest of the network is on:
+
+```yaml title="plugins/Voxen/modules/presence.yml"
+enabled: true
+heartbeat: 15s
+ttl: 60s
+suggest-remote-players: true
+```
+
+An entry is only trusted for `ttl`, so a server that crashes has its players forgotten
+instead of leaving private messages pointed at a machine that is gone. Keep `ttl` a few
+times larger than `heartbeat`, otherwise entries expire between two heartbeats.
+
+`/voxen find <player>` (permission `voxen.find`) answers which server somebody is on, and
+`/voxen find` without a name lists everyone known on the other servers.
+
+A server that has just started knows nobody until the first heartbeat arrives. Private
+messages still work in that window, they just take the slower route below.
 
 ## Private messages
 
-Tab completion only suggests local players, but any name can be typed. If nobody on the
-network has that player, the sender gets the not-found message after `timeout-millis`.
+Tab completion suggests players from the whole network, not only the local ones. Set
+`suggest-remote-players: false` in `modules/presence.yml` to keep it local.
+
+When player tracking knows where the target is, the message is addressed to that one server
+and it answers even when the player left in the meantime, so the sender hears back at once.
+Otherwise the message goes to every server and the not-found message comes after
+`timeout-millis`, which is also what happens with `presence.enabled: false`.
 
 The `/r` target lives in player data. With a shared MySQL database it follows players
 between servers and survives relogs; with per-server SQLite each server keeps its own.
+
+Every outgoing message gets its own id and the answer carries it back, so two messages sent
+one after another cannot mix up their answers. An answer is only accepted once, and only if
+the sender and the typed name match what was sent; anything else is ignored. The timeout
+covers a single message rather than the whole conversation.
+
+A server-wide mute also blocks `/msg` and `/r`. Set `respect-mutes: false` in
+`modules/private-messages.yml` if a mute should only cover public chat.
 
 ## Mutes
 
@@ -112,9 +190,35 @@ between servers and survives relogs; with per-server SQLite each server keeps it
 immediately. With shared MySQL mutes also survive restarts on every server. With
 per-server SQLite each server only knows about mutes it was online to receive.
 
+## Signing
+
+Without `network.secret` Voxen trusts whatever the broker hands it, so anyone who can
+publish to Redis, NATS or RabbitMQ can fake a chat message from any player, send private
+messages as somebody else, or mute anyone. Set the secret and that stops: messages are
+signed on the way out and verified on the way in.
+
+The signature covers the whole message plus the time it was sent, so nobody can edit a
+captured message or backdate it. On top of that Voxen drops anything that is:
+
+| Dropped | Why |
+| --- | --- |
+| older than `max-age-seconds`, or dated that far into the future | somebody is replaying an old message, or two clocks disagree |
+| bigger than 256 KiB | someone is trying to make the server chew on junk |
+| stamped with another protocol version | one of the servers runs a different Voxen build |
+| already seen | the same message arrived twice |
+
+The key itself is never sent anywhere, so a derived Velocity secret cannot leak back out
+of the broker. Servers behind *different* proxies end up with different keys and will
+ignore each other, so set `secret` by hand in that case.
+
+The same string has to be on every server. A mismatch means the servers silently ignore
+each other, so Voxen logs one warning per reason the first time it drops a message, and
+one on startup if the secret is empty while a transport is on.
+
 <Aside type="caution" title="Keep the broker private">
-	Chat and private message contents travel over it in the clear unless you configure TLS
-	on the broker itself. It should not be reachable from outside your network.
+	Signing proves who wrote a message, it does not hide it. Chat and private message
+	contents travel in the clear unless you configure TLS on the broker itself. The broker
+	should not be reachable from outside your network, and it should need a password.
 </Aside>
 
 <Aside type="note">

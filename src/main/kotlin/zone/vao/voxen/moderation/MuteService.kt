@@ -107,7 +107,7 @@ class MuteService(
             list.removeAll { it.channel.equals(entry.channel, ignoreCase = true) || (it.channel == null && entry.channel == null) }
             list += entry
         }
-        playerData.async { it.saveMute(entry) }
+        playerData.durable("Mute for ${entry.uuid}") { it.saveMute(entry) }
     }
 
     private fun applyUnmute(uuid: UUID, channel: String?): Boolean {
@@ -117,7 +117,7 @@ class MuteService(
                 (channel == null && it.channel == null) || (channel != null && it.channel.equals(channel, ignoreCase = true))
             }
         }
-        if (removed) playerData.async { it.deleteMute(uuid, channel) }
+        if (removed) playerData.durable("Unmute for $uuid") { it.deleteMute(uuid, channel) }
         return removed
     }
 
@@ -125,7 +125,7 @@ class MuteService(
         val list = mutes.remove(uuid) ?: return 0
         val entries = synchronized(list) { list.toList() }
         for (entry in entries) {
-            playerData.async { it.deleteMute(entry.uuid, entry.channel) }
+            playerData.durable("Unmute for ${entry.uuid}") { it.deleteMute(entry.uuid, entry.channel) }
         }
         return entries.size
     }

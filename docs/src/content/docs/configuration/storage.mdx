@@ -1,6 +1,6 @@
 ---
 title: Storage
-description: SQLite for a single server, MySQL or MariaDB for a network.
+description: SQLite for a single server, MySQL, MariaDB or PostgreSQL for a network.
 ---
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
@@ -29,10 +29,29 @@ the chat log.
 		password: "secret"
 		table-prefix: voxen_
 		pool-size: 10
+		queue-size: 500
+		chat-log-batch: 100
 		```
 
 		`type: mysql` covers MariaDB as well. Use this on a network so settings, nicknames,
 		ignores, mutes and parties are shared.
+	</TabItem>
+	<TabItem label="PostgreSQL" icon="seti:db">
+		```yaml title="plugins/Voxen/storage.yml"
+		type: postgres
+		host: localhost
+		port: 5432
+		database: voxen
+		username: voxen
+		password: "secret"
+		table-prefix: voxen_
+		pool-size: 10
+		queue-size: 500
+		chat-log-batch: 100
+		```
+
+		`postgresql` works as a value too. Mind the port: 5432, not 3306. The database and
+		the user have to exist before the first start, Voxen only creates its own tables.
 	</TabItem>
 </Tabs>
 
@@ -53,11 +72,35 @@ share one database:
 Schema updates run on startup. There is nothing to migrate by hand between plugin
 versions.
 
+Each step checks what the database already has instead of trusting the recorded version, and
+the version is written as soon as its step finishes. A crash or a killed process halfway
+through an update leaves the database in a state the next startup can pick up from, so
+nothing gets applied twice and nothing gets skipped.
+
+Writes that touch more than one row run in a transaction: parties, chat history batches and
+the schema version. Either everything lands or nothing does, so a dropped connection cannot
+leave a party without members. Player settings and mutes go through a single UPSERT, which
+is atomic on its own.
+
 ## Pool size
 
 `pool-size` is the HikariCP connection pool. `10` is right for almost everyone. Voxen does
 its database work on a single background thread, so raising it does not make anything
 faster.
+
+## Write queue
+
+Writes are queued and handled on that background thread. `queue-size` caps how many may
+wait. When the database is down or too slow the queue fills up and further writes are
+dropped, with one warning every 30 seconds instead of a wall of them. Without a cap the
+queue would grow until the server ran out of memory.
+
+Repeated writes for the same player collapse into one, so a player toggling something ten
+times in a row costs a single write rather than ten. Chat history is written in batches of
+`chat-log-batch` rows.
+
+Both values take effect after a restart. Raise `queue-size` if a busy server logs drops
+during a short database hiccup; if it drops constantly, the database is the problem.
 
 <Aside type="tip" title="Going from one server to many">
 	Switching from SQLite to MySQL starts from an empty database; existing SQLite data is

@@ -9,10 +9,14 @@ import java.util.logging.Logger
 
 class NatsBroker(
     private val config: NetworkConfig.Nats,
+    private val serverId: String,
     private val reconnectSeconds: Long,
     private val timeoutMillis: Long,
     private val logger: Logger,
 ) : MessageBroker {
+
+    private val broadcast = Addresses.broadcast(config.subject)
+    private val own = Addresses.server(config.subject, serverId)
 
     @Volatile
     private var running = true
@@ -39,9 +43,10 @@ class NatsBroker(
                     val dispatcher = conn.createDispatcher { message ->
                         runCatching { onMessage(String(message.data, Charsets.UTF_8)) }
                     }
-                    dispatcher.subscribe(config.subject)
+                    dispatcher.subscribe(broadcast)
+                    dispatcher.subscribe(own)
                     connection = conn
-                    logger.info("Connected to NATS; subscribed to '${config.subject}'.")
+                    logger.info("Connected to NATS; subscribed to '$broadcast' and '$own'.")
                 } catch (ex: Exception) {
                     if (running && !warned) {
                         logger.warning("NATS connection failed (${ex.javaClass.simpleName}); retrying every ${reconnectSeconds}s.")
@@ -56,8 +61,13 @@ class NatsBroker(
         }
     }
 
-    override fun publish(payload: String) {
-        connection?.publish(config.subject, payload.toByteArray(Charsets.UTF_8))
+    override fun connected(): Boolean = connection?.status == Connection.Status.CONNECTED
+
+    override fun publish(payload: String, route: String?): Boolean {
+        val subject = if (route == null) broadcast else Addresses.server(config.subject, route)
+        val conn = connection ?: return false
+        conn.publish(subject, payload.toByteArray(Charsets.UTF_8))
+        return true
     }
 
     override fun close() {

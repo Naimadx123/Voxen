@@ -48,13 +48,16 @@ class UpdateChecker(private val plugin: Voxen) : Listener {
         if (!event.player.hasPermission("voxen.update")) return
 
         plugin.server.asyncScheduler.runDelayed(plugin, {
-            config.messages.send(
-                event.player,
-                "update-available",
-                Placeholder.unparsed("latest", version),
-                Placeholder.unparsed("current", plugin.pluginMeta.version),
-                Placeholder.component("url", link()),
-            )
+            plugin.threads.forPlayer(event.player) {
+                if (!event.player.isOnline) return@forPlayer
+                config.messages.send(
+                    event.player,
+                    "update-available",
+                    Placeholder.unparsed("latest", version),
+                    Placeholder.unparsed("current", plugin.pluginMeta.version),
+                    Placeholder.component("url", link()),
+                )
+            }
         }, 2, TimeUnit.SECONDS)
     }
 

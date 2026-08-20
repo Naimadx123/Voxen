@@ -8,19 +8,28 @@ import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.ignore.IgnoreService
+import zone.vao.voxen.moderation.MuteService
+import zone.vao.voxen.moderation.SpamGuard
+import zone.vao.voxen.moderation.WordFilter
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
+import zone.vao.voxen.storage.ChatLogEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.Durations
+import zone.vao.voxen.util.Threads
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 class PrivateMessageService(
     private val server: Server,
     private val config: () -> VoxenConfig,
     private val playerData: PlayerDataService,
     private val ignores: IgnoreService,
+    private val mutes: MuteService,
+    private val spamGuard: SpamGuard,
+    private val wordFilter: WordFilter,
     private val renderer: ContentRenderer,
+    private val threads: Threads,
 ) {
 
     @Volatile
@@ -29,10 +38,11 @@ class PrivateMessageService(
     @Volatile
     var scheduleTimeout: ((Long, () -> Unit) -> Unit)? = null
 
-    private class Pending(val targetName: String, val message: Component)
+    @Volatile
+    var routeLookup: ((String) -> String?)? = null
 
     private val mm = MiniMessage.miniMessage()
-    private val pending = ConcurrentHashMap<UUID, Pending>()
+    private val pending = PendingMessages()
 
     private fun setConversation(playerUuid: UUID, otherUuid: UUID, otherName: String) {
         val data = playerData.get(playerUuid)
@@ -52,6 +62,7 @@ class PrivateMessageService(
             messages.send(sender, "pm-self")
             return false
         }
+        if (isMuted(sender)) return false
         val targetName = Placeholder.unparsed("target", target.name)
         if (!playerData.get(target.uniqueId).pmEnabled && !sender.hasPermission(BYPASS_TOGGLE)) {
             messages.send(sender, "pm-target-disabled", targetName)
@@ -66,15 +77,20 @@ class PrivateMessageService(
             return false
         }
 
-        val message = renderer.render(content, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+        val text = moderate(sender, content) ?: return false
+        val message = renderContent(sender, text)
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
             Placeholder.unparsed("player", sender.name),
             Placeholder.unparsed("target", target.name),
         )
         sender.sendMessage(mm.deserialize(settings.senderFormat, *resolvers))
-        target.sendMessage(mm.deserialize(settings.receiverFormat, *resolvers))
-        settings.sound.sound?.let { target.playSound(it) }
+        val received = mm.deserialize(settings.receiverFormat, *resolvers)
+        val sound = settings.sound.sound
+        threads.forPlayer(target) {
+            target.sendMessage(received)
+            sound?.let { target.playSound(it) }
+        }
 
         setConversation(sender.uniqueId, target.uniqueId, target.name)
         setConversation(target.uniqueId, sender.uniqueId, sender.name)
@@ -86,6 +102,7 @@ class PrivateMessageService(
             }
         }
         broadcastSpy(sender.name, sender.uniqueId, target.name, target.uniqueId, message)
+        logHistory(sender, text)
         return true
     }
 
@@ -104,33 +121,38 @@ class PrivateMessageService(
             messages.send(sender, "pm-self")
             return false
         }
-        val message = renderer.render(content, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
-        pending[sender.uniqueId] = Pending(targetName, message)
+        if (isMuted(sender)) return false
+        val text = moderate(sender, content) ?: return false
+        val message = renderContent(sender, text)
+        val requestId = UUID.randomUUID().toString()
+        pending.add(requestId, sender.uniqueId, targetName, message)
         val flags = buildList {
             if (sender.hasPermission(BYPASS_TOGGLE)) add("pmtoggle")
             if (sender.hasPermission(BYPASS_IGNORE)) add("ignore")
         }
         publisher(
             BrokerMessage(
-                id = UUID.randomUUID().toString(),
+                id = requestId,
                 server = null,
                 channel = null,
                 sender = sender.name,
                 component = null,
                 mm = mm.serialize(message),
+                content = text,
                 type = BrokerService.TYPE_PM,
                 target = targetName,
                 senderUuid = sender.uniqueId.toString(),
                 flags = flags.joinToString(","),
+                route = routeLookup?.invoke(targetName),
             )
         )
-        val senderId = sender.uniqueId
         scheduleTimeout?.invoke(config().network.timeoutMillis) {
-            val timedOut = pending.remove(senderId) ?: return@invoke
-            server.getPlayer(senderId)?.let {
+            val timedOut = pending.drop(requestId) ?: return@invoke
+            server.getPlayer(timedOut.senderUuid)?.let {
                 config().messages.send(it, "player-not-found", Placeholder.unparsed("player", timedOut.targetName))
             }
         }
+        logHistory(sender, text)
         return true
     }
 
@@ -159,50 +181,155 @@ class PrivateMessageService(
     }
 
     fun forget(uuid: UUID) {
-        pending.remove(uuid)
+        pending.forget(uuid)
+    }
+
+    internal fun isMuted(sender: Player): Boolean {
+        if (!config().privateMessages.respectMutes) return false
+        val mute = mutes.activeMute(sender.uniqueId, null) ?: return false
+        val messages = config().messages
+        val remaining = mute.expiresAt?.let { Durations.humanize(it - System.currentTimeMillis()) }
+            ?: messages.raw(sender, "mute-permanent")
+        messages.send(
+            sender,
+            "you-are-muted",
+            Placeholder.unparsed("reason", mute.reason ?: messages.raw(sender, "mute-no-reason")),
+            Placeholder.unparsed("remaining", remaining),
+        )
+        return true
+    }
+
+    internal fun renderContent(sender: Player, text: String): Component =
+        if (renderer.visible(text).isEmpty()) Component.text(text)
+        else renderer.render(text, sender::hasPermission, isPermissionSet = sender::isPermissionSet)
+
+    internal fun moderate(sender: Player, content: String): String? {
+        val moderation = config().moderation
+        val messages = config().messages
+        if (moderation.maxLengthAffectsPm && moderation.maxLength > 0 && content.length > moderation.maxLength) {
+            messages.send(sender, "message-too-long", Placeholder.unparsed("max", moderation.maxLength.toString()))
+            return null
+        }
+        if (moderation.spamAffectsPm) {
+            when (
+                val result = spamGuard.check(
+                    uuid = sender.uniqueId,
+                    channelId = PM_CHANNEL,
+                    channelCooldownMillis = 0L,
+                    content = content,
+                    bypassCooldown = !moderation.cooldownAffectsPm || sender.hasPermission(BYPASS_COOLDOWN),
+                    bypassRepeat = !moderation.repeatAffectsPm || sender.hasPermission(BYPASS_SPAM),
+                    bypassFlood = !moderation.floodAffectsPm || sender.hasPermission(BYPASS_SPAM),
+                )
+            ) {
+                is SpamGuard.Result.Cooldown -> {
+                    messages.send(sender, "chat-cooldown", Placeholder.unparsed("remaining", Durations.humanize(result.remainingMillis)))
+                    return null
+                }
+                SpamGuard.Result.Repeat -> {
+                    messages.send(sender, "chat-repeat", Placeholder.unparsed("threshold", moderation.similarityThresholdPercent))
+                    return null
+                }
+                SpamGuard.Result.Flood -> {
+                    messages.send(sender, "chat-flood")
+                    return null
+                }
+                SpamGuard.Result.Ok -> Unit
+            }
+        }
+        var text = content
+        if (moderation.linksAffectsPm && !sender.hasPermission(BYPASS_LINKS)) {
+            when (val result = wordFilter.checkLinks(text)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(sender, "message-has-link")
+                    return null
+                }
+                is WordFilter.Result.Censored -> text = result.content
+                WordFilter.Result.Clean -> Unit
+            }
+        }
+        if (moderation.filterAffectsPm && !sender.hasPermission(BYPASS_FILTER)) {
+            when (val result = wordFilter.check(text)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(sender, "message-blocked")
+                    return null
+                }
+                is WordFilter.Result.Censored -> text = result.content
+                WordFilter.Result.Clean -> Unit
+            }
+        }
+        return text
+    }
+
+    internal fun logHistory(sender: Player, content: String) {
+        val moderation = config().moderation
+        if (!moderation.historyEnabled || !moderation.historyAffectsPm) return
+        playerData.logChat(
+            ChatLogEntry(
+                uuid = sender.uniqueId,
+                playerName = sender.name,
+                channel = PM_CHANNEL,
+                content = content,
+                server = config().network.serverId,
+                createdAt = System.currentTimeMillis(),
+            )
+        )
     }
 
     private fun handleRequest(request: BrokerMessage) {
-        val target = server.getPlayerExact(request.target ?: return) ?: return
+        val route = request.route
+        val directed = route != null && route == config().network.serverId
+        if (route != null && !directed) return
+        val targetName = request.target ?: return
+        val target = server.getPlayerExact(targetName) ?: run {
+            if (directed) ack(request, targetName, null, "player-not-found")
+            return
+        }
         val senderName = request.sender ?: return
         val senderUuid = runCatching { UUID.fromString(request.senderUuid) }.getOrNull() ?: return
         val settings = config().privateMessages
         if (!settings.enabled) {
-            ack(request, target, "pm-disabled")
+            ack(request, target.name, target.uniqueId.toString(), "pm-disabled")
             return
         }
         val flags = request.flags.orEmpty().split(',')
         if (!playerData.get(target.uniqueId).pmEnabled && "pmtoggle" !in flags) {
-            ack(request, target, "pm-target-disabled")
+            ack(request, target.name, target.uniqueId.toString(), "pm-target-disabled")
             return
         }
         if (ignores.isIgnoring(target.uniqueId, senderUuid) && "ignore" !in flags) {
-            ack(request, target, "pm-ignored")
+            ack(request, target.name, target.uniqueId.toString(), "pm-ignored")
             return
         }
-        val message = runCatching { mm.deserialize(request.mm ?: return) }.getOrNull() ?: return
+        val message = request.content?.takeIf { renderer.visible(it).isEmpty() }?.let { Component.text(it) }
+            ?: runCatching { mm.deserialize(request.mm ?: return) }.getOrNull()
+            ?: return
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
             Placeholder.unparsed("player", senderName),
             Placeholder.unparsed("target", target.name),
         )
-        target.sendMessage(mm.deserialize(settings.receiverFormat, *resolvers))
-        settings.sound.sound?.let { target.playSound(it) }
+        val received = mm.deserialize(settings.receiverFormat, *resolvers)
+        val sound = settings.sound.sound
+        threads.forPlayer(target) {
+            target.sendMessage(received)
+            sound?.let { target.playSound(it) }
+        }
         setConversation(target.uniqueId, senderUuid, senderName)
         notifySpies(senderUuid, target.uniqueId, resolvers) {
             if (config().privateMessages.notifyMonitored) config().messages.send(target, "pm-monitored")
         }
         broadcastSpy(senderName, senderUuid, target.name, target.uniqueId, message)
-        ack(request, target, "ok")
+        ack(request, target.name, target.uniqueId.toString(), "ok")
     }
 
     private fun handleAck(ackMessage: BrokerMessage) {
-        val senderUuid = runCatching { UUID.fromString(ackMessage.senderUuid) }.getOrNull() ?: return
-        val entry = pending.remove(senderUuid) ?: return
-        val sender = server.getPlayer(senderUuid) ?: return
+        val senderUuid = runCatching { UUID.fromString(ackMessage.senderUuid) }.getOrNull()
+        val entry = pending.claim(ackMessage.replyTo, senderUuid, ackMessage.target) ?: return
+        val targetName = ackMessage.target ?: entry.targetName
+        val sender = server.getPlayer(entry.senderUuid) ?: return
         val messages = config().messages
         val settings = config().privateMessages
-        val targetName = ackMessage.target ?: entry.targetName
         if (ackMessage.status != "ok") {
             messages.send(
                 sender,
@@ -254,7 +381,7 @@ class PrivateMessageService(
         )
     }
 
-    private fun ack(request: BrokerMessage, target: Player, status: String) {
+    private fun ack(request: BrokerMessage, targetName: String, targetUuid: String?, status: String) {
         remotePublisher?.invoke(
             BrokerMessage(
                 id = UUID.randomUUID().toString(),
@@ -263,23 +390,28 @@ class PrivateMessageService(
                 sender = request.sender,
                 component = null,
                 type = BrokerService.TYPE_PM_ACK,
-                target = target.name,
+                target = targetName,
                 senderUuid = request.senderUuid,
-                targetUuid = target.uniqueId.toString(),
+                targetUuid = targetUuid,
                 status = status,
+                replyTo = request.id,
             )
         )
     }
 
-    private fun notifySpies(senderId: UUID?, targetId: UUID?, resolvers: Array<TagResolver>, onSpied: () -> Unit) {
+    internal fun notifySpies(senderId: UUID?, targetId: UUID?, resolvers: Array<TagResolver>, onSpied: () -> Unit) {
         val settings = config().privateMessages
-        val spies = server.onlinePlayers.filter { spy ->
-            spy.uniqueId != senderId && spy.uniqueId != targetId &&
-                spy.hasPermission(SPY_PERMISSION) && playerData.get(spy.uniqueId).socialSpy
+        var found: MutableList<Player>? = null
+        for (spy in server.onlinePlayers) {
+            if (spy.uniqueId == senderId || spy.uniqueId == targetId) continue
+            if (playerData.cached(spy.uniqueId)?.socialSpy != true) continue
+            if (!spy.hasPermission(SPY_PERMISSION)) continue
+            val list = found ?: ArrayList<Player>(2).also { found = it }
+            list += spy
         }
-        if (spies.isEmpty()) return
+        val spies = found ?: return
         val spyMessage = mm.deserialize(settings.spyFormat, *resolvers)
-        for (spy in spies) spy.sendMessage(spyMessage)
+        for (spy in spies) threads.forPlayer(spy) { spy.sendMessage(spyMessage) }
         onSpied()
     }
 
@@ -287,5 +419,10 @@ class PrivateMessageService(
         const val SPY_PERMISSION = "voxen.socialspy"
         const val BYPASS_TOGGLE = "voxen.bypass.pmtoggle"
         const val BYPASS_IGNORE = "voxen.bypass.ignore"
+        const val PM_CHANNEL = "@pm"
+        private const val BYPASS_COOLDOWN = "voxen.bypass.cooldown"
+        private const val BYPASS_SPAM = "voxen.bypass.spam"
+        private const val BYPASS_FILTER = "voxen.bypass.filter"
+        private const val BYPASS_LINKS = "voxen.bypass.links"
     }
 }

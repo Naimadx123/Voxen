@@ -136,11 +136,12 @@ class ChannelService(
             else -> server.onlinePlayers.toList()
         }
         val bypassIgnore = sender.hasPermission(BYPASS_IGNORE)
+        val bypassChatToggle = sender.hasPermission(BYPASS_CHAT_TOGGLE)
         val result = LinkedHashSet<Player>()
         for (recipient in base) {
             if (recipient.uniqueId != sender.uniqueId) {
                 if (provider == null && channel.type != ChannelType.PARTY && !passesChannelRules(sender, recipient, channel)) continue
-                if (!playerData.get(recipient.uniqueId).chatEnabled) continue
+                if (!bypassChatToggle && !playerData.get(recipient.uniqueId).chatEnabled) continue
                 if (!bypassIgnore && ignores.isIgnoring(recipient.uniqueId, sender.uniqueId)) continue
             }
             result += recipient
@@ -149,12 +150,18 @@ class ChannelService(
         return result
     }
 
-    fun readers(channel: Channel): List<Player> =
+    fun readers(
+        channel: Channel,
+        senderUuid: java.util.UUID? = null,
+        bypassIgnore: Boolean = false,
+        bypassChatToggle: Boolean = false,
+    ): List<Player> =
         server.onlinePlayers.filter { player ->
             channel.canRead(player) &&
                 isJoined(channel, playerData.get(player.uniqueId)) &&
                 channel.allowsWorld(player.world.name) &&
-                playerData.get(player.uniqueId).chatEnabled
+                (bypassChatToggle || playerData.get(player.uniqueId).chatEnabled) &&
+                (senderUuid == null || bypassIgnore || !ignores.isIgnoring(player.uniqueId, senderUuid))
         }
 
     fun quickChannel(player: Player, message: String): Pair<Channel, String>? {
@@ -189,12 +196,21 @@ class ChannelService(
 
     companion object {
         const val BYPASS_IGNORE = "voxen.bypass.ignore"
+        const val BYPASS_CHAT_TOGGLE = "voxen.bypass.chattoggle"
 
         fun isJoined(channel: Channel, data: PlayerData): Boolean {
             val id = channel.id
             if (data.joinedChannels.any { it.equals(id, ignoreCase = true) }) return true
             if (data.leftChannels.any { it.equals(id, ignoreCase = true) }) return false
             return channel.defaultChannel
+        }
+
+        fun localOnlyReason(type: ChannelType, radius: Int, scope: String?): String? = when {
+            radius >= 0 -> "a radius"
+            type == ChannelType.WORLD -> "type 'world'"
+            type == ChannelType.PARTY -> "type 'party'"
+            scope != null -> "scope '$scope'"
+            else -> null
         }
 
         fun withinRadius(radius: Int, sameWorld: Boolean, distanceSquared: Double): Boolean {

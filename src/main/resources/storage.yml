@@ -1,4 +1,5 @@
-# Player data storage. sqlite needs no configuration; mysql/mariadb use the fields below.
+# Player data storage. sqlite needs no configuration; mysql, mariadb and postgres use the fields below.
+# Postgres listens on 5432 by default, so change the port when you pick it.
 type: sqlite
 host: localhost
 port: 3306
@@ -7,3 +8,11 @@ username: root
 password: ""
 table-prefix: voxen_
 pool-size: 10
+# How many writes may wait for the database. Once it is full, further writes are dropped
+# with one warning instead of piling up until the server runs out of memory.
+queue-size: 500
+# How many chat history rows go into one insert.
+chat-log-batch: 100
+# When an external database cannot be reached the plugin refuses to start, because writing to a
+# local file instead would split data across servers. Set this to true to fall back to SQLite.
+sqlite-fallback: false

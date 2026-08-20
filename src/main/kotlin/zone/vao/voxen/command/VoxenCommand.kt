@@ -1,6 +1,7 @@
 package zone.vao.voxen.command
 
 import com.mojang.brigadier.Command
+import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.context.CommandContext
@@ -12,6 +13,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
+import zone.vao.voxen.moderation.ModeratorService
 import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.util.Durations
 import java.time.Instant
@@ -37,6 +39,15 @@ object VoxenCommand {
             .then(
                 permLiteral("status", "voxen.admin")
                     .executes { ctx -> sendStatus(plugin, ctx.source.sender) }
+            )
+            .then(
+                permLiteral("find", "voxen.find")
+                    .executes { ctx -> listPresence(plugin, ctx.source.sender) }
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { ctx, builder -> CommandSuggestions.networkPlayers(plugin, builder, ctx.source.sender) }
+                            .executes { ctx -> find(plugin, ctx.source.sender, arg(ctx, "player")) }
+                    )
             )
             .then(
                 permLiteral("mutes", "voxen.mod.mute")
@@ -99,10 +110,11 @@ object VoxenCommand {
                     .executes { ctx ->
                         val muted = !plugin.muteService.globalChatMuted
                         plugin.muteService.setGlobalChatMuted(muted)
+                        val key = if (muted) "chatmute-on" else "chatmute-off"
                         for (player in plugin.server.onlinePlayers) {
-                            plugin.messages().send(player, if (muted) "chatmute-on" else "chatmute-off")
+                            plugin.messages().send(player, key)
                         }
-                        plugin.messages().send(ctx.source.sender, if (muted) "chatmute-on" else "chatmute-off")
+                        if (ctx.source.sender !is Player) plugin.messages().send(ctx.source.sender, key)
                         Command.SINGLE_SUCCESS
                     }
             )
@@ -146,6 +158,112 @@ object VoxenCommand {
                         Commands.argument("player", StringArgumentType.word())
                             .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
                             .executes { ctx -> chatClear(plugin, ctx.source.sender, arg(ctx, "player")) }
+                    )
+            )
+            .then(
+                permLiteral("inspect", "voxen.mod.inspect")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.inspect(sender, target) } }
+                    )
+            )
+            .then(
+                permLiteral("warn", "voxen.mod.warn")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.warn(sender, target, null) } }
+                            .then(
+                                Commands.argument("reason", StringArgumentType.greedyString())
+                                    .executes { ctx ->
+                                        val reason = arg(ctx, "reason")
+                                        staff(plugin, ctx) { sender, target -> plugin.moderatorService.warn(sender, target, reason) }
+                                    }
+                            )
+                    )
+            )
+            .then(
+                permLiteral("warns", "voxen.mod.warn")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.warnings(sender, target) } }
+                            .then(
+                                Commands.argument("page", IntegerArgumentType.integer(1))
+                                    .executes { ctx ->
+                                        val page = IntegerArgumentType.getInteger(ctx, "page")
+                                        staff(plugin, ctx) { sender, target ->
+                                            plugin.moderatorService.warnings(sender, target, page)
+                                        }
+                                    }
+                            )
+                    )
+            )
+            .then(
+                permLiteral("unwarn", "voxen.mod.warn")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .then(
+                                Commands.argument("index", IntegerArgumentType.integer(1))
+                                    .executes { ctx ->
+                                        val index = IntegerArgumentType.getInteger(ctx, "index")
+                                        staff(plugin, ctx) { sender, target -> plugin.moderatorService.unwarn(sender, target, index) }
+                                    }
+                            )
+                    )
+            )
+            .then(
+                permLiteral("notes", "voxen.mod.notes")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.notes(sender, target) } }
+                            .then(
+                                Commands.argument("page", IntegerArgumentType.integer(1))
+                                    .executes { ctx ->
+                                        val page = IntegerArgumentType.getInteger(ctx, "page")
+                                        staff(plugin, ctx) { sender, target ->
+                                            plugin.moderatorService.notes(sender, target, page)
+                                        }
+                                    }
+                            )
+                            .then(
+                                Commands.literal("add")
+                                    .then(
+                                        Commands.argument("text", StringArgumentType.greedyString())
+                                            .executes { ctx ->
+                                                val text = arg(ctx, "text")
+                                                staff(plugin, ctx) { sender, target -> plugin.moderatorService.addNote(sender, target, text) }
+                                            }
+                                    )
+                            )
+                            .then(
+                                Commands.literal("del")
+                                    .then(
+                                        Commands.argument("index", IntegerArgumentType.integer(1))
+                                            .executes { ctx ->
+                                                val index = IntegerArgumentType.getInteger(ctx, "index")
+                                                staff(plugin, ctx) { sender, target -> plugin.moderatorService.deleteNote(sender, target, index) }
+                                            }
+                                    )
+                            )
+                    )
+            )
+            .then(
+                permLiteral("delete", "voxen.mod.delete")
+                    .then(
+                        Commands.argument("player", StringArgumentType.word())
+                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.deleteMessages(sender, target, 1) } }
+                            .then(
+                                Commands.argument("amount", IntegerArgumentType.integer(1, 100))
+                                    .executes { ctx ->
+                                        val amount = IntegerArgumentType.getInteger(ctx, "amount")
+                                        staff(plugin, ctx) { sender, target -> plugin.moderatorService.deleteMessages(sender, target, amount) }
+                                    }
+                            )
                     )
             )
             .then(
@@ -201,8 +319,15 @@ object VoxenCommand {
         val messages = plugin.messages()
         val config = plugin.configManager.config
         messages.send(sender, "status-header", Placeholder.unparsed("version", plugin.pluginMeta.version))
+        val (dbQueued, dbDropped, dbMillis) = plugin.playerDataService.stats()
+        val (netQueued, netDropped, netLastAt) = plugin.brokerService.stats()
         val lines = listOf(
             "storage" to config.storage.type.name.lowercase(),
+            "storage-queue" to "$dbQueued queued, $dbDropped dropped, last write ${dbMillis}ms",
+            "network-queue" to "$netQueued queued, $netDropped dropped",
+            "network-last-message" to
+                if (netLastAt == 0L) "never"
+                else "${Durations.humanize(System.currentTimeMillis() - netLastAt)} ago",
             "transport" to if (plugin.brokerService.active()) plugin.brokerService.transportName() else "none",
             "server-id" to config.network.serverId,
             "meta-source" to plugin.hookManager.metaSource,
@@ -221,6 +346,48 @@ object VoxenCommand {
                     "status-line",
                     Placeholder.unparsed("key", key),
                     Placeholder.unparsed("value", value),
+                )
+            )
+        }
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun find(plugin: Voxen, sender: CommandSender, name: String): Int {
+        val messages = plugin.messages()
+        val server = plugin.server.getPlayerExact(name)?.let { plugin.configManager.config.network.serverId }
+            ?: plugin.presenceService.serverOf(name)
+        if (server == null) {
+            messages.send(sender, "player-not-found", Placeholder.unparsed("player", name))
+            return Command.SINGLE_SUCCESS
+        }
+        messages.send(
+            sender,
+            "find-result",
+            Placeholder.unparsed("player", name),
+            Placeholder.unparsed("server", server),
+        )
+        return Command.SINGLE_SUCCESS
+    }
+
+    private fun listPresence(plugin: Voxen, sender: CommandSender): Int {
+        val messages = plugin.messages()
+        if (!plugin.configManager.config.presence.enabled) {
+            messages.send(sender, "find-disabled")
+            return Command.SINGLE_SUCCESS
+        }
+        val entries = plugin.presenceService.entries()
+        if (entries.isEmpty()) {
+            messages.send(sender, "find-empty")
+            return Command.SINGLE_SUCCESS
+        }
+        messages.send(sender, "find-header", Placeholder.unparsed("amount", entries.size.toString()))
+        for (entry in entries) {
+            sender.sendMessage(
+                messages.line(
+                    sender,
+                    "find-entry",
+                    Placeholder.unparsed("player", entry.name),
+                    Placeholder.unparsed("server", entry.server),
                 )
             )
         }
@@ -261,10 +428,17 @@ object VoxenCommand {
         duration: String?,
         channelInput: String?,
         reason: String?,
+    ): Int = mute(plugin, ctx.source.sender, arg(ctx, "player"), duration, channelInput, reason)
+
+    internal fun mute(
+        plugin: Voxen,
+        sender: CommandSender,
+        name: String,
+        duration: String?,
+        channelInput: String?,
+        reason: String?,
     ): Int {
-        val sender = ctx.source.sender
         val messages = plugin.messages()
-        val name = arg(ctx, "player")
         val target = resolve(plugin, name) ?: run {
             messages.send(sender, "player-not-found", Placeholder.unparsed("player", name))
             return Command.SINGLE_SUCCESS
@@ -394,27 +568,29 @@ object VoxenCommand {
         }
         plugin.playerDataService.async { storage ->
             val entries = storage.chatHistory(target.first, moderation.historyEntries)
-            if (entries.isEmpty()) {
-                messages.send(sender, "history-empty", Placeholder.unparsed("player", target.second))
-                return@async
-            }
-            messages.send(
-                sender,
-                "history-header",
-                Placeholder.unparsed("player", target.second),
-                Placeholder.unparsed("amount", entries.size.toString()),
-            )
-            for (entry in entries.asReversed()) {
-                sender.sendMessage(
-                    messages.line(
-                        sender,
-                        "history-entry",
-                        Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
-                        Placeholder.unparsed("channel", entry.channel),
-                        Placeholder.unparsed("server", entry.server),
-                        Placeholder.unparsed("message", entry.content),
-                    )
+            plugin.threads.main {
+                if (entries.isEmpty()) {
+                    messages.send(sender, "history-empty", Placeholder.unparsed("player", target.second))
+                    return@main
+                }
+                messages.send(
+                    sender,
+                    "history-header",
+                    Placeholder.unparsed("player", target.second),
+                    Placeholder.unparsed("amount", entries.size.toString()),
                 )
+                for (entry in entries.asReversed()) {
+                    sender.sendMessage(
+                        messages.line(
+                            sender,
+                            "history-entry",
+                            Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
+                            Placeholder.unparsed("channel", entry.channel),
+                            Placeholder.unparsed("server", entry.server),
+                            Placeholder.unparsed("message", entry.content),
+                        )
+                    )
+                }
             }
         }
         return Command.SINGLE_SUCCESS
@@ -464,7 +640,7 @@ object VoxenCommand {
         return Command.SINGLE_SUCCESS
     }
 
-    private fun resolve(plugin: Voxen, name: String): Pair<UUID, String>? {
+    internal fun resolve(plugin: Voxen, name: String): Pair<UUID, String>? {
         runCatching { UUID.fromString(name) }.getOrNull()?.let { id ->
             return id to (plugin.server.getOfflinePlayer(id).name ?: id.toString())
         }
@@ -472,6 +648,21 @@ object VoxenCommand {
         val offline = plugin.server.getOfflinePlayerIfCached(name) ?: return null
         val offlineName = offline.name ?: return null
         return offline.uniqueId to offlineName
+    }
+
+    private fun staff(
+        plugin: Voxen,
+        ctx: CommandContext<CommandSourceStack>,
+        body: (CommandSender, ModeratorService.Target) -> Unit,
+    ): Int {
+        val sender = ctx.source.sender
+        val name = arg(ctx, "player")
+        val target = resolve(plugin, name) ?: run {
+            plugin.messages().send(sender, "player-not-found", Placeholder.unparsed("player", name))
+            return Command.SINGLE_SUCCESS
+        }
+        body(sender, ModeratorService.Target(target.first, target.second))
+        return Command.SINGLE_SUCCESS
     }
 
     private fun arg(ctx: CommandContext<CommandSourceStack>, name: String): String =

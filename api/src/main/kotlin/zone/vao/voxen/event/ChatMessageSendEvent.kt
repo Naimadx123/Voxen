@@ -10,9 +10,8 @@ import org.bukkit.event.HandlerList
  * Fired before a chat message is delivered. Cancelling drops the message
  * silently; [content] and [recipients] may be modified.
  *
- * Fires on the thread the message came from: asynchronously for regular
- * chat, synchronously when triggered by a command or the API. Check
- * [isAsynchronous] before touching the world.
+ * Always fires on the server thread, so handlers may read and change the
+ * world freely. Keep them short; regular chat waits for them.
  */
 class ChatMessageSendEvent(
     val player: Player,
