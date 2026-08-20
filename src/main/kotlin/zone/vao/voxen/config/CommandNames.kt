@@ -13,7 +13,6 @@ data class CommandNames(
     val nickname: List<String>,
     val realName: List<String>,
     val mail: List<String>,
-    val group: List<String>,
     val helpop: List<String>,
 ) {
     fun primary(names: List<String>, fallback: String): String =

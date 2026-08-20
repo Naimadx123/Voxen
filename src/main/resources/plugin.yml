@@ -103,9 +103,6 @@ permissions:
   voxen.pm.send:
     description: Allows sending private messages.
     default: true
-  voxen.pm.group:
-    description: Allows using group private messages.
-    default: true
   voxen.chat.mention:
     description: Allows mentioning players with @name.
     default: true

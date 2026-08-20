@@ -62,9 +62,10 @@ class ChatService(
         val networkFormatted: Component?,
     )
 
-    fun chat(player: Player, raw: String) {
-        val out = prepareChat(player, raw) ?: return
+    fun chat(player: Player, raw: String): Boolean {
+        val out = prepareChat(player, raw) ?: return false
         deliver(out)
+        return true
     }
 
     fun prepareChat(player: Player, raw: String): Outgoing? {

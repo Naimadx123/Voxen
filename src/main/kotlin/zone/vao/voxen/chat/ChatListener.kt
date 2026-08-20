@@ -31,10 +31,9 @@ class ChatListener(
             event.isCancelled = true
             return
         }
-        ai.inspect(event.player, raw)
         if (delivery() == ChatDelivery.SYSTEM) {
             event.isCancelled = true
-            chatService.chat(event.player, raw)
+            if (chatService.chat(event.player, raw)) ai.inspect(event.player, raw)
             return
         }
 
@@ -50,6 +49,7 @@ class ChatListener(
             chatService.effectsFor(out, recipient)
         }
         chatService.finish(out)
+        ai.inspect(event.player, raw)
         if (signed != null) moderator.remember(event.player, signed)
     }
 
