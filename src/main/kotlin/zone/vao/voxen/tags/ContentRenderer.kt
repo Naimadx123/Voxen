@@ -11,6 +11,7 @@ import net.kyori.adventure.text.minimessage.tag.Tag
 import net.kyori.adventure.text.minimessage.tag.resolver.ArgumentQueue
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.minimessage.tag.standard.StandardTags
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import zone.vao.voxen.config.TagsConfig
 import java.util.concurrent.ConcurrentHashMap
 
@@ -67,7 +68,14 @@ class ContentRenderer(
             raw = stripper.stripTags(raw)
         }
         val mm = MiniMessage.builder().tags(TagResolver.resolver(allowed + extraResolvers)).build()
-        return mm.deserialize(raw)
+        val rendered = mm.deserialize(raw)
+        if (mode != TagsConfig.UnauthorizedMode.STRIP &&
+            !VISUAL_TAGS.containsMatchIn(content) &&
+            PLAIN.serialize(rendered).isBlank()
+        ) {
+            return Component.text(content)
+        }
+        return rendered
     }
 
     private fun regex(pattern: String): Regex =
@@ -266,6 +274,7 @@ class ContentRenderer(
     }
 
     companion object {
+        private val PLAIN = PlainTextComponentSerializer.plainText()
         private val REGEX_CACHE = ConcurrentHashMap<String, Regex>()
         private val LEGACY_CODES = Regex("&#[0-9a-fA-F]{6}|[&§][0-9a-fk-orA-FK-OR]")
         private val VISUAL_TAGS = Regex("""(?<!\\)<(?:sprite|head)(?::[^>]*)?>""", RegexOption.IGNORE_CASE)
