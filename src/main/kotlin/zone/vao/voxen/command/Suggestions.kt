@@ -9,12 +9,21 @@ import java.util.concurrent.CompletableFuture
 
 object CommandSuggestions {
 
-    fun onlinePlayers(plugin: Voxen, builder: SuggestionsBuilder): CompletableFuture<Suggestions> {
+    fun onlinePlayers(
+        plugin: Voxen,
+        builder: SuggestionsBuilder,
+        viewer: CommandSender? = null,
+    ): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
         plugin.server.onlinePlayers
-            .filter { it.name.lowercase().startsWith(input) }
+            .filter { visible(it, viewer) && it.name.lowercase().startsWith(input) }
             .forEach { builder.suggest(it.name) }
         return builder.buildFuture()
+    }
+
+    private fun visible(player: Player, viewer: CommandSender?): Boolean {
+        val watcher = viewer as? Player ?: return true
+        return watcher.canSee(player)
     }
 
     fun networkPlayers(
@@ -23,9 +32,8 @@ object CommandSuggestions {
         viewer: CommandSender? = null,
     ): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
-        val watcher = viewer as? Player
         val local = plugin.server.onlinePlayers
-            .filter { watcher == null || watcher.canSee(it) }
+            .filter { visible(it, viewer) }
             .map { it.name }
         val remote = if (plugin.configManager.config.presence.suggestRemotePlayers) plugin.presenceService.names() else emptyList()
         (local + remote)
@@ -35,9 +43,14 @@ object CommandSuggestions {
         return builder.buildFuture()
     }
 
-    fun nicknames(plugin: Voxen, builder: SuggestionsBuilder): CompletableFuture<Suggestions> {
+    fun nicknames(
+        plugin: Voxen,
+        builder: SuggestionsBuilder,
+        viewer: CommandSender? = null,
+    ): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
         plugin.server.onlinePlayers
+            .filter { visible(it, viewer) }
             .mapNotNull { plugin.playerDataService.get(it.uniqueId).plainNickname(plugin.contentRenderer::plain) }
             .filter { it.isNotEmpty() && it.lowercase().startsWith(input) }
             .forEach(builder::suggest)

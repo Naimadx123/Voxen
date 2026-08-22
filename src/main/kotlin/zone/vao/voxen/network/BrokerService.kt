@@ -28,6 +28,9 @@ class BrokerService(
     var onPresenceMessage: ((BrokerMessage) -> Unit)? = null
 
     @Volatile
+    var onSystemMessage: ((BrokerMessage) -> Unit)? = null
+
+    @Volatile
     private var lastMessageAt = 0L
 
     private val gson = Gson()
@@ -123,6 +126,10 @@ class BrokerService(
             onPresenceMessage?.invoke(message)
             return
         }
+        if (message.type == TYPE_SYSTEM) {
+            onSystemMessage?.invoke(message)
+            return
+        }
         if (message.type == TYPE_MUTE || message.type == TYPE_UNMUTE) {
             onModerationMessage?.invoke(message)
             return
@@ -183,6 +190,7 @@ class BrokerService(
         const val TYPE_PRESENCE_JOIN = "presence_join"
         const val TYPE_PRESENCE_QUIT = "presence_quit"
         const val TYPE_PRESENCE_SYNC = "presence_sync"
+        const val TYPE_SYSTEM = "system"
         private val PRESENCE_TYPES = setOf(TYPE_PRESENCE_JOIN, TYPE_PRESENCE_QUIT, TYPE_PRESENCE_SYNC)
     }
 }

@@ -17,7 +17,7 @@ object IgnoreCommand {
             .requires { it.sender.hasPermission("voxen.ignore") }
             .then(
                 Commands.argument("player", StringArgumentType.word())
-                    .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                    .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                     .executes { ctx ->
                         val sender = ctx.source.sender as? Player ?: run {
                             plugin.messages().send(ctx.source.sender, "players-only")

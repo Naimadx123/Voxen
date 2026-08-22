@@ -35,6 +35,8 @@ import zone.vao.voxen.presence.PresenceListener
 import zone.vao.voxen.report.ReportDialogs
 import zone.vao.voxen.report.ReportService
 import zone.vao.voxen.report.ReportsWeb
+import zone.vao.voxen.system.SystemMessageListener
+import zone.vao.voxen.system.SystemMessageService
 import zone.vao.voxen.web.WebModule
 import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
@@ -84,6 +86,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
     lateinit var moderatorService: ModeratorService
     lateinit var reportService: ReportService
+        private set
+    lateinit var systemMessageService: SystemMessageService
         private set
     lateinit var webServer: WebServer
         private set
@@ -211,6 +215,27 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         server.pluginManager.registerEvents(PresenceListener(presenceService), this)
         privateMessageService.routeLookup = { name -> presenceService.serverOf(name) }
         startPresenceHeartbeat()
+
+        systemMessageService = SystemMessageService(
+            { configManager.config },
+            channelService,
+            chatService,
+            formatService,
+            { hookManager.discord },
+            presenceService,
+        )
+        systemMessageService.remotePublisher = { message -> brokerService.publish(message) }
+        systemMessageService.schedule = { delayMillis, task ->
+            server.asyncScheduler.runDelayed(
+                this,
+                { threads.main { task() } },
+                delayMillis,
+                java.util.concurrent.TimeUnit.MILLISECONDS,
+            )
+        }
+        brokerService.onSystemMessage = { message -> systemMessageService.handleRemote(message) }
+        presenceService.onRemoteJoin = { uuid -> systemMessageService.cancelQuit(uuid) }
+        server.pluginManager.registerEvents(SystemMessageListener(systemMessageService), this)
 
         privateMessageService.remotePublisher = { message ->
             brokerService.publish(message.copy(server = configManager.config.network.serverId))

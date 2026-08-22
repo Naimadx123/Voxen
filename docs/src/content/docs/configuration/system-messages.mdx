@@ -1,0 +1,107 @@
+---
+title: System messages
+description: Join, quit, first join, death, advancement and server switch messages from modules/system-messages.yml, with network deduplication and vanish support.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Voxen can take over the lines the server writes by itself: who joined, who left, who died and
+who earned an advancement. Each one is a block of its own, so you can rewrite the join message
+and leave deaths to vanilla.
+
+```yaml title="plugins/Voxen/modules/system-messages.yml"
+enabled: false
+respect-vanish: true
+
+join:
+  enabled: true
+  format: "<dark_gray>+ <green><player> <gray>joined <white><server>"
+  channel: "global"
+  cross-server: true
+  discord: true
+```
+
+The whole module is off until `enabled: true`, so an update never changes what your players
+see. Once it is on, Voxen silences the vanilla line of every event that is enabled below it
+and writes its own; events left off keep behaving exactly as before.
+
+## The blocks
+
+| Block | When it fires |
+| --- | --- |
+| `join` | a player logs in |
+| `first-join` | their very first login, instead of `join` |
+| `quit` | a player logs out |
+| `server-switch` | they moved to another server on the network, instead of `quit` and `join` |
+| `death` | a player dies |
+| `advancement` | a player earns an advancement that announces itself in chat |
+
+Every block takes the same five settings, plus `delay` on `quit`:
+
+| Setting | What it does |
+| --- | --- |
+| `enabled` | whether Voxen writes this message at all |
+| `format` | the message itself, in MiniMessage |
+| `channel` | whose readers see it, a channel from `channels/` |
+| `cross-server` | send it to the other servers on the network as well |
+| `discord` | forward it to DiscordSRV or EssentialsDiscord |
+
+Formats take the same placeholders as chat formats — `<player>` (the nickname when one is
+set), `<username>`, `<display_name>`, `<prefix>`, `<suffix>`, `<group>`, `<world>`,
+`<server>` — plus PlaceholderAPI and MiniPlaceholders. Some blocks add their own:
+
+| Block | Extra placeholders |
+| --- | --- |
+| `server-switch` | `<from>` and `<to>`, the network ids of the two servers |
+| `death` | `<message>`, the death message the server would have printed |
+| `advancement` | `<advancement>` and `<message>`, its title and its description |
+
+<Aside type="caution" title="Keep &lt;message&gt; in the death format">
+	Without it the line no longer says how the player died, only that they did.
+</Aside>
+
+## One message per network
+
+On a network a player walking from survival to lobby leaves one server and joins another, so
+without help they look like someone who left the network and someone else who arrived.
+
+`delay` on `quit` is what prevents that. The quit message waits that long before it is
+written; if the player turns up on another server in the meantime, the origin server drops it
+and the new server writes `server-switch` instead. Two seconds is enough for a proxy
+transfer, and a delay that short is not noticeable on a real disconnect.
+
+```yaml title="plugins/Voxen/modules/system-messages.yml"
+quit:
+  enabled: true
+  delay: 2s
+  format: "<dark_gray>- <red><player> <gray>left"
+
+server-switch:
+  enabled: true
+  format: "<dark_gray>» <aqua><player> <gray>went from <white><from></white> to <white><to>"
+```
+
+Voxen knows where a player came from through
+[presence tracking](/configuration/modules/#presence), so `modules/presence.yml` has to be on
+and `network.transport` has to be configured. Without them every arrival is a plain join,
+which is the right answer on a single server.
+
+Set `server-switch.enabled: false` to treat a switch like any other join and quit, and set
+`delay: 0` to write the quit message the moment the player disconnects.
+
+<Aside type="tip" title="Same settings everywhere">
+	The two servers involved in a switch each read their own copy of this file, so keep the
+	block the same on every server or the message depends on where the player lands.
+</Aside>
+
+## Vanished moderators
+
+With `respect-vanish: true` a vanished moderator slips in and out without a word: no join,
+no quit, no death and no advancement. The same setting keeps them out of
+`/voxen find`, out of the player suggestions on Voxen's commands and out of the network
+player list other servers see.
+
+Voxen reads the `vanished` metadata that Essentials, CMI, SuperVanish and PremiumVanish all
+set, so no extra configuration is needed. Staff who are allowed to see vanished players still
+get them in their suggestions, because that follows the same visibility the server itself
+uses.

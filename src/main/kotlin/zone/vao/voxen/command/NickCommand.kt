@@ -29,7 +29,7 @@ object NickCommand {
                     .then(
                         Commands.argument("player", StringArgumentType.word())
                             .requires { it.sender.hasPermission(PERMISSION_OTHERS) }
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> setOther(plugin, ctx) }
                     )
             )
@@ -40,7 +40,7 @@ object NickCommand {
             .requires { it.sender.hasPermission(PERMISSION_REALNAME) }
             .then(
                 Commands.argument("nickname", StringArgumentType.greedyString())
-                    .suggests { _, builder -> CommandSuggestions.nicknames(plugin, builder) }
+                    .suggests { ctx, builder -> CommandSuggestions.nicknames(plugin, builder, ctx.source.sender) }
                     .executes { ctx -> realName(plugin, ctx.source.sender, StringArgumentType.getString(ctx, "nickname")) }
             )
             .build()

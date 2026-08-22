@@ -17,7 +17,12 @@ class PresenceService(
     @Volatile
     var remotePublisher: ((BrokerMessage) -> Unit)? = null
 
+    @Volatile
+    var onRemoteJoin: ((UUID) -> Unit)? = null
+
     private val remote = ConcurrentHashMap<UUID, Entry>()
+
+    private val left = ConcurrentHashMap<UUID, Entry>()
 
     private val byName = ConcurrentHashMap<String, UUID>()
 
@@ -29,6 +34,16 @@ class PresenceService(
     }
 
     fun serverOf(name: String): String? = find(name)?.server
+
+    fun lastServer(uuid: UUID, within: Long): String? {
+        remote[uuid]?.let { return it.server }
+        val departed = left[uuid] ?: return null
+        if (clock() - departed.seenAt > within) {
+            left.remove(uuid, departed)
+            return null
+        }
+        return departed.server
+    }
 
     fun names(): List<String> {
         if (!settings().enabled) return emptyList()
@@ -61,11 +76,14 @@ class PresenceService(
         val from = message.server?.takeIf { it.isNotEmpty() && it != serverId() } ?: return
         when (message.type) {
             BrokerService.TYPE_PRESENCE_JOIN -> parse(message.senderUuid, message.sender)?.let { (uuid, name) ->
+                left.remove(uuid)
                 put(Entry(uuid, name, from, clock()))
+                onRemoteJoin?.invoke(uuid)
             }
 
-            BrokerService.TYPE_PRESENCE_QUIT -> parse(message.senderUuid, message.sender)?.let { (uuid, _) ->
+            BrokerService.TYPE_PRESENCE_QUIT -> parse(message.senderUuid, message.sender)?.let { (uuid, name) ->
                 if (remote[uuid]?.server == from) drop(uuid)
+                left[uuid] = Entry(uuid, name, from, clock())
             }
 
             BrokerService.TYPE_PRESENCE_SYNC -> replaceServer(from, message.roster.orEmpty())
@@ -80,6 +98,7 @@ class PresenceService(
     fun clear() {
         remote.clear()
         byName.clear()
+        left.clear()
     }
 
     private fun put(entry: Entry) {
@@ -108,6 +127,9 @@ class PresenceService(
         val cutoff = clock() - settings().ttlMillis
         for (entry in remote.values.toList()) {
             if (entry.seenAt < cutoff) drop(entry.uuid)
+        }
+        for (entry in left.values.toList()) {
+            if (entry.seenAt < cutoff) left.remove(entry.uuid, entry)
         }
     }
 

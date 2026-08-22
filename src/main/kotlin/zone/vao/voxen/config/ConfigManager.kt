@@ -45,6 +45,7 @@ class ConfigManager(
         val reports = YamlConfiguration.loadConfiguration(file("modules/reports.yml"))
         val web = YamlConfiguration.loadConfiguration(file("modules/web.yml"))
         val aiModeration = YamlConfiguration.loadConfiguration(file("modules/ai-moderation.yml"))
+        val systemMessages = YamlConfiguration.loadConfiguration(file("modules/system-messages.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -62,6 +63,7 @@ class ConfigManager(
             integrations = parseIntegrations(integrations),
             network = parseNetwork(integrations.getConfigurationSection("network")),
             presence = parsePresence(presence),
+            systemMessages = parseSystemMessages(systemMessages),
             mail = parseMail(mail),
             moderatorTools = parseModeratorTools(moderatorTools),
             reports = parseReports(reports),
@@ -509,6 +511,36 @@ class ConfigManager(
         )
     }
 
+    private fun parseSystemMessages(yaml: YamlConfiguration): SystemMessagesConfig {
+        val events = SystemMessagesConfig.Kind.entries.mapNotNull { kind ->
+            val section = yaml.getConfigurationSection(kind.id) ?: return@mapNotNull null
+            val delay = section.getString("delay")?.trim().orEmpty().let { raw ->
+                if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                    plugin.logger.warning("modules/system-messages.yml: invalid '${kind.id}.delay' value '$raw'; ignoring it.")
+                    0L
+                }
+            }
+            kind to SystemMessagesConfig.Event(
+                enabled = section.getBoolean("enabled", false),
+                format = section.getString("format")?.trim().orEmpty(),
+                channel = section.getString("channel")?.trim()?.lowercase()?.ifEmpty { null } ?: "global",
+                crossServer = section.getBoolean("cross-server", false),
+                discord = section.getBoolean("discord", false),
+                delayMillis = delay.coerceIn(0L, 60_000L),
+            )
+        }.toMap()
+        for ((kind, event) in events) {
+            if (event.enabled && event.format.isEmpty()) {
+                plugin.logger.warning("modules/system-messages.yml: '${kind.id}' is enabled but has no 'format', so it stays quiet.")
+            }
+        }
+        return SystemMessagesConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            respectVanish = yaml.getBoolean("respect-vanish", true),
+            events = events,
+        )
+    }
+
     private fun parseMail(yaml: YamlConfiguration): MailConfig {
         val cooldown = yaml.getString("cooldown")?.trim().orEmpty().let { raw ->
             if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
@@ -860,6 +892,7 @@ class ConfigManager(
             "modules/reports.yml",
             "modules/web.yml",
             "modules/ai-moderation.yml",
+            "modules/system-messages.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )
