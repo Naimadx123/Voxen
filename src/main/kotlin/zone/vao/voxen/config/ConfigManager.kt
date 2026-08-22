@@ -648,6 +648,12 @@ class ConfigManager(
                 900_000L
             }
         }
+        val refresh = yaml.getString("auto-refresh")?.trim().orEmpty().let { raw ->
+            if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/web.yml: invalid 'auto-refresh' value '$raw'; using 5s.")
+                5_000L
+            }
+        }
         return WebConfig(
             enabled = yaml.getBoolean("enabled", false),
             host = yaml.getString("host")?.trim()?.ifEmpty { null } ?: "127.0.0.1",
@@ -657,6 +663,7 @@ class ConfigManager(
             threads = yaml.getInt("threads", 2).coerceIn(1, 32),
             maxLoginAttempts = yaml.getInt("max-login-attempts", 10).coerceAtLeast(0),
             lockoutMillis = lockout,
+            refreshSeconds = (refresh / 1000L).coerceIn(0L, 3600L).toInt(),
             users = users,
             labels = labels,
         )

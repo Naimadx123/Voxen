@@ -213,6 +213,12 @@ shows its fields, the reported message, the context around it, the audit trail a
 buttons. Panel users need `reports.view` to look, `reports.manage` to act and `reports.audit`
 for the separate audit page.
 
+Next to the tabs sits an **Auto refresh** switch. With it on, the queue reloads itself every
+few seconds, which is what you want on a second monitor during a busy evening; the interval
+comes from `auto-refresh` in `modules/web.yml` and `0` removes the switch. It is off until it
+is clicked, the setting rides along in the address so a bookmark keeps it, and opening a case
+drops it again so a page with buttons never reloads under your hands.
+
 Custom actions run from the console there, since a browser session is not a player. Turning
 `interfaces.web` off hides both pages after `/voxen reload`, without a restart.
 

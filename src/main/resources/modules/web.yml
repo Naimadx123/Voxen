@@ -25,6 +25,11 @@ threads: 2
 max-login-attempts: 10
 lockout: 15m
 
+# How often a page reloads itself while the switch on the report queue is on. The switch is
+# off until it is clicked, so nobody gets a reloading page they did not ask for. Set this to
+# 0 to remove the switch altogether.
+auto-refresh: 5s
+
 # Who may log in and what they see. 'permissions' are panel permissions, not Minecraft ones:
 #   reports.view    - see the report queue and a single case
 #   reports.manage  - claim, resolve, dismiss and delete reports, and use the custom buttons
@@ -73,6 +78,7 @@ labels:
       resolve: "Resolve"
       dismiss: "Dismiss"
       delete: "Delete"
+    refresh: "Auto refresh"
     message: "Reported message"
     context: "Context"
     history: "Audit trail"

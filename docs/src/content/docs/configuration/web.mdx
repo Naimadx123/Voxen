@@ -21,6 +21,7 @@ realm: "Voxen"
 threads: 2
 max-login-attempts: 10
 lockout: 15m
+auto-refresh: 5s
 users:
   - name: "admin"
     password: "change-me"
@@ -30,6 +31,10 @@ users:
 The panel needs no extra dependency and no external web server; it is the HTTP server that
 ships with Java. `host: "127.0.0.1"` is only reachable from the machine itself, `0.0.0.0`
 from everywhere. `threads` is how many requests it handles at the same time.
+
+`auto-refresh` is how often a page reloads itself while the switch on the
+[report queue](/configuration/reports/#the-web-page) is on; `0` removes the switch. No page
+reloads on its own until someone asks for it.
 
 `/voxen reload` restarts it, so a new port, new accounts and new wording apply without a
 restart of the server.

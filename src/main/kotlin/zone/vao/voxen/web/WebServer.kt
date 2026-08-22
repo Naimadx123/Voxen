@@ -170,7 +170,7 @@ class WebServer(
             logger.warning("Web panel page '${module.id}' failed to render: ${it.message}")
             notice("This page could not be rendered, see the server log.")
         }
-        respond(exchange, 200, shell(user, module.id, body))
+        respond(exchange, 200, shell(user, module.id, body, query["refresh"] == "on"))
     }
 
     private fun index(user: WebConfig.User): String {
@@ -185,7 +185,7 @@ class WebServer(
         return shell(user, null, body)
     }
 
-    private fun shell(user: WebConfig.User, active: String?, body: String): String {
+    private fun shell(user: WebConfig.User, active: String?, body: String, refresh: Boolean = false): String {
         val nav = modules.values
             .filter { it.enabled() && user.allows(it.permission) }
             .joinToString("") { module ->
@@ -194,7 +194,14 @@ class WebServer(
                 "<a href=\"/${module.id}\"$current><span class=\"ico\">${Html.badge(title)}</span>" +
                     "<span>${Html.escape(title)}</span></a>"
             }
-        return Html.document(config().title, nav, body, user.name)
+        val settings = config()
+        return Html.document(
+            settings.title,
+            nav,
+            body,
+            user.name,
+            if (refresh) settings.refreshSeconds else 0,
+        )
     }
 
     private fun redirect(segment: String, query: Map<String, String>): String {

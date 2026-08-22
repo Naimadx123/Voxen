@@ -9,6 +9,7 @@ data class WebConfig(
     val threads: Int,
     val maxLoginAttempts: Int,
     val lockoutMillis: Long,
+    val refreshSeconds: Int,
     val users: List<User>,
     val labels: Map<String, String>,
 ) {

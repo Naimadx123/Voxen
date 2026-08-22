@@ -12,12 +12,13 @@ object Html {
 
     fun badge(value: String): String = escape(value.trim().take(1).uppercase().ifEmpty { "•" })
 
-    fun document(title: String, nav: String, body: String, user: String): String = """
+    fun document(title: String, nav: String, body: String, user: String, refresh: Int): String = """
         |<!DOCTYPE html>
         |<html lang="en">
         |<head>
         |<meta charset="utf-8">
         |<meta name="viewport" content="width=device-width, initial-scale=1">
+        |${if (refresh > 0) "<meta http-equiv=\"refresh\" content=\"$refresh\">" else ""}
         |<title>${escape(title)}</title>
         |<style>
         |$STYLE
@@ -71,6 +72,7 @@ object Html {
         .tabs a { padding: 6px 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--muted); text-decoration: none; font-size: 13px; transition: border-color .15s ease, color .15s ease; }
         .tabs a:hover { color: var(--text); }
         .tabs a.active { border-color: transparent; background: var(--accent); color: #fff; }
+        .tabs .switch { margin-left: auto; }
         .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow-x: auto; }
         .card + .card, .card + .actions { margin-top: 14px; }
         table { border-collapse: collapse; width: 100%; }

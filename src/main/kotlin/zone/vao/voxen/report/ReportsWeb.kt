@@ -55,10 +55,18 @@ object ReportsWeb {
         val web = plugin.configManager.config.web
         val filter = request.param("filter")?.takeIf { it in FILTERS.keys } ?: "queue"
         val entries = plugin.reportService.list(FILTERS.getValue(filter), plugin.configManager.config.reports.queueLimit)
+        val refreshing = request.param("refresh") == "on"
+        val carried = if (refreshing) "&refresh=on" else ""
         val tabs = FILTERS.keys.joinToString("") { key ->
             val active = if (key == filter) " class=\"active\"" else ""
             val label = web.label("reports.filter.$key", key.replaceFirstChar(Char::titlecase))
-            "<a href=\"/reports?filter=${Html.encode(key)}\"$active>${Html.escape(label)}</a>"
+            "<a href=\"/reports?filter=${Html.encode(key)}$carried\"$active>${Html.escape(label)}</a>"
+        }
+        val toggle = if (web.refreshSeconds <= 0) "" else {
+            val label = "${web.label("reports.refresh", "Auto refresh")} (${web.refreshSeconds}s)"
+            val active = if (refreshing) " active" else ""
+            val href = "/reports?filter=${Html.encode(filter)}" + if (refreshing) "" else "&refresh=on"
+            "<a class=\"switch$active\" href=\"$href\">${Html.escape(label)}</a>"
         }
         val columns = listOf("time", "player", "reporter", "reason", "channel", "status", "moderator")
         val head = columns.joinToString("") { key ->
@@ -74,7 +82,7 @@ object ReportsWeb {
             ) { entry -> row(web, filter, entry) }
         }
         return "<h1>${Html.escape(web.label("reports.heading", "Player reports"))}</h1>" +
-            "<div class=\"tabs\">$tabs</div>$body"
+            "<div class=\"tabs\">$tabs$toggle</div>$body"
     }
 
     private fun row(web: WebConfig, filter: String, entry: ReportEntry): String {
