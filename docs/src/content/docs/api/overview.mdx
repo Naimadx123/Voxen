@@ -175,6 +175,44 @@ channel. `registerRecipients` does the same thing for a channel that already exi
 Runtime channels are not written to disk and disappear on restart. Register them in
 `onEnable`.
 
+### Add a page to the web panel
+
+```java
+VoxenApi.registerPanelPage("shop", "Shop", "shop.view", new PanelPage() {
+    @Override
+    public String render(PanelRequest request) {
+        return "<h1>Shop</h1><div class=\"card\"><p class=\"quote\">"
+                + PanelHtml.escape(latestSale())
+                + "</p></div>";
+    }
+});
+```
+
+The page appears in the panel sidebar as `Shop` for every account whose `permissions` in
+`modules/web.yml` cover `shop.view`, and answers with 403 for the rest. Return the body of
+the page only; Voxen wraps it in the panel frame, so the classes the bundled pages use
+(`card`, `tabs`, `tag`, `quote`, `muted`) style your markup as well.
+
+`PanelHtml.escape` is the one thing not to skip. Everything a player can influence goes
+through it, otherwise a nickname is enough to inject markup into the panel.
+
+To take a form back, override `submit` and read the fields with `request.param`. The panel
+rejects any POST without its CSRF token, so put it in a hidden field:
+
+```java
+String form = "<form method=\"post\" action=\"" + request.link(Map.of()) + "\">"
+        + "<input type=\"hidden\" name=\"token\" value=\"" + PanelHtml.escape(request.getToken()) + "\">"
+        + "<button name=\"action\" value=\"restock\">Restock</button></form>";
+```
+
+<Aside type="caution" title="Panel pages run off the main thread">
+	`render` and `submit` are called on a panel thread. Read your own data there, but hop to
+	the scheduler before touching anything from the Bukkit API.
+</Aside>
+
+Pages are not written to disk. Register them in `onEnable` and drop them with
+`unregisterPanelPage` in `onDisable`; the two built-in pages cannot be removed this way.
+
 ## Events
 
 Two events cover the message lifecycle. See [Events](/api/events/).

@@ -35,6 +35,7 @@ import zone.vao.voxen.presence.PresenceListener
 import zone.vao.voxen.report.ReportDialogs
 import zone.vao.voxen.report.ReportService
 import zone.vao.voxen.report.ReportsWeb
+import zone.vao.voxen.web.WebModule
 import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
@@ -48,6 +49,7 @@ import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
 import zone.vao.voxen.util.Vanish
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 @Suppress("UnstableApiUsage")
 class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
@@ -93,6 +95,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
 
     private var presenceTask: ScheduledTask? = null
+
+    private val panelPages = ConcurrentHashMap.newKeySet<String>()
 
     private val componentCodec = GsonComponentSerializer.gson()
     private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
@@ -412,6 +416,27 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
 
     override fun unregisterRecipients(channelId: String) {
         channelService.unregisterRecipients(channelId)
+    }
+
+    override fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean {
+        val lower = id.lowercase()
+        if (!lower.matches(Regex("[a-z0-9_-]+")) || permission.isBlank()) return false
+        val added = webServer.register(
+            WebModule(
+                id = lower,
+                title = { title },
+                permission = permission,
+                render = { request -> page.render(request) },
+                submit = { request -> page.submit(request) },
+            )
+        )
+        if (added) panelPages.add(lower)
+        return added
+    }
+
+    override fun unregisterPanelPage(id: String): Boolean {
+        val lower = id.lowercase()
+        return panelPages.remove(lower) && webServer.unregister(lower)
     }
 
     private fun info(channel: Channel): ChannelInfo = ChannelInfo(

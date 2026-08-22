@@ -20,7 +20,9 @@ class WebServer(
     private val config: () -> WebConfig,
 ) {
 
-    private val modules = LinkedHashMap<String, WebModule>()
+    @Volatile
+    private var modules: Map<String, WebModule> = emptyMap()
+
     private val tokens = ConcurrentHashMap<String, String>()
     private val failures = ConcurrentHashMap<String, Failures>()
     private val random = SecureRandom()
@@ -31,8 +33,18 @@ class WebServer(
     @Volatile
     private var bound: String? = null
 
-    fun register(module: WebModule) {
-        modules[module.id] = module
+    @Synchronized
+    fun register(module: WebModule): Boolean {
+        if (modules.containsKey(module.id)) return false
+        modules = LinkedHashMap(modules).apply { put(module.id, module) }
+        return true
+    }
+
+    @Synchronized
+    fun unregister(id: String): Boolean {
+        if (!modules.containsKey(id)) return false
+        modules = LinkedHashMap(modules).apply { remove(id) }
+        return true
     }
 
     fun running(): Boolean = server != null

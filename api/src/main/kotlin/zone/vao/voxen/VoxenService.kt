@@ -31,5 +31,7 @@ interface VoxenService {
     fun unregisterChannel(id: String): Boolean
     fun registerRecipients(channelId: String, provider: RecipientProvider): Boolean
     fun unregisterRecipients(channelId: String)
+    fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean
+    fun unregisterPanelPage(id: String): Boolean
     fun reload()
 }

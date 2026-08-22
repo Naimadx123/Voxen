@@ -1,22 +1,12 @@
 package zone.vao.voxen.web
 
+import zone.vao.voxen.PanelHtml
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 object Html {
 
-    fun escape(value: String): String = buildString(value.length) {
-        for (char in value) {
-            when (char) {
-                '&' -> append("&amp;")
-                '<' -> append("&lt;")
-                '>' -> append("&gt;")
-                '"' -> append("&quot;")
-                '\'' -> append("&#39;")
-                else -> append(char)
-            }
-        }
-    }
+    fun escape(value: String): String = PanelHtml.escape(value)
 
     fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
 

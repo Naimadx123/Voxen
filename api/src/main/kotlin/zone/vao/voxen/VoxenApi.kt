@@ -179,6 +179,23 @@ object VoxenApi {
         service().unregisterRecipients(channelId)
     }
 
+    /**
+     * Adds a page to the web panel. It appears in the sidebar as [title] for
+     * every account holding [permission] in `modules/web.yml`, and answers
+     * with 403 for the rest.
+     *
+     * Returns false when [id] is taken or invalid (allowed: `a-z`, `0-9`,
+     * `-`, `_`). Pages are not written to disk, so register them on every
+     * startup and drop them with [unregisterPanelPage] on disable.
+     */
+    @JvmStatic
+    fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean =
+        service().registerPanelPage(id, title, permission, page)
+
+    /** Removes a page registered with [registerPanelPage]. Returns false for unknown or built-in pages. */
+    @JvmStatic
+    fun unregisterPanelPage(id: String): Boolean = service().unregisterPanelPage(id)
+
     /** Reloads the Voxen configuration, same as `/voxen reload`. */
     @JvmStatic
     fun reload() {
