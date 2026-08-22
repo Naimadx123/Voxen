@@ -157,7 +157,10 @@ class ReportDialogs(private val plugin: Voxen) {
                             .inputs(inputs.orEmpty())
                             .build()
                     )
-                    .type(DialogType.multiAction(buttons).columns(2).build())
+                    .type(
+                        if (buttons.isEmpty()) DialogType.notice()
+                        else DialogType.multiAction(buttons).columns(2).build()
+                    )
             }
         )
     }
