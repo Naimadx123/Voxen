@@ -19,14 +19,12 @@ class PresenceService(
 
     private val remote = ConcurrentHashMap<UUID, Entry>()
 
-    // every cross-server /msg looked the target up by scanning the whole roster, so names get an index
     private val byName = ConcurrentHashMap<String, UUID>()
 
     fun find(name: String): Entry? {
         if (!settings().enabled) return null
         val fresh = clock() - settings().ttlMillis
         val entry = byName[name.lowercase()]?.let { remote[it] } ?: return null
-        // a renamed player can leave a stale key behind, so the hit is verified before it is trusted
         return entry.takeIf { it.name.equals(name, ignoreCase = true) && it.seenAt >= fresh }
     }
 
@@ -66,8 +64,6 @@ class PresenceService(
                 put(Entry(uuid, name, from, clock()))
             }
 
-            // only the server the player was last seen on may drop them, or a quit from the
-            // server they just left would erase the join from the server they moved to
             BrokerService.TYPE_PRESENCE_QUIT -> parse(message.senderUuid, message.sender)?.let { (uuid, _) ->
                 if (remote[uuid]?.server == from) drop(uuid)
             }

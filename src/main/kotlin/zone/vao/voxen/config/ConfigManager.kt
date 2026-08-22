@@ -42,6 +42,8 @@ class ConfigManager(
         val presence = YamlConfiguration.loadConfiguration(file("modules/presence.yml"))
         val mail = YamlConfiguration.loadConfiguration(file("modules/mail.yml"))
         val moderatorTools = YamlConfiguration.loadConfiguration(file("modules/moderator-tools.yml"))
+        val reports = YamlConfiguration.loadConfiguration(file("modules/reports.yml"))
+        val web = YamlConfiguration.loadConfiguration(file("modules/web.yml"))
         val aiModeration = YamlConfiguration.loadConfiguration(file("modules/ai-moderation.yml"))
 
         config = VoxenConfig(
@@ -62,6 +64,8 @@ class ConfigManager(
             presence = parsePresence(presence),
             mail = parseMail(mail),
             moderatorTools = parseModeratorTools(moderatorTools),
+            reports = parseReports(reports),
+            web = parseWeb(web),
             aiModeration = parseAiModeration(aiModeration),
             storage = parseStorage(storage),
             commands = parseCommands(main.getConfigurationSection("commands")),
@@ -540,6 +544,131 @@ class ConfigManager(
         )
     }
 
+    private fun parseReports(yaml: YamlConfiguration): ReportsConfig {
+        val cooldown = yaml.getString("cooldown")?.trim().orEmpty().let { raw ->
+            if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/reports.yml: invalid 'cooldown' value '$raw'; ignoring it.")
+                0L
+            }
+        }
+        val reasons = yaml.getMapList("reasons").mapNotNull { entry ->
+            val id = entry["id"]?.toString()?.trim()?.lowercase().orEmpty()
+            val label = entry["label"]?.toString()?.trim().orEmpty()
+            if (id.isEmpty() || label.isEmpty()) {
+                plugin.logger.warning("modules/reports.yml: every 'reasons' entry needs an 'id' and a 'label'; skipping one.")
+                return@mapNotNull null
+            }
+            ReportsConfig.Reason(
+                id = id,
+                label = label,
+                permission = entry["permission"]?.toString()?.trim()?.ifEmpty { null },
+            )
+        }
+        val freeText = yaml.getBoolean("free-text", true)
+        if (!freeText && reasons.isEmpty()) {
+            plugin.logger.warning("modules/reports.yml: 'free-text' is off and no 'reasons' are configured, so nobody can report.")
+        }
+        val minLength = yaml.getInt("min-length", 3).coerceAtLeast(1)
+        val maxLength = yaml.getInt("max-length", 200).coerceAtLeast(minLength)
+        return ReportsConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            dialogs = yaml.getBoolean("interfaces.dialog", true),
+            web = yaml.getBoolean("interfaces.web", true),
+            chatButton = yaml.getBoolean("chat-button.enabled", true),
+            chatButtonStaffOnly = yaml.getBoolean("chat-button.staff-only", false),
+            messageKeep = yaml.getInt("chat-button.keep", 200).coerceIn(1, 5000),
+            context = yaml.getInt("context", 3).coerceIn(0, 20),
+            muteDurations = yaml.getStringList("mute-durations")
+                .mapNotNull { raw -> raw.trim().ifEmpty { null }?.takeIf { Durations.parseMillis(it) != null } }
+                .ifEmpty { listOf("10m", "1h", "1d") },
+            auditLimit = yaml.getInt("audit-limit", 100).coerceIn(1, 1000),
+            reasons = reasons,
+            freeText = freeText,
+            minLength = minLength,
+            maxLength = maxLength,
+            cooldownMillis = cooldown,
+            allowSelf = yaml.getBoolean("allow-self", false),
+            allowOffline = yaml.getBoolean("allow-offline", true),
+            allowDuplicates = yaml.getBoolean("allow-duplicates", false),
+            notifyStaff = yaml.getBoolean("notify-staff", true),
+            notifyReporter = yaml.getBoolean("notify-reporter", true),
+            queueLimit = yaml.getInt("queue-limit", 100).coerceIn(1, 1000),
+            expireDays = yaml.getInt("expire-days", 30).coerceAtLeast(0),
+            actions = reportActions(yaml),
+        )
+    }
+
+    private fun reportActions(yaml: YamlConfiguration): List<ReportsConfig.Action> =
+        yaml.getMapList("actions").mapNotNull { entry ->
+            val label = entry["label"]?.toString()?.trim().orEmpty()
+            val command = entry["command"]?.toString()?.trim()?.removePrefix("/").orEmpty()
+            if (label.isEmpty() || command.isEmpty()) {
+                plugin.logger.warning("modules/reports.yml: every 'actions' entry needs a 'label' and a 'command'; skipping one.")
+                return@mapNotNull null
+            }
+            val permission = entry["permission"]?.toString()?.trim()?.ifEmpty { null }
+            val console = entry["console"] == true
+            if (console && permission == null) {
+                plugin.logger.warning("modules/reports.yml: action '$label' runs from the console, so it also needs a 'permission'; skipping it.")
+                return@mapNotNull null
+            }
+            ReportsConfig.Action(
+                label = label,
+                command = command,
+                permission = permission,
+                console = console,
+                resolve = entry["resolve"] == true,
+            )
+        }
+
+    private fun parseWeb(yaml: YamlConfiguration): WebConfig {
+        val users = yaml.getMapList("users").mapNotNull { entry ->
+            val name = entry["name"]?.toString()?.trim().orEmpty()
+            val password = entry["password"]?.toString().orEmpty()
+            if (name.isEmpty()) {
+                plugin.logger.warning("modules/web.yml: every 'users' entry needs a 'name'; skipping one.")
+                return@mapNotNull null
+            }
+            @Suppress("UNCHECKED_CAST")
+            val permissions = (entry["permissions"] as? List<Any?>).orEmpty()
+                .mapNotNull { it?.toString()?.trim()?.lowercase()?.ifEmpty { null } }
+                .toSet()
+            if (permissions.isEmpty()) {
+                plugin.logger.warning("modules/web.yml: user '$name' has no permissions, so every page stays hidden.")
+            }
+            WebConfig.User(name = name, password = password, permissions = permissions)
+        }
+        val labels = yaml.getConfigurationSection("labels")?.getValues(true)
+            ?.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }
+            ?.toMap()
+            .orEmpty()
+        val lockout = yaml.getString("lockout")?.trim().orEmpty().let { raw ->
+            if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/web.yml: invalid 'lockout' value '$raw'; using 15m.")
+                900_000L
+            }
+        }
+        val refresh = yaml.getString("auto-refresh")?.trim().orEmpty().let { raw ->
+            if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/web.yml: invalid 'auto-refresh' value '$raw'; using 5s.")
+                5_000L
+            }
+        }
+        return WebConfig(
+            enabled = yaml.getBoolean("enabled", false),
+            host = yaml.getString("host")?.trim()?.ifEmpty { null } ?: "127.0.0.1",
+            port = yaml.getInt("port", 8085).coerceIn(1, 65535),
+            title = yaml.getString("title")?.trim()?.ifEmpty { null } ?: "Voxen",
+            realm = yaml.getString("realm")?.trim()?.ifEmpty { null } ?: "Voxen",
+            threads = yaml.getInt("threads", 2).coerceIn(1, 32),
+            maxLoginAttempts = yaml.getInt("max-login-attempts", 10).coerceAtLeast(0),
+            lockoutMillis = lockout,
+            refreshSeconds = (refresh / 1000L).coerceIn(0L, 3600L).toInt(),
+            users = users,
+            labels = labels,
+        )
+    }
+
     private fun parseAiModeration(yaml: YamlConfiguration): AiModerationConfig {
         val endpoint = yaml.getString("endpoint", "")!!.trim()
         val enabled = yaml.getBoolean("enabled", false)
@@ -603,7 +732,6 @@ class ConfigManager(
             val permission = entry["permission"]?.toString()?.trim()?.ifEmpty { null }
             val console = entry["console"] as? Boolean ?: false
             if (console && permission == null) {
-                // a console button without a gate would let any viewer of the dialog run it as console
                 plugin.logger.warning(
                     "modules/moderator-tools.yml: the 'dialog-buttons' entry '$label' runs from the console, " +
                         "so it needs a 'permission'; skipping it."
@@ -690,6 +818,7 @@ class ConfigManager(
         realName = names(section, "real-name", listOf("realname")),
         mail = names(section, "mail", listOf("mail")),
         helpop = names(section, "helpop", listOf("helpop")),
+        report = names(section, "report", listOf("report")),
     )
 
     private fun names(section: ConfigurationSection?, key: String, defaults: List<String>): List<String> {
@@ -728,6 +857,8 @@ class ConfigManager(
             "modules/presence.yml",
             "modules/mail.yml",
             "modules/moderator-tools.yml",
+            "modules/reports.yml",
+            "modules/web.yml",
             "modules/ai-moderation.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",

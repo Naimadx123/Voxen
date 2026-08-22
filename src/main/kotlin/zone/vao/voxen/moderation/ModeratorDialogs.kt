@@ -106,7 +106,6 @@ class ModeratorDialogs(private val plugin: Voxen) {
                 if (text.isEmpty()) service.notesPage(viewer, target)
                 else service.addNote(viewer, target, text) { service.notesPage(viewer, target) }
             }))
-            // ponytail: first 10 notes get a delete button, paging when someone collects more
             for (index in 1..minOf(lines.size, 10)) {
                 add(
                     button(

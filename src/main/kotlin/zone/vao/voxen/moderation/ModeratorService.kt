@@ -32,7 +32,6 @@ class ModeratorService(
     private val threads: Threads,
 ) : Listener {
 
-    // ponytail: one flat ring scanned per delete, 200 entries by default; key by player if it grows
     private val recent = ArrayDeque<Pair<UUID, SignedMessage>>()
 
     var dialogs: ((Player, Target, List<Component>) -> Unit)? = null
@@ -184,7 +183,6 @@ class ModeratorService(
         }
         val active = mutes.mutesFor(target.uuid)
         playerData.async { storage ->
-            // counts only, so inspecting a veteran does not drag every note across the wire
             val warns =
                 if (settings.warningsEnabled) storage.staffNoteCount(target.uuid, StaffNote.Kind.WARN, settings.warningCutoff)
                 else 0
@@ -230,7 +228,6 @@ class ModeratorService(
             messages.send(sender, "delete-disabled")
             return
         }
-        // the [x] button already honours this, so the command has to as well
         if (server.getPlayer(target.uuid)?.hasPermission(DELETE_EXEMPT) == true) {
             messages.send(sender, "delete-exempt", Placeholder.unparsed("player", target.name))
             return
@@ -251,6 +248,29 @@ class ModeratorService(
             Placeholder.unparsed("player", target.name),
             Placeholder.unparsed("amount", picked.size.toString()),
         )
+    }
+
+    fun deleteSigned(sender: CommandSender, target: Target, signed: SignedMessage): Boolean {
+        val settings = config().moderatorTools
+        val messages = config().messages
+        if (!enabled(sender)) return false
+        if (!settings.deleteEnabled) {
+            messages.send(sender, "delete-disabled")
+            return false
+        }
+        if (server.getPlayer(target.uuid)?.hasPermission(DELETE_EXEMPT) == true) {
+            messages.send(sender, "delete-exempt", Placeholder.unparsed("player", target.name))
+            return false
+        }
+        synchronized(recent) { recent.removeAll { it.second == signed } }
+        broadcastDelete(listOf(signed))
+        messages.send(
+            sender,
+            "deleted-messages",
+            Placeholder.unparsed("player", target.name),
+            Placeholder.unparsed("amount", "1"),
+        )
+        return true
     }
 
     fun chatButtons(sender: Player, signed: SignedMessage, viewer: Player): Component? {

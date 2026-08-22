@@ -32,6 +32,11 @@ import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.party.PartyService
 import zone.vao.voxen.presence.PresenceListener
+import zone.vao.voxen.report.ReportDialogs
+import zone.vao.voxen.report.ReportService
+import zone.vao.voxen.report.ReportsWeb
+import zone.vao.voxen.web.WebModule
+import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.PlayerDataService
@@ -44,6 +49,7 @@ import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
 import zone.vao.voxen.util.Vanish
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 @Suppress("UnstableApiUsage")
 class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
@@ -77,6 +83,10 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var mailService: MailService
         private set
     lateinit var moderatorService: ModeratorService
+    lateinit var reportService: ReportService
+        private set
+    lateinit var webServer: WebServer
+        private set
     lateinit var aiModerationService: AiModerationService
         private set
     lateinit var wordFilter: WordFilter
@@ -85,6 +95,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
 
     private var presenceTask: ScheduledTask? = null
+
+    private val panelPages = ConcurrentHashMap.newKeySet<String>()
 
     private val componentCodec = GsonComponentSerializer.gson()
     private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
@@ -225,7 +237,6 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         brokerService.onChatMessage = { message ->
             val channel = message.channel?.let { channelService.channel(it) }
             val component = when {
-                // external-format is a receiver-side format, so the raw text is re-rendered here
                 channel?.externalFormat != null && message.sender != null && message.content != null ->
                     formatService.renderExternal(channel, message.sender, message.server.orEmpty(), message.content)
 
@@ -269,9 +280,33 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         moderatorService.notesDialog = { viewer, target, lines -> dialogs.notes(viewer, target, lines) }
         server.pluginManager.registerEvents(moderatorService, this)
         purgeWarnings()
+        reportService = ReportService(server, { configManager.config }, playerDataService, moderatorService, threads)
+        val reportDialogs = ReportDialogs(this)
+        reportService.submitDialog = { viewer, target, reference -> reportDialogs.submit(viewer, target, reference) }
+        reportService.queueDialog = { viewer, entries -> reportDialogs.queue(viewer, entries) }
+        reportService.viewDialog = { viewer, case -> reportDialogs.view(viewer, case) }
+        reportService.historyDialog = { viewer, case -> reportDialogs.history(viewer, case) }
+        reportService.muteAction = { sender, name, duration, reason ->
+            VoxenCommand.mute(this, sender, name, duration, "all", reason)
+        }
+        chatService.onMessage = { out -> reportService.remember(out.id, out.player, out.channel.id, out.content) }
+        chatService.messageButton = { out, viewer -> reportService.chatButton(out.player, out.id, viewer) }
+        purgeReports()
+
+        webServer = WebServer(logger) { configManager.config.web }
+        webServer.register(ReportsWeb.module(this))
+        webServer.register(ReportsWeb.auditModule(this))
+        webServer.start()
+
         aiModerationService = AiModerationService(server, { configManager.config }, moderatorService, threads, logger)
         server.pluginManager.registerEvents(
-            ChatListener(chatService, { configManager.config.chatDelivery }, moderatorService, aiModerationService),
+            ChatListener(
+                chatService,
+                { configManager.config.chatDelivery },
+                moderatorService,
+                aiModerationService,
+                reportService,
+            ),
             this,
         )
 
@@ -291,6 +326,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
 
     override fun onDisable() {
         presenceTask?.cancel()
+        if (::webServer.isInitialized) webServer.stop()
         if (::brokerService.isInitialized) brokerService.shutdown()
         if (::playerDataService.isInitialized) playerDataService.shutdown()
         if (::aiModerationService.isInitialized) aiModerationService.shutdown()
@@ -303,6 +339,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         muteService.load()
         partyService.load()
         brokerService.start()
+        webServer.start()
         presenceService.clear()
         startPresenceHeartbeat()
         refreshClientCommands()
@@ -381,6 +418,27 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         channelService.unregisterRecipients(channelId)
     }
 
+    override fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean {
+        val lower = id.lowercase()
+        if (!lower.matches(Regex("[a-z0-9_-]+")) || permission.isBlank()) return false
+        val added = webServer.register(
+            WebModule(
+                id = lower,
+                title = { title },
+                permission = permission,
+                render = { request -> page.render(request) },
+                submit = { request -> page.submit(request) },
+            )
+        )
+        if (added) panelPages.add(lower)
+        return added
+    }
+
+    override fun unregisterPanelPage(id: String): Boolean {
+        val lower = id.lowercase()
+        return panelPages.remove(lower) && webServer.unregister(lower)
+    }
+
     private fun info(channel: Channel): ChannelInfo = ChannelInfo(
         id = channel.id,
         displayName = channel.displayName,
@@ -396,7 +454,6 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         val config = configManager.config.storage
         return runCatching { StorageFactory.create(this, config) }.getOrElse { first ->
             if (config.type != StorageType.SQLITE && !config.sqliteFallback) {
-                // silently writing to a local file would split data across servers, so refuse to start
                 throw IllegalStateException(
                     "Failed to initialise ${config.type.name.lowercase()} storage: ${first.message}. " +
                         "Fix the connection or set sqlite-fallback: true in storage.yml.",
@@ -447,6 +504,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         if (!mail.enabled || mail.expireDays <= 0) return
         val cutoff = System.currentTimeMillis() - mail.expireDays * 86_400_000L
         playerDataService.async { it.purgeMail(cutoff) }
+    }
+
+    private fun purgeReports() {
+        val reports = configManager.config.reports
+        if (!reports.enabled || reports.expireDays <= 0) return
+        val cutoff = System.currentTimeMillis() - reports.expireDays * 86_400_000L
+        playerDataService.async { it.purgeReports(cutoff) }
     }
 
     private fun purgeWarnings() {
@@ -505,6 +569,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             register(commands.language, "Choose your Voxen language") { ToggleCommands.buildLanguage(this, it) }
             register(commands.filter, "Toggle the chat filter for yourself") { ToggleCommands.buildFilterToggle(this, it) }
             register(commands.helpop, "Ask staff for help") { HelpopCommand.build(this, it) }
+            if (configManager.config.reports.enabled) {
+                register(commands.report, "Report a player to the staff") { ReportCommand.build(this, it) }
+            }
             if (configManager.config.nicknames.enabled) {
                 register(commands.nickname, "Manage nicknames") { NickCommand.build(this, it) }
                 register(commands.realName, "Look up who is using a nickname") { NickCommand.buildRealName(this, it) }

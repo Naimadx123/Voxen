@@ -73,7 +73,7 @@ object Envelope {
             size += when {
                 char.code < 0x80 -> 1
                 char.code < 0x800 -> 2
-                char.isSurrogate() -> 2 // a surrogate pair is four bytes, so two per char
+                char.isSurrogate() -> 2
                 else -> 3
             }
         }

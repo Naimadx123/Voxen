@@ -19,6 +19,7 @@ Names below are the defaults. Every player command can be renamed and aliased un
 | `/ignorelist` | list ignored players | `voxen.ignore` |
 | `/party create\|invite\|accept\|deny\|leave\|kick\|transfer\|disband\|chat\|list` | party system | `voxen.party` |
 | `/mail send\|read\|list\|delete\|clear` | offline mail | `voxen.mail` |
+| `/report <player> [reason]` | report a player to the staff | `voxen.report` |
 | `/chattoggle` | hide or show the chat | everyone |
 | `/lang <language\|auto>` | choose the message language | everyone |
 | `/nick <nickname\|reset>` | manage your nickname | `voxen.nick` |
@@ -57,6 +58,9 @@ switching channel.
 | `/voxen unwarn <player> <number>` | drop one warning | `voxen.mod.warn` |
 | `/voxen notes <player> [add <text>\|del <number>]` | staff notes on a player | `voxen.mod.notes` |
 | `/voxen delete <player> [amount]` | delete recent messages | `voxen.mod.delete` |
+| `/voxen reports [page]` | the open report queue | `voxen.report.manage` |
+| `/voxen report <number>` | one case with its message, context and audit trail | `voxen.report.manage` |
+| `/voxen reports <number> claim\|resolve\|dismiss\|delete` | handle one report | `voxen.report.manage` |
 | `/voxen spy` | toggle social spy | `voxen.socialspy` |
 | `/voxen mentions` / `/voxen pm` | personal toggles | everyone |
 
@@ -76,6 +80,7 @@ Default: **everyone**.
 | `voxen.chat.mention` | mentioning players with `@name` |
 | `voxen.chat.tag.item` | sharing held and worn items in chat |
 | `voxen.chat.emote` | every emote shortcode (`voxen.chat.emote.<name>` for one) |
+| `voxen.report` | reporting players with `/report` and the `[!]` button |
 
 ## Staff permissions
 
@@ -95,9 +100,11 @@ Default: **OP**.
 | `voxen.mod.inspect` | inspecting players |
 | `voxen.mod.warn` | warning players and managing warnings |
 | `voxen.mod.notes` | reading and writing staff notes |
-| `voxen.mod.alerts` | receiving staff alerts |
+| `voxen.mod.alerts` | receiving staff alerts, warnings and new reports |
 | `voxen.mod.delete` | deleting recent chat messages |
 | `voxen.mod.delete.exempt` | protects a player's messages from deletion |
+| `voxen.report.manage` | working through the report queue |
+| `voxen.report.exempt` | cannot be reported |
 | `voxen.mute.exempt` | cannot be muted |
 | `voxen.socialspy` | `/voxen spy`, viewing private messages |
 | `voxen.filter.toggle` | `/filter`, chat without the word filter |

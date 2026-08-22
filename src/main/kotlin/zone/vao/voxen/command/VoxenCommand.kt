@@ -15,6 +15,7 @@ import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
 import zone.vao.voxen.moderation.ModeratorService
 import zone.vao.voxen.moderation.MuteEntry
+import zone.vao.voxen.report.ReportService
 import zone.vao.voxen.util.Durations
 import java.time.Instant
 import java.time.ZoneId
@@ -294,6 +295,17 @@ object VoxenCommand {
                         Command.SINGLE_SUCCESS
                     }
             )
+            .then(reportsNode(plugin))
+            .then(
+                permLiteral("report", ReportService.MANAGE)
+                    .then(
+                        Commands.argument("index", IntegerArgumentType.integer(1))
+                            .executes { ctx ->
+                                plugin.reportService.show(ctx.source.sender, IntegerArgumentType.getInteger(ctx, "index"))
+                                Command.SINGLE_SUCCESS
+                            }
+                    )
+            )
             .then(
                 permLiteral("spy", "voxen.socialspy")
                     .executes { ctx ->
@@ -309,6 +321,32 @@ object VoxenCommand {
                     }
             )
             .build()
+
+    private fun reportsNode(plugin: Voxen): LiteralArgumentBuilder<CommandSourceStack> {
+        val index = Commands.argument("index", IntegerArgumentType.integer(1))
+            .executes { ctx -> reports(plugin, ctx.source.sender, IntegerArgumentType.getInteger(ctx, "index"), false) }
+        for (action in ReportService.Action.entries) {
+            index.then(
+                Commands.literal(action.id).executes { ctx ->
+                    plugin.reportService.act(ctx.source.sender, IntegerArgumentType.getInteger(ctx, "index"), action)
+                    Command.SINGLE_SUCCESS
+                }
+            )
+        }
+        return permLiteral("reports", ReportService.MANAGE)
+            .executes { ctx -> reports(plugin, ctx.source.sender, 1, true) }
+            .then(index)
+    }
+
+    private fun reports(plugin: Voxen, sender: CommandSender, page: Int, dialog: Boolean): Int {
+        val viewer = sender as? Player
+        if (dialog && viewer != null && plugin.configManager.config.reports.dialogs) {
+            plugin.reportService.openQueue(viewer)
+        } else {
+            plugin.reportService.queue(sender, page)
+        }
+        return Command.SINGLE_SUCCESS
+    }
 
     private fun sendHelp(plugin: Voxen, sender: CommandSender): Int {
         plugin.messages().send(sender, "help")
@@ -334,6 +372,7 @@ object VoxenCommand {
             "placeholderapi" to (plugin.hookManager.papi != null).toString(),
             "discordsrv" to plugin.hookManager.discord.discordSrv().toString(),
             "essentials-discord" to plugin.hookManager.discord.essentials().toString(),
+            "web-panel" to if (plugin.webServer.running()) plugin.webServer.address() else "off",
             "channels" to config.channels.count { it.value.enabled }.toString(),
             "active-mutes" to plugin.muteService.activeMutes().size.toString(),
             "chat-muted" to plugin.muteService.globalChatMuted.toString(),

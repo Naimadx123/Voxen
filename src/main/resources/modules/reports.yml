@@ -1,0 +1,91 @@
+# Player reports. Players run /report <player> [reason] and the staff work through the queue
+# with /voxen reports, the in-game dialog or the web panel from modules/web.yml.
+enabled: true
+
+# Which interfaces the staff get. Both can be on at once, and turning both off leaves the
+# plain chat list of /voxen reports.
+interfaces:
+  # Minecraft dialog screens for picking a reason and for handling the queue. Needs a 1.21.6+
+  # client; older clients fall back to chat and to /voxen reports <index> <action>.
+  dialog: true
+  # The 'Reports' and 'Audit log' pages in the web panel. They only show up when
+  # modules/web.yml is enabled too.
+  web: true
+
+# A clickable [!] in front of every chat message that files a report about exactly that
+# message, so nobody has to retype a name.
+chat-button:
+  enabled: true
+  # true shows it only to staff with voxen.report.manage, false to everyone with voxen.report.
+  staff-only: false
+  # How many recent messages stay reportable. Older ones can still be reported by name, just
+  # without the message attached.
+  keep: 200
+
+# How many messages from the same channel are kept with a report as context, before and after
+# the reported one. 0 turns it off. Needs the chat log from modules/moderation.yml.
+context: 3
+
+# Durations offered by the mute buttons on the report screen.
+mute-durations: ["10m", "1h", "1d"]
+
+# How many audit entries a report screen and the audit page load at once.
+audit-limit: 100
+
+# Ready-made reasons. A player can pass the 'id' to /report and gets the 'label' stored with
+# the report; the dialog turns every entry into a button. 'permission' hides one reason from
+# players without it. Leave the list empty to only allow free text.
+reasons:
+  - id: cheating
+    label: "Cheating"
+  - id: chat
+    label: "Chat behaviour"
+  - id: griefing
+    label: "Griefing"
+  - id: advertising
+    label: "Advertising"
+
+# Whether a player may write their own reason instead of picking one from 'reasons'.
+free-text: true
+# Length limits for a written reason. Longer text is cut, shorter is refused.
+min-length: 3
+max-length: 200
+
+# Minimum wait between two reports from the same player. Empty or 0s disables it.
+# voxen.bypass.cooldown skips it.
+cooldown: 60s
+
+# Whether a player may report themselves.
+allow-self: false
+# Whether players who are offline right now can be reported.
+allow-offline: true
+# Whether the same chat message may be reported twice, and whether the same player may file
+# a second report on someone while the first one is still open or claimed.
+allow-duplicates: false
+
+# Tell everyone with voxen.mod.alerts about a new report.
+notify-staff: true
+# Tell the reporter when their report is resolved or dismissed.
+notify-reporter: true
+
+# How many reports the queue loads at once, for the chat list, the dialog and the web page.
+queue-limit: 100
+# Delete handled reports older than this many days. 0 keeps them forever, open reports are
+# never deleted. Runs on startup.
+expire-days: 30
+
+# Extra buttons on the report dialog and in the web panel. Every entry needs a 'label'
+# (MiniMessage) and a 'command'; 'permission' hides the button from staff without it and
+# 'console: true' runs the command from the console instead of as the clicking moderator.
+# 'resolve: true' also marks the report resolved. Web buttons always run from the console and
+# need the 'reports.manage' web permission. Every use is written to the report's audit trail.
+# Placeholders: <player>, <uuid>, <reporter>, <reason>, <message>, <moderator>.
+actions: []
+#  - label: "<red>Ban"
+#    command: "ban <player> <reason>"
+#    permission: "voxen.mod.ban"
+#    console: true
+#    resolve: true
+#  - label: "Teleport"
+#    command: "tp <player>"
+#    permission: "voxen.mod.inspect"

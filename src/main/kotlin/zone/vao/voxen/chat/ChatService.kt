@@ -45,6 +45,12 @@ class ChatService(
     @Volatile
     var remotePublisher: ((Channel, Player, Component, String) -> Unit)? = null
 
+    @Volatile
+    var messageButton: ((Outgoing, Player) -> Component?)? = null
+
+    @Volatile
+    var onMessage: ((Outgoing) -> Unit)? = null
+
     private val plain = PlainTextComponentSerializer.plainText()
     private val lastItemShare = ConcurrentHashMap<UUID, Long>()
 
@@ -60,6 +66,7 @@ class ChatService(
         val mentionedNames: Set<String>,
         val mentionsAllowed: Boolean,
         val networkFormatted: Component?,
+        val id: UUID = UUID.randomUUID(),
     )
 
     fun chat(player: Player, raw: String): Boolean {
@@ -93,9 +100,7 @@ class ChatService(
     }
 
     fun prepare(player: Player, channel: Channel, rawContent: String): Outgoing? {
-        // reading the sender (world, permissions, placeholders) only happens on the sender's own thread
         val snapshot = threads.awaitPlayer(player) { validate(player, channel, rawContent) } ?: return null
-        // word filtering is plain text work, so it stays off the region thread
         val filtered = filter(player, snapshot) ?: return null
         return threads.awaitPlayer(player) { build(player, channel, filtered.content, filtered.uncensored) }
     }
@@ -257,7 +262,7 @@ class ChatService(
 
         val console = formats.render(channel.consoleFormat ?: format, player, channel, message)
 
-        return Outgoing(
+        val out = Outgoing(
             player,
             channel,
             content,
@@ -270,12 +275,15 @@ class ChatService(
             mentionsAllowed,
             networkFormatted,
         )
+        onMessage?.invoke(out)
+        return out
     }
 
     fun viewFor(out: Outgoing, recipient: Player): Component {
         var delivered = if (out.unfiltered != null && seesUnfiltered(recipient)) out.unfiltered else out.formatted
         if (isMentioned(out, recipient)) delivered = mentions.highlight(delivered, recipient)
-        return delivered
+        val button = messageButton?.invoke(out, recipient) ?: return delivered
+        return Component.empty().append(button).append(delivered)
     }
 
     fun consoleView(out: Outgoing): Component = out.console
@@ -313,6 +321,7 @@ class ChatService(
                 content = out.content,
                 server = config().network.serverId,
                 createdAt = System.currentTimeMillis(),
+                id = out.id,
             )
             playerData.logChat(entry)
         }

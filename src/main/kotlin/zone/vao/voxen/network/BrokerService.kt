@@ -38,15 +38,12 @@ class BrokerService(
         logger,
         "The broker is unreachable or too slow, so cross-server messages are being dropped.",
     )
-    // message id -> when it may be forgotten, in insertion (and therefore expiry) order
     private val seen = LinkedHashMap<String, Long>(256)
 
-    /** True only with a live transport: a half-connected broker must not be told "go ahead, send it". */
     fun active(): Boolean = broker?.connected() == true
 
     fun transportName(): String = network().transport.name.lowercase()
 
-    /** Queue depth, messages dropped so far and when the last verified message arrived (0 = none). */
     fun stats(): Triple<Int, Long, Long> = Triple(io.pending(), io.dropped(), lastMessageAt)
 
     fun start() {
@@ -97,7 +94,6 @@ class BrokerService(
             val sent = runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret), message.route) }
                 .onFailure { logger.warning("Failed to publish a cross-server message: ${it.message}") }
                 .getOrDefault(false)
-            // a disconnected transport used to swallow the payload without a word
             if (!sent) io.noteDrop()
         }
     }
@@ -135,7 +131,6 @@ class BrokerService(
         onChatMessage?.invoke(message)
     }
 
-    /** Remembers an id for the whole replay window. Returns false when it was already known. */
     private fun markSeen(id: String): Boolean {
         val now = System.currentTimeMillis()
         val expiresAt = now + ((network().maxAgeSeconds * 1000L).takeIf { it > 0 } ?: DEFAULT_REPLAY_MILLIS)
@@ -145,7 +140,6 @@ class BrokerService(
                 if (entries.next().value > now) break
                 entries.remove()
             }
-            // ponytail: hard cap in case the window is huge; raise it if a busy network needs more
             while (seen.size >= MAX_SEEN) {
                 val oldest = seen.entries.iterator()
                 oldest.next()

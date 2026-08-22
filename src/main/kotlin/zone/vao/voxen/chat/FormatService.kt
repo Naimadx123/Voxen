@@ -24,8 +24,6 @@ class FormatService(
     private val legacy = LegacyComponentSerializer.legacyAmpersand()
     private val customPlaceholders = ConcurrentHashMap<String, FormatPlaceholder>()
 
-    // prefix/suffix/group came from LuckPerms three to five times per message; one snapshot covers the message
-    // ponytail: TTL instead of quit hooks, so a rank change shows up a second late at worst
     private val metaCache = ConcurrentHashMap<UUID, Meta>()
 
     private class Meta(val prefix: String, val suffix: String, val group: String, val at: Long)
@@ -79,10 +77,6 @@ class FormatService(
     fun renderConsole(channel: Channel, player: Player, message: Component): Component =
         render(channel.consoleFormat ?: formatFor(channel, player), player, channel, message)
 
-    /**
-     * Renders a message that arrived from another server. The sender is not online here, so only the
-     * placeholders the network carries are available and [message] is inserted as plain text.
-     */
     fun renderExternal(channel: Channel, senderName: String, senderServer: String, message: String): Component {
         val format = channel.externalFormat ?: return Component.text(message)
         val trimmed = Components.stripEmptyPlaceholders(format) { token ->
