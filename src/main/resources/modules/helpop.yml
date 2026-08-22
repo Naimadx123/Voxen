@@ -1,0 +1,40 @@
+# How players reach the staff with /helpop.
+enabled: true
+
+# Two ways of working:
+#   broadcast - the old one. The message goes to everyone holding voxen.helpop.receive and
+#               that is the end of it; nothing is stored and there is no answer to write.
+#   tickets   - the message opens a ticket. Staff answer it from the web panel or in game,
+#               the player reads the whole conversation and writes back, and the ticket is
+#               closed when the matter is settled.
+mode: "broadcast"
+
+# How often one player may use /helpop. 'voxen.bypass.cooldown' skips it.
+cooldown: 30s
+# Longest description accepted, in characters.
+max-length: 256
+
+# Everything below this line only matters in 'tickets' mode.
+
+# How many tickets one player may have open at once. Keeps a single upset player from
+# filling the queue. 0 means no limit.
+max-open: 3
+# How many tickets the staff queue loads at once.
+queue-limit: 50
+# How many messages of one conversation are shown.
+history-limit: 50
+# Closed tickets older than this are deleted on startup. 0 keeps them forever; open ones
+# are never deleted by age.
+keep-days: 30
+
+# Where tickets can be handled and read.
+interfaces:
+  # The screen a player gets from /tickets: their conversations, and a field to write back
+  # while the ticket is still open. Needs a 1.21.6+ client; without it they get a chat list.
+  dialog: true
+  # The Tickets page in the web panel, where staff answer. See modules/web.yml.
+  web: true
+
+# Tell everyone holding voxen.helpop.receive that a ticket was opened or that a player
+# wrote back.
+notify-staff: true

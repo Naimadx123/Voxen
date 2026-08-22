@@ -46,6 +46,7 @@ class ConfigManager(
         val web = YamlConfiguration.loadConfiguration(file("modules/web.yml"))
         val aiModeration = YamlConfiguration.loadConfiguration(file("modules/ai-moderation.yml"))
         val systemMessages = YamlConfiguration.loadConfiguration(file("modules/system-messages.yml"))
+        val helpop = YamlConfiguration.loadConfiguration(file("modules/helpop.yml"))
 
         config = VoxenConfig(
             serverName = main.getString("server-name")?.trim()?.ifEmpty { null } ?: "server",
@@ -64,6 +65,7 @@ class ConfigManager(
             network = parseNetwork(integrations.getConfigurationSection("network")),
             presence = parsePresence(presence),
             systemMessages = parseSystemMessages(systemMessages),
+            helpop = parseHelpop(helpop),
             mail = parseMail(mail),
             moderatorTools = parseModeratorTools(moderatorTools),
             reports = parseReports(reports),
@@ -541,6 +543,35 @@ class ConfigManager(
         )
     }
 
+    private fun parseHelpop(yaml: YamlConfiguration): HelpopConfig {
+        val cooldown = yaml.getString("cooldown")?.trim().orEmpty().let { raw ->
+            if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
+                plugin.logger.warning("modules/helpop.yml: invalid 'cooldown' value '$raw'; using 30s.")
+                30_000L
+            }
+        }
+        val raw = yaml.getString("mode")?.trim().orEmpty()
+        val mode = HelpopConfig.Mode.from(raw)
+        if (raw.isNotEmpty() && !raw.equals(mode.id, ignoreCase = true)) {
+            plugin.logger.warning(
+                "modules/helpop.yml: unknown 'mode' value '$raw'; using ${HelpopConfig.Mode.BROADCAST.id}.",
+            )
+        }
+        return HelpopConfig(
+            enabled = yaml.getBoolean("enabled", true),
+            mode = mode,
+            cooldownMillis = cooldown,
+            maxLength = yaml.getInt("max-length", 256).coerceIn(16, 1024),
+            maxOpen = yaml.getInt("max-open", 3).coerceAtLeast(0),
+            queueLimit = yaml.getInt("queue-limit", 50).coerceIn(1, 500),
+            historyLimit = yaml.getInt("history-limit", 50).coerceIn(1, 500),
+            keepDays = yaml.getInt("keep-days", 30).coerceAtLeast(0),
+            dialogs = yaml.getBoolean("interfaces.dialog", true),
+            web = yaml.getBoolean("interfaces.web", true),
+            notifyStaff = yaml.getBoolean("notify-staff", true),
+        )
+    }
+
     private fun parseMail(yaml: YamlConfiguration): MailConfig {
         val cooldown = yaml.getString("cooldown")?.trim().orEmpty().let { raw ->
             if (raw.isEmpty()) 0L else Durations.parseMillis(raw) ?: run {
@@ -893,6 +924,7 @@ class ConfigManager(
             "modules/web.yml",
             "modules/ai-moderation.yml",
             "modules/system-messages.yml",
+            "modules/helpop.yml",
             "messages/en_US.yml",
             "messages/pl_PL.yml",
         )

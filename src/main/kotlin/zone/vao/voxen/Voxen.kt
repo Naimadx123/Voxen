@@ -38,6 +38,9 @@ import zone.vao.voxen.report.ReportService
 import zone.vao.voxen.report.ReportsWeb
 import zone.vao.voxen.system.SystemMessageListener
 import zone.vao.voxen.system.SystemMessageService
+import zone.vao.voxen.ticket.TicketDialogs
+import zone.vao.voxen.ticket.TicketService
+import zone.vao.voxen.ticket.TicketsWeb
 import zone.vao.voxen.web.WebModule
 import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
@@ -92,6 +95,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var reportService: ReportService
         private set
     lateinit var systemMessageService: SystemMessageService
+        private set
+    lateinit var ticketService: TicketService
         private set
     lateinit var webServer: WebServer
         private set
@@ -322,9 +327,16 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         chatService.messageButton = { out, viewer -> reportService.chatButton(out.player, out.id, viewer) }
         purgeReports()
 
+        ticketService = TicketService(server, { configManager.config }, playerDataService, threads)
+        val ticketDialogs = TicketDialogs(this)
+        ticketService.panelDialog = { viewer, entries -> ticketDialogs.panel(viewer, entries) }
+        ticketService.viewDialog = { viewer, case -> ticketDialogs.view(viewer, case) }
+        ticketService.purge()
+
         webServer = WebServer(logger) { configManager.config.web }
         webServer.register(ReportsWeb.module(this))
         webServer.register(ReportsWeb.auditModule(this))
+        webServer.register(TicketsWeb.module(this))
         webServer.start()
 
         aiModerationService = AiModerationService(server, { configManager.config }, moderatorService, threads, logger)

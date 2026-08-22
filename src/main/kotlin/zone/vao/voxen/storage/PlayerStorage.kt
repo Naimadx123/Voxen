@@ -51,6 +51,20 @@ interface PlayerStorage {
     fun saveReportAction(entry: ReportAction)
 
     fun reportActions(report: UUID?, limit: Int): List<ReportAction>
+    fun saveTicket(entry: TicketEntry)
+
+    fun ticket(id: UUID): TicketEntry?
+    fun tickets(statuses: Collection<TicketEntry.Status>, limit: Int): List<TicketEntry>
+
+    fun ticketsOf(player: UUID, statuses: Collection<TicketEntry.Status>, limit: Int): List<TicketEntry>
+    fun ticketCount(player: UUID, statuses: Collection<TicketEntry.Status>): Int
+    fun updateTicket(id: UUID, status: TicketEntry.Status, handler: String?, updatedAt: Long): Boolean
+
+    fun deleteTicket(id: UUID): Boolean
+    fun saveTicketMessage(message: TicketMessage)
+
+    fun ticketMessages(ticket: UUID, limit: Int): List<TicketMessage>
+    fun purgeTickets(before: Long)
     fun saveStaffNote(entry: StaffNote)
     fun staffNotes(target: UUID, kind: StaffNote.Kind, since: Long): List<StaffNote>
 

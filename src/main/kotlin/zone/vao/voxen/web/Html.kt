@@ -86,12 +86,16 @@ object Html {
         .tag.claimed { border-color: var(--accent); color: var(--accent); }
         .tag.resolved { border-color: #3fb950; color: #3fb950; }
         .tag.dismissed { border-color: #f85149; color: #f85149; }
+        .tag.answered { border-color: #3fb950; color: #3fb950; }
+        .tag.closed { border-color: var(--line); color: var(--muted); }
         .quote { margin: 0; padding: 18px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
         tr.marked td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
         .muted { color: var(--muted); font-size: 13px; }
         form.actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
         button { font: inherit; font-size: 13px; padding: 7px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); cursor: pointer; transition: border-color .15s ease, color .15s ease; }
         button:hover { border-color: var(--accent); color: var(--accent); }
+        input.reply { flex: 1 1 280px; min-width: 180px; font: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+        input.reply:focus { outline: none; border-color: var(--accent); }
         .empty { padding: 40px; text-align: center; color: var(--muted); }
         .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
         .cards a { display: block; padding: 22px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); color: var(--text); text-decoration: none; font-weight: 600; transition: border-color .15s ease, transform .15s ease; }

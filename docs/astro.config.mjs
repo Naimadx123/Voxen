@@ -59,6 +59,7 @@ export default defineConfig({
 						{ label: 'Other modules', slug: 'configuration/modules' },
 						{ label: 'Player reports', slug: 'configuration/reports' },
 						{ label: 'System messages', slug: 'configuration/system-messages' },
+						{ label: 'Help requests', slug: 'configuration/helpop' },
 						{ label: 'Web panel', slug: 'configuration/web' },
 						{ label: 'Messages & languages', slug: 'configuration/messages' },
 						{ label: 'Storage', slug: 'configuration/storage' },

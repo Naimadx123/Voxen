@@ -7,7 +7,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 Voxen ships a small web panel for the staff. It is off by default, binds to localhost and
 serves the pages other modules register, today the
-[report queue](/configuration/reports/#the-web-page) and the audit log of every moderator
+[report queue](/configuration/reports/#the-web-page), the
+[ticket queue](/configuration/helpop/#the-staff-side) and the audit log of every moderator
 action. Other plugins can add their own pages through
 [the API](/api/overview/#add-a-page-to-the-web-panel); they use the same accounts and the
 same permission list.
@@ -63,6 +64,8 @@ users:
 | `reports.manage` | claiming, resolving, dismissing and deleting reports, and the custom buttons |
 | `reports.audit` | the audit log of every moderator action |
 | `reports.*` | everything the report pages offer |
+| `tickets.view` | seeing the ticket queue and reading a conversation |
+| `tickets.manage` | answering a player and closing a ticket |
 | `*` | every page, including ones added by later versions |
 
 The audit node is separate on purpose: a trainee can be given `reports.view` and

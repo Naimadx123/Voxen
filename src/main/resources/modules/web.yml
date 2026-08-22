@@ -83,6 +83,45 @@ labels:
     context: "Context"
     history: "Audit trail"
     back: "Back to the queue"
+  tickets:
+    title: "Tickets"
+    heading: "Player tickets"
+    empty: "Nothing waiting here."
+    missing: "That ticket is gone."
+    case: "Ticket from"
+    back: "Back to the queue"
+    conversation: "Conversation"
+    filter:
+      queue: "Waiting"
+      open: "Open"
+      answered: "Answered"
+      closed: "Closed"
+      all: "All"
+    column:
+      updated: "Updated"
+      player: "Player"
+      subject: "Subject"
+      status: "Status"
+      moderator: "Handled by"
+      open: "Open"
+    status:
+      open: "Open"
+      answered: "Answered"
+      closed: "Closed"
+    field:
+      player: "Player"
+      subject: "Subject"
+      status: "Status"
+      server: "Server"
+      moderator: "Handled by"
+      opened: "Opened"
+    action:
+      open: "Open"
+      close: "Close ticket"
+    reply:
+      heading: "Reply"
+      placeholder: "Write back to the player"
+      send: "Send"
   audit:
     title: "Audit log"
     heading: "Moderator actions"

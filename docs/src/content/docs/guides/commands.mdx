@@ -20,6 +20,8 @@ Names below are the defaults. Every player command can be renamed and aliased un
 | `/party create\|invite\|accept\|deny\|leave\|kick\|transfer\|disband\|chat\|list` | party system | `voxen.party` |
 | `/mail send\|read\|list\|delete\|clear` | offline mail | `voxen.mail` |
 | `/report <player> [reason]` | report a player to the staff | `voxen.report` |
+| `/helpop <text>` | ask the staff for help, or open a ticket | `voxen.helpop` |
+| `/helpop` | your own tickets and their answers | `voxen.helpop` |
 | `/chattoggle` | hide or show the chat | everyone |
 | `/lang <language\|auto>` | choose the message language | everyone |
 | `/nick <nickname\|reset>` | manage your nickname | `voxen.nick` |
@@ -61,6 +63,8 @@ switching channel.
 | `/voxen reports [page]` | the open report queue | `voxen.report.manage` |
 | `/voxen report <number>` | one case with its message, context and audit trail | `voxen.report.manage` |
 | `/voxen reports <number> claim\|resolve\|dismiss\|delete` | handle one report | `voxen.report.manage` |
+| `/voxen tickets [page]` | the open ticket queue | `voxen.helpop.manage` |
+| `/voxen tickets open <number> [reply <message>\|close]` | read, answer or close a ticket | `voxen.helpop.manage` |
 | `/voxen spy` | toggle social spy | `voxen.socialspy` |
 | `/voxen mentions` / `/voxen pm` | personal toggles | everyone |
 

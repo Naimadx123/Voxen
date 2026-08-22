@@ -16,6 +16,7 @@ import zone.vao.voxen.Voxen
 import zone.vao.voxen.moderation.ModeratorService
 import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.report.ReportService
+import zone.vao.voxen.ticket.TicketService
 import zone.vao.voxen.util.Durations
 import java.time.Instant
 import java.time.ZoneId
@@ -296,6 +297,7 @@ object VoxenCommand {
                     }
             )
             .then(reportsNode(plugin))
+            .then(ticketsNode(plugin))
             .then(
                 permLiteral("report", ReportService.MANAGE)
                     .then(
@@ -321,6 +323,53 @@ object VoxenCommand {
                     }
             )
             .build()
+
+    private fun ticketsNode(plugin: Voxen): LiteralArgumentBuilder<CommandSourceStack> {
+        val index = Commands.argument("index", IntegerArgumentType.integer(1))
+            .executes { ctx ->
+                val sender = ctx.source.sender
+                plugin.ticketService.pending(sender, IntegerArgumentType.getInteger(ctx, "index")) { entry ->
+                    plugin.ticketService.show(sender, entry.id)
+                }
+                Command.SINGLE_SUCCESS
+            }
+            .then(
+                Commands.literal("close").executes { ctx ->
+                    val sender = ctx.source.sender
+                    plugin.ticketService.pending(sender, IntegerArgumentType.getInteger(ctx, "index")) { entry ->
+                        val closed = plugin.ticketService.close(sender.name, entry.id)
+                        plugin.messages().send(sender, if (closed) "ticket-closed" else "ticket-not-found")
+                    }
+                    Command.SINGLE_SUCCESS
+                }
+            )
+            .then(
+                Commands.literal("reply").then(
+                    Commands.argument("message", StringArgumentType.greedyString()).executes { ctx ->
+                        val sender = ctx.source.sender
+                        val text = StringArgumentType.getString(ctx, "message")
+                        plugin.ticketService.pending(sender, IntegerArgumentType.getInteger(ctx, "index")) { entry ->
+                            val sent = plugin.ticketService.answer(sender.name, entry.id, text)
+                            plugin.messages().send(sender, if (sent) "ticket-answered" else "ticket-not-found")
+                        }
+                        Command.SINGLE_SUCCESS
+                    }
+                )
+            )
+        return permLiteral("tickets", TicketService.MANAGE)
+            .executes { ctx ->
+                plugin.ticketService.queue(ctx.source.sender, 1)
+                Command.SINGLE_SUCCESS
+            }
+            .then(
+                Commands.argument("page", IntegerArgumentType.integer(1))
+                    .executes { ctx ->
+                        plugin.ticketService.queue(ctx.source.sender, IntegerArgumentType.getInteger(ctx, "page"))
+                        Command.SINGLE_SUCCESS
+                    }
+            )
+            .then(Commands.literal("open").then(index))
+    }
 
     private fun reportsNode(plugin: Voxen): LiteralArgumentBuilder<CommandSourceStack> {
         val index = Commands.argument("index", IntegerArgumentType.integer(1))

@@ -19,6 +19,7 @@ data class VoxenConfig(
     val network: NetworkConfig,
     val presence: PresenceConfig,
     val systemMessages: SystemMessagesConfig,
+    val helpop: HelpopConfig,
     val mail: MailConfig,
     val moderatorTools: ModeratorToolsConfig,
     val reports: ReportsConfig,
