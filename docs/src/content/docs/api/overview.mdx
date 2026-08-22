@@ -101,6 +101,17 @@ if (VoxenApi.isAvailable()) {
 }
 ```
 
+## Threads
+
+Methods that take a `Player` read that player's permissions and state, so Voxen runs them on
+the thread that owns them: the main thread on Paper, that player's own region on Folia.
+Calling one from anywhere else still works, but the call waits for the hop, so keep those out
+of tight loops and off the network thread.
+
+Everything else — mutes, reports, network lookups, panel pages, the text filter — is safe
+from any thread. The report methods are the only ones that reach the database, and they hand
+back a `CompletableFuture` rather than blocking.
+
 ## What you can do
 
 ### Read channels

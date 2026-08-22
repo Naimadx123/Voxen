@@ -8,6 +8,7 @@ import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
+import zone.vao.voxen.config.EmotesConfig
 import zone.vao.voxen.config.TagsConfig
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.event.ChatMessageDeliveredEvent
@@ -105,7 +106,12 @@ class ChatService(
         return threads.awaitPlayer(player) { build(player, channel, filtered.content, filtered.uncensored) }
     }
 
-    private class Snapshot(val content: String, val bypassLinks: Boolean, val bypassFilter: Boolean)
+    private class Snapshot(
+        val content: String,
+        val bypassLinks: Boolean,
+        val bypassFilter: Boolean,
+        val emotePermissions: Map<String, Boolean>,
+    )
 
     private class Filtered(val content: String, val uncensored: String?)
 
@@ -183,7 +189,24 @@ class ChatService(
         }
 
         val content = if (hooks.papi != null) applyPapi(player, rawContent) else rawContent
-        return Snapshot(content, player.hasPermission(BYPASS_LINKS), player.hasPermission(BYPASS_FILTER))
+        return Snapshot(
+            content,
+            player.hasPermission(BYPASS_LINKS),
+            player.hasPermission(BYPASS_FILTER),
+            emotePermissions(player),
+        )
+    }
+
+    private fun emotePermissions(player: Player): Map<String, Boolean> {
+        val emotes = config().emotes
+        if (!emotes.enabled || emotes.emotes.isEmpty()) return emptyMap()
+        return buildMap {
+            put(EmotesConfig.PERMISSION, player.hasPermission(EmotesConfig.PERMISSION))
+            for (name in emotes.emotes.keys) {
+                val node = "${EmotesConfig.PERMISSION}.$name"
+                put(node, player.hasPermission(node))
+            }
+        }
     }
 
     private fun filter(player: Player, snapshot: Snapshot): Filtered? {
@@ -218,9 +241,10 @@ class ChatService(
         }
 
         val emotes = config().emotes
+        val granted: (String) -> Boolean = { node -> snapshot.emotePermissions[node] == true }
         return Filtered(
-            emotes.apply(content, player::hasPermission),
-            uncensored?.let { emotes.apply(it, player::hasPermission) },
+            emotes.apply(content, granted),
+            uncensored?.let { emotes.apply(it, granted) },
         )
     }
 

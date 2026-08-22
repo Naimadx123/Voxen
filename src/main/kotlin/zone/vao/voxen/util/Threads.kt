@@ -34,14 +34,12 @@ class Threads(private val plugin: Plugin) {
         if (folia) player.scheduler.run(plugin, { block() }, null) else postGlobal(block)
     }
 
-    fun <T> await(block: () -> T): T? = hop(block) { postGlobal(it) }
+    fun <T> await(block: () -> T): T? = hop(block, onGlobal()) { postGlobal(it) }
 
-    fun <T> awaitPlayer(player: Player, block: () -> T): T? {
-        if (owns(player)) return block()
-        return hop(block) { task ->
+    fun <T> awaitPlayer(player: Player, block: () -> T): T? =
+        hop(block, owns(player)) { task ->
             if (folia) player.scheduler.run(plugin, { task() }, null) else postGlobal(task)
         }
-    }
 
     private fun postGlobal(block: () -> Unit) {
         if (!plugin.isEnabled) return
@@ -52,8 +50,8 @@ class Threads(private val plugin: Plugin) {
         }
     }
 
-    private fun <T> hop(block: () -> T, post: (() -> Unit) -> Unit): T? {
-        if (onGlobal()) return block()
+    private fun <T> hop(block: () -> T, alreadySafe: Boolean, post: (() -> Unit) -> Unit): T? {
+        if (alreadySafe) return block()
         if (!plugin.isEnabled) return null
         val future = CompletableFuture<Result<T>>()
         post { future.complete(runCatching(block)) }

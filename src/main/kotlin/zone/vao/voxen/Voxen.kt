@@ -383,25 +383,28 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         channelService.channel(id)?.let(::info)
 
     override fun activeChannel(player: Player): ChannelInfo? =
-        channelService.activeChannel(player)?.let(::info)
+        threads.awaitPlayer(player) { channelService.activeChannel(player)?.let(::info) }
 
-    override fun setActiveChannel(player: Player, channelId: String): Boolean {
-        val channel = channelService.channel(channelId) ?: return false
-        return channelService.setActive(player, channel)
-    }
+    override fun setActiveChannel(player: Player, channelId: String): Boolean =
+        threads.awaitPlayer(player) {
+            val channel = channelService.channel(channelId) ?: return@awaitPlayer false
+            channelService.setActive(player, channel)
+        } ?: false
 
-    override fun joinChannel(player: Player, channelId: String): Boolean {
-        val channel = channelService.channel(channelId) ?: return false
-        return channelService.join(player, channel)
-    }
+    override fun joinChannel(player: Player, channelId: String): Boolean =
+        threads.awaitPlayer(player) {
+            val channel = channelService.channel(channelId) ?: return@awaitPlayer false
+            channelService.join(player, channel)
+        } ?: false
 
-    override fun leaveChannel(player: Player, channelId: String): Boolean {
-        val channel = channelService.channel(channelId) ?: return false
-        return channelService.leave(player, channel)
-    }
+    override fun leaveChannel(player: Player, channelId: String): Boolean =
+        threads.awaitPlayer(player) {
+            val channel = channelService.channel(channelId) ?: return@awaitPlayer false
+            channelService.leave(player, channel)
+        } ?: false
 
     override fun joinedChannels(player: Player): Collection<ChannelInfo> =
-        channelService.joinedChannels(player).map(::info)
+        threads.awaitPlayer(player) { channelService.joinedChannels(player).map(::info) } ?: emptyList()
 
     override fun filterWords(text: String): FilterResult = verdict(wordFilter.check(text), text)
 
@@ -410,7 +413,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     override fun isClean(text: String): Boolean = filterWords(text).isClean() && filterLinks(text).isClean()
 
     override fun render(player: Player, text: String): Component =
-        contentRenderer.render(text, player::hasPermission, isPermissionSet = player::isPermissionSet)
+        threads.awaitPlayer(player) {
+            contentRenderer.render(text, player::hasPermission, isPermissionSet = player::isPermissionSet)
+        } ?: Component.text(text)
 
     override fun stripTags(text: String): String = contentRenderer.plain(text)
 
@@ -438,7 +443,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     override fun isIgnoring(source: UUID, target: UUID): Boolean = ignoreService.isIgnoring(source, target)
 
     override fun sendPrivateMessage(sender: Player, target: Player, content: String): Boolean =
-        privateMessageService.send(sender, target, content)
+        threads.awaitPlayer(sender) { privateMessageService.send(sender, target, content) } ?: false
 
     override fun nickname(player: Player): String? = playerDataService.get(player.uniqueId).nickname
 

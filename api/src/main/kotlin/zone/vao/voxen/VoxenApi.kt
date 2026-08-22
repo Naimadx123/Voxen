@@ -20,7 +20,14 @@ import java.util.concurrent.CompletableFuture
  * VoxenService voxen = getServer().getServicesManager().load(VoxenService.class);
  * ```
  *
- * All methods are safe to call from any thread unless noted otherwise.
+ * Methods that take a [org.bukkit.entity.Player] read that player's
+ * permissions and state, so Voxen runs them on the thread that owns them:
+ * the server thread on Paper, that player's region on Folia. Calling one
+ * from anywhere else works, but the call waits for the hop, so keep those
+ * off hot paths.
+ *
+ * Everything else — mutes, reports, network lookups, panel pages, the text
+ * filter — is safe from any thread.
  */
 object VoxenApi {
 

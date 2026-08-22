@@ -50,10 +50,16 @@ public void onDelivered(ChatMessageDeliveredEvent event) {
 }
 ```
 
-<Aside type="caution" title="Check the thread">
-	Both events fire on whichever thread the message came from: **asynchronously** for
-	regular chat, synchronously when a command or the API triggered it. Call
-	`isAsynchronous()` before touching the world or any other Bukkit state.
+<Aside type="caution" title="Which thread they run on">
+	`ChatMessageSendEvent` fires on the thread that owns the sender, and
+	`ChatMessageDeliveredEvent` on the server thread. On Paper that is the main thread in both
+	cases and handlers may do as they like.
+
+	On Folia it matters: the send event runs on the **sender's region**, so a handler may
+	touch the sender and nothing else, and the delivered event runs on the **global region
+	scheduler**, which owns no player and no chunk at all. Removing recipients from the send
+	event is always safe; teleporting one of them, opening their inventory or changing a block
+	means going through that player's own scheduler first.
 </Aside>
 
 <Aside type="note">
