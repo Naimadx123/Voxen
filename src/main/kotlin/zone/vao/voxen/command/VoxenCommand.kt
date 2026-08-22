@@ -503,7 +503,7 @@ object VoxenCommand {
                 return Command.SINGLE_SUCCESS
             }
         }
-        plugin.muteService.mute(
+        val muted = plugin.muteService.mute(
             MuteEntry(
                 uuid = target.first,
                 playerName = target.second,
@@ -514,6 +514,7 @@ object VoxenCommand {
                 createdAt = System.currentTimeMillis(),
             )
         )
+        if (!muted) return Command.SINGLE_SUCCESS
         messages.send(
             sender,
             "muted-player",
@@ -646,9 +647,9 @@ object VoxenCommand {
             return Command.SINGLE_SUCCESS
         }
         val removed = when {
-            channelInput == null -> plugin.muteService.unmuteAll(target.first) > 0
-            channelInput.equals("all", true) -> plugin.muteService.unmute(target.first, null)
-            else -> plugin.muteService.unmute(target.first, channelInput.lowercase())
+            channelInput == null -> plugin.muteService.unmuteAll(target.first, sender.name) > 0
+            channelInput.equals("all", true) -> plugin.muteService.unmute(target.first, null, sender.name)
+            else -> plugin.muteService.unmute(target.first, channelInput.lowercase(), sender.name)
         }
         messages.send(
             sender,

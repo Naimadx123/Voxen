@@ -1,11 +1,11 @@
 ---
 title: Events
-description: ChatMessageSendEvent and ChatMessageDeliveredEvent.
+description: The chat, private message and report events Voxen fires, and how to listen to them.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Two Bukkit events, both in `zone.vao.voxen.event`.
+Eight Bukkit events, all in `zone.vao.voxen.event`.
 
 ## ChatMessageSendEvent
 
@@ -61,4 +61,140 @@ public void onDelivered(ChatMessageDeliveredEvent event) {
 	contains local players. Messages arriving from elsewhere on the network are already
 	rendered and do not go through the pipeline again, so a network-wide listener sees each
 	message exactly once.
+</Aside>
+
+## ChannelSwitchEvent
+
+Fires before a player's active channel changes, whether that came from the channel command,
+a quick chat prefix or the API. Cancelling leaves them where they were.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `player` | `Player` | who is switching |
+| `from` | `String` | the channel they were talking in, `null` when they had none |
+| `to` | `String` | where they are going |
+
+```java
+@EventHandler
+public void onSwitch(ChannelSwitchEvent event) {
+    if (event.getTo().equals("staff") && !event.getPlayer().hasPermission("team.member")) {
+        event.setCancelled(true);
+    }
+}
+```
+
+Switching also joins the channel, so cancelling leaves the membership alone as well.
+
+## PrivateMessageEvent
+
+Fires before a private message leaves the sender, after the mute, ignore and toggle checks
+have passed. Cancellable, and `content` is mutable.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `sender` | `Player` | who is writing |
+| `target` | `Player` | the recipient, or `null` when they are on another server |
+| `targetName` | `String` | always set, even for a remote recipient |
+| `content` | `String` | mutable, the raw text before the filter |
+| `remote` | `boolean` | whether the message is crossing the network |
+
+```java
+@EventHandler
+public void onPrivateMessage(PrivateMessageEvent event) {
+    if (isGagged(event.getSender())) event.setCancelled(true);
+}
+```
+
+Only the sending server fires it, so on a network the listener has to be installed
+everywhere to see every message.
+
+## ReportCreateEvent
+
+Fires before a report is written to the database, after the cooldown and duplicate checks.
+Cancelling drops it silently, and `reason` may be rewritten before it is stored.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `reporter` | `Player` | who filed it |
+| `target` | `UUID` | who it is about |
+| `targetName` | `String` | their name at the time |
+| `reason` | `String` | mutable |
+| `channelId` | `String` | channel of the reported message, or `null` |
+| `messageId` | `UUID` | the reported message, or `null` |
+| `messageContent` | `String` | what it said, or `null` |
+
+```java
+@EventHandler
+public void onReport(ReportCreateEvent event) {
+    if (event.getReason().isBlank()) event.setCancelled(true);
+    else webhook.post(event.getTargetName() + ": " + event.getReason());
+}
+```
+
+## ReportUpdateEvent
+
+Fires before a report is claimed, resolved, dismissed or deleted, no matter where the change
+came from: a command, a dialog screen, the web panel or the API. Cancelling leaves the report
+untouched.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `report` | `ReportInfo` | the state **before** the change |
+| `action` | `ReportInfo.Action` | `CLAIM`, `RESOLVE`, `DISMISS` or `DELETE` |
+| `moderator` | `String` | a name, not a player: the console and the panel act under theirs |
+
+```java
+@EventHandler
+public void onReportUpdate(ReportUpdateEvent event) {
+    if (event.getAction() == ReportInfo.Action.DELETE && !isLead(event.getModerator())) {
+        event.setCancelled(true);
+    }
+}
+```
+
+<Aside type="caution" title="This one runs on the storage worker">
+	`ReportUpdateEvent` usually fires off the server thread, because the change is made where
+	the database is written. Do not touch the world from it without hopping back to the
+	scheduler.
+</Aside>
+
+## PlayerMuteEvent
+
+Fires before a player is muted, from the command, the moderator screens or the API.
+Cancelling calls the mute off; `reason` and `expiresAt` are both mutable, which is how you
+cap a duration or force a reason.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `target` | `UUID` | who is being muted |
+| `targetName` | `String` | their name at the time |
+| `channelId` | `String` | the channel, or `null` for every channel |
+| `moderator` | `String` | who issued it |
+| `reason` | `String` | mutable, may be `null` |
+| `expiresAt` | `Long` | mutable, a timestamp in milliseconds, `null` for permanent |
+
+```java
+@EventHandler
+public void onMute(PlayerMuteEvent event) {
+    long day = System.currentTimeMillis() + 86_400_000L;
+    if (event.isPermanent() && !isLead(event.getModerator())) event.setExpiresAt(day);
+}
+```
+
+## PlayerUnmuteEvent
+
+Fires before a mute is lifted, and only when there is one to lift, so a `/voxen unmute` on
+someone who was never muted stays quiet. Cancelling leaves the mute in place.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `target` | `UUID` | who is being unmuted |
+| `channelId` | `String` | the channel, or `null` for the mute covering every channel |
+| `allChannels` | `boolean` | every mute the player has is going at once |
+| `moderator` | `String` | who lifted it, `null` when nobody was named |
+
+<Aside type="note">
+	Both mute events fire on the server the mute was issued on. The copies that travel to the
+	rest of the network are applied without firing again, so a listener installed everywhere
+	sees each mute exactly once.
 </Aside>

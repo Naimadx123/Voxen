@@ -7,6 +7,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.VoxenConfig
+import zone.vao.voxen.event.PrivateMessageEvent
 import zone.vao.voxen.ignore.IgnoreService
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
@@ -77,7 +78,8 @@ class PrivateMessageService(
             return false
         }
 
-        val text = moderate(sender, content) ?: return false
+        val requested = fire(sender, target, target.name, content, remote = false) ?: return false
+        val text = moderate(sender, requested) ?: return false
         val message = renderContent(sender, text)
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
@@ -122,7 +124,8 @@ class PrivateMessageService(
             return false
         }
         if (isMuted(sender)) return false
-        val text = moderate(sender, content) ?: return false
+        val requested = fire(sender, null, targetName, content, remote = true) ?: return false
+        val text = moderate(sender, requested) ?: return false
         val message = renderContent(sender, text)
         val requestId = UUID.randomUUID().toString()
         pending.add(requestId, sender.uniqueId, targetName, message)
@@ -182,6 +185,13 @@ class PrivateMessageService(
 
     fun forget(uuid: UUID) {
         pending.forget(uuid)
+    }
+
+    private fun fire(sender: Player, target: Player?, targetName: String, content: String, remote: Boolean): String? {
+        val event = PrivateMessageEvent(sender, target, targetName, content, remote)
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return null
+        return event.content.trim().ifEmpty { null }
     }
 
     internal fun isMuted(sender: Player): Boolean {

@@ -15,6 +15,9 @@ import zone.vao.voxen.storage.ChatLogEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.PlayerStorage
 import zone.vao.voxen.storage.ReportAction
+import zone.vao.voxen.ReportInfo
+import zone.vao.voxen.event.ReportCreateEvent
+import zone.vao.voxen.event.ReportUpdateEvent
 import zone.vao.voxen.storage.ReportEntry
 import zone.vao.voxen.util.Durations
 import zone.vao.voxen.util.Pages
@@ -49,11 +52,11 @@ class ReportService(
         val actions: List<ReportAction>,
     )
 
-    enum class Action(val status: ReportEntry.Status?) {
-        CLAIM(ReportEntry.Status.CLAIMED),
-        RESOLVE(ReportEntry.Status.RESOLVED),
-        DISMISS(ReportEntry.Status.DISMISSED),
-        DELETE(null);
+    enum class Action(val status: ReportEntry.Status?, val info: ReportInfo.Action) {
+        CLAIM(ReportEntry.Status.CLAIMED, ReportInfo.Action.CLAIM),
+        RESOLVE(ReportEntry.Status.RESOLVED, ReportInfo.Action.RESOLVE),
+        DISMISS(ReportEntry.Status.DISMISSED, ReportInfo.Action.DISMISS),
+        DELETE(null, ReportInfo.Action.DELETE);
 
         val id: String
             get() = name.lowercase()
@@ -147,13 +150,24 @@ class ReportService(
             )
             return
         }
+        val creation = ReportCreateEvent(
+            reporter,
+            target.uuid,
+            target.name,
+            text,
+            reference?.channel,
+            reference?.id,
+            reference?.content,
+        )
+        server.pluginManager.callEvent(creation)
+        if (creation.isCancelled) return
         val entry = ReportEntry(
             id = UUID.randomUUID(),
             target = target.uuid,
             targetName = target.name,
             reporter = reporter.uniqueId,
             reporterName = reporter.name,
-            reason = text,
+            reason = creation.reason,
             server = config().network.serverId,
             channel = reference?.channel,
             messageId = reference?.id,
@@ -349,6 +363,24 @@ class ReportService(
 
     fun find(id: UUID): ReportEntry? = playerData.blocking { storage -> storage.report(id) }
 
+    fun info(entry: ReportEntry): ReportInfo = ReportInfo(
+        id = entry.id,
+        target = entry.target,
+        targetName = entry.targetName,
+        reporter = entry.reporter,
+        reporterName = entry.reporterName,
+        reason = entry.reason,
+        server = entry.server,
+        channelId = entry.channel,
+        messageId = entry.messageId,
+        messageContent = entry.messageContent,
+        messageAt = entry.messageAt,
+        status = ReportInfo.Status.valueOf(entry.status.name),
+        moderator = entry.handler,
+        createdAt = entry.createdAt,
+        updatedAt = entry.updatedAt,
+    )
+
     internal fun fields(entry: ReportEntry): List<Pair<String, String>> = buildList {
         add("player" to entry.targetName)
         add("reporter" to entry.reporterName)
@@ -470,6 +502,9 @@ class ReportService(
     private fun handle(storage: PlayerStorage, actor: String, id: UUID, choice: Action): ReportEntry? {
         val entry = storage.report(id) ?: return null
         val now = System.currentTimeMillis()
+        val update = ReportUpdateEvent(info(entry), choice.info, actor)
+        server.pluginManager.callEvent(update)
+        if (update.isCancelled) return null
         val status = choice.status ?: return if (storage.deleteReport(id)) entry else null
         if (entry.status == status) return null
         if (!storage.updateReport(id, status, actor, now)) return null

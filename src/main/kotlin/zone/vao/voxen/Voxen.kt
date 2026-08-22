@@ -25,6 +25,7 @@ import zone.vao.voxen.mention.MentionService
 import zone.vao.voxen.moderation.AiModerationService
 import zone.vao.voxen.moderation.ModeratorDialogs
 import zone.vao.voxen.moderation.ModeratorService
+import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
 import zone.vao.voxen.moderation.WordFilter
@@ -42,6 +43,8 @@ import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.PlayerDataService
+import zone.vao.voxen.storage.PlayerStorage
+import zone.vao.voxen.storage.ReportEntry
 import zone.vao.voxen.storage.StaffNote
 import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
@@ -51,6 +54,7 @@ import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
 import zone.vao.voxen.util.Vanish
 import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
 @Suppress("UnstableApiUsage")
@@ -125,7 +129,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         server.pluginManager.registerEvents(ignoreService, this)
         ignoreService.loadOnline(server.onlinePlayers.map { it.uniqueId })
 
-        muteService = MuteService(playerDataService)
+        muteService = MuteService(server, playerDataService)
         muteService.load()
 
         partyService = PartyService(server, playerDataService) { configManager.config.party }
@@ -381,6 +385,41 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     override fun activeChannel(player: Player): ChannelInfo? =
         channelService.activeChannel(player)?.let(::info)
 
+    override fun setActiveChannel(player: Player, channelId: String): Boolean {
+        val channel = channelService.channel(channelId) ?: return false
+        return channelService.setActive(player, channel)
+    }
+
+    override fun joinChannel(player: Player, channelId: String): Boolean {
+        val channel = channelService.channel(channelId) ?: return false
+        return channelService.join(player, channel)
+    }
+
+    override fun leaveChannel(player: Player, channelId: String): Boolean {
+        val channel = channelService.channel(channelId) ?: return false
+        return channelService.leave(player, channel)
+    }
+
+    override fun joinedChannels(player: Player): Collection<ChannelInfo> =
+        channelService.joinedChannels(player).map(::info)
+
+    override fun filterWords(text: String): FilterResult = verdict(wordFilter.check(text), text)
+
+    override fun filterLinks(text: String): FilterResult = verdict(wordFilter.checkLinks(text), text)
+
+    override fun isClean(text: String): Boolean = filterWords(text).isClean() && filterLinks(text).isClean()
+
+    override fun render(player: Player, text: String): Component =
+        contentRenderer.render(text, player::hasPermission, isPermissionSet = player::isPermissionSet)
+
+    override fun stripTags(text: String): String = contentRenderer.plain(text)
+
+    private fun verdict(result: WordFilter.Result, original: String): FilterResult = when (result) {
+        WordFilter.Result.Clean -> FilterResult(FilterResult.Verdict.CLEAN, original)
+        WordFilter.Result.Blocked -> FilterResult(FilterResult.Verdict.BLOCKED, original)
+        is WordFilter.Result.Censored -> FilterResult(FilterResult.Verdict.CENSORED, result.content)
+    }
+
     override fun sendChannelMessage(player: Player, channelId: String, content: String): Boolean {
         val channel = channelService.channel(channelId) ?: return false
         return chatService.send(player, channel, content)
@@ -434,13 +473,78 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         return true
     }
 
+    override fun registerChannel(channel: ChannelRegistration): Boolean =
+        registerChannel(channel.id, channel.displayName, channel.format, channel.recipients)
+
     override fun unregisterChannel(id: String): Boolean = channelService.unregisterApiChannel(id)
+
+    override fun serverId(): String = configManager.config.network.serverId
+
+    override fun networkConnected(): Boolean = brokerService.active()
+
+    override fun serverOf(name: String): String? =
+        server.getPlayerExact(name)?.let { configManager.config.network.serverId }
+            ?: presenceService.serverOf(name)
+
+    override fun networkPlayers(): Collection<NetworkPlayer> {
+        val here = configManager.config.network.serverId
+        val now = System.currentTimeMillis()
+        val local = server.onlinePlayers
+            .filterNot(Vanish::hidden)
+            .map { NetworkPlayer(it.uniqueId, it.name, here, now) }
+        val remote = presenceService.entries()
+            .map { NetworkPlayer(it.uuid, it.name, it.server, it.seenAt) }
+        return (local + remote).distinctBy { it.uuid }
+    }
 
     override fun registerRecipients(channelId: String, provider: RecipientProvider): Boolean =
         channelService.registerRecipients(channelId, provider)
 
     override fun unregisterRecipients(channelId: String) {
         channelService.unregisterRecipients(channelId)
+    }
+
+    override fun mute(request: MuteRequest): Boolean {
+        val channel = request.channelId?.let { channelService.channel(it)?.id ?: return false }
+        val now = System.currentTimeMillis()
+        return muteService.mute(
+            MuteEntry(
+                uuid = request.target,
+                playerName = request.targetName,
+                channel = channel,
+                reason = request.reason?.trim()?.ifEmpty { null },
+                moderator = request.moderator,
+                expiresAt = if (request.durationMillis > 0L) now + request.durationMillis else null,
+                createdAt = now,
+            )
+        )
+    }
+
+    override fun unmute(target: UUID, channelId: String?, moderator: String): Boolean =
+        muteService.unmute(target, channelId?.lowercase(), moderator)
+
+    override fun unmuteAll(target: UUID, moderator: String): Int = muteService.unmuteAll(target, moderator)
+
+    override fun reports(statuses: Collection<ReportInfo.Status>, limit: Int): CompletableFuture<List<ReportInfo>> {
+        val wanted = statuses.map { ReportEntry.Status.valueOf(it.name) }
+        return onStorage { storage -> storage.reports(wanted, limit).map(reportService::info) }
+    }
+
+    override fun report(id: UUID): CompletableFuture<ReportInfo?> =
+        onStorage { storage -> storage.report(id)?.let(reportService::info) }
+
+    override fun updateReport(id: UUID, action: ReportInfo.Action, moderator: String): CompletableFuture<Boolean> {
+        val choice = ReportService.Action.entries.first { it.info == action }
+        return onStorage { reportService.apply(moderator, id, choice) }
+    }
+
+    private fun <T> onStorage(task: (PlayerStorage) -> T): CompletableFuture<T> {
+        val future = CompletableFuture<T>()
+        val queued = playerDataService.async { storage ->
+            runCatching { task(storage) }.fold(future::complete, future::completeExceptionally)
+        }
+        if (!queued) future.completeExceptionally(IllegalStateException("Voxen storage is not available."))
+        return future
     }
 
     override fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean {

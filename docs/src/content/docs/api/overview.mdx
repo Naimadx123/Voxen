@@ -114,6 +114,24 @@ ChannelInfo current       = VoxenApi.activeChannel(player);
 `ChannelInfo` is an immutable snapshot: `id`, `displayName`, `type`, `enabled`,
 `readOnly`, `crossServer`, `radius`, `worlds`.
 
+### Move players between channels
+
+```java
+VoxenApi.setActiveChannel(player, "auction");   // joins it and talks in it
+VoxenApi.joinChannel(player, "trade");          // joins it, keeps talking where they were
+VoxenApi.leaveChannel(player, "trade");
+Collection<ChannelInfo> mine = VoxenApi.joinedChannels(player);
+```
+
+All three answer `false` when the channel is unknown or disabled, or when the player may not
+join it; `leaveChannel` also answers `false` when they were not in it. Leaving the channel a
+player was talking in drops them back to the default one.
+
+`setActiveChannel` is the one players notice, so it fires
+[ChannelSwitchEvent](/api/events/#channelswitchevent) first and answers `false` when a
+listener cancels it. This is also how you make a channel you registered yourself usable:
+register it, then move the players who should be in it.
+
 ### Send chat
 
 ```java
@@ -146,6 +164,38 @@ PartyInfo party = VoxenApi.party(uuid);
 	deciding who may do it. Config length limits and the word filter still apply.
 </Aside>
 
+### Reuse the filter and the renderer
+
+Voxen's chat filter and tag renderer work on any text, not only on chat, so a sign, a book,
+an auction name or a shop title can be held to exactly the rules your server already
+configured.
+
+```java
+FilterResult result = VoxenApi.filterWords(input);
+if (result.isBlocked()) return;
+String safe = result.getContent();          // censored parts already replaced
+
+Component pretty = VoxenApi.render(player, safe);
+```
+
+| Method | What it does |
+| --- | --- |
+| `filterWords(text)` | the word list and the blocked patterns from `modules/moderation.yml` |
+| `filterLinks(text)` | the link filter, obfuscated addresses included |
+| `isClean(text)` | true when neither has anything against it |
+| `render(player, text)` | MiniMessage and `&` codes, limited to the tags that player may use |
+| `stripTags(text)` | the readable text with every tag removed |
+
+`FilterResult` carries a `verdict` of `CLEAN`, `BLOCKED` or `CENSORED` and the `content` to
+use from there: unchanged when it is clean or blocked, and with the offending parts already
+replaced when it was censored.
+
+<Aside type="caution" title="Render player text through Voxen, not MiniMessage">
+	`MiniMessage.miniMessage().deserialize(input)` on text a player typed hands them every
+	tag there is. `render` applies the same permission rules as chat, so
+	`modules/minimessage-tags.yml` decides once for the whole server.
+</Aside>
+
 ### Add a format placeholder
 
 ```java
@@ -159,13 +209,12 @@ disable.
 ### Register your own channel
 
 ```java
-VoxenApi.registerChannel(
-        "auction",
-        "<gold>Auction",
-        "<gold>[A] <player> <dark_gray>» <white><message>",
-        sender -> Bukkit.getOnlinePlayers().stream()
+VoxenApi.registerChannel(ChannelRegistration.builder("auction", "<gold>Auction")
+        .format("<gold>[A] <player> <dark_gray>» <white><message>")
+        .recipients(sender -> Bukkit.getOnlinePlayers().stream()
                 .filter(this::wantsAuctions)
-                .toList());
+                .toList())
+        .build());
 ```
 
 The `RecipientProvider` is optional; without one the channel behaves like a normal global
@@ -173,7 +222,95 @@ channel. `registerRecipients` does the same thing for a channel that already exi
 `channels/`, which is how you bolt a custom audience onto the bundled ones.
 
 Runtime channels are not written to disk and disappear on restart. Register them in
-`onEnable`.
+`onEnable`, and put the players who belong in one there with
+[setActiveChannel](#move-players-between-channels).
+
+<Aside type="note">
+	The older `registerChannel(id, displayName, format, recipients)` still works and is
+	deprecated. Three strings in a row are easy to swap by accident, which is the whole
+	reason for the builder.
+</Aside>
+
+### Mute and unmute
+
+```java
+VoxenApi.mute(MuteRequest.builder(uuid, "Steve", "AutoMod")
+        .duration(1, TimeUnit.HOURS)
+        .reason("spam")
+        .build());
+
+VoxenApi.unmute(uuid, null, "AutoMod");
+```
+
+A bare request mutes every channel, forever, with no reason given; `.channel(id)` narrows it
+and `.duration(...)` limits it. Mutes go through the same path as the mute commands: stored,
+sent to the other servers on the network, and [PlayerMuteEvent](/api/events/#playermuteevent)
+fires first, so another plugin can still refuse or shorten it.
+
+| Method | What it does |
+| --- | --- |
+| `mute(request)` | mutes; `false` when the channel is unknown or a listener cancelled it |
+| `unmute(target, channelId, moderator)` | lifts one mute; `false` when there was none |
+| `unmuteAll(target, moderator)` | lifts every mute and returns how many went |
+| `isMuted(uuid)` / `isMuted(uuid, channelId)` | reads the current state, no database call |
+
+### Read and manage reports
+
+```java
+VoxenApi.reports(20).thenAccept(open -> {
+    for (ReportInfo report : open) {
+        getLogger().info(report.getTargetName() + " — " + report.getReason());
+    }
+});
+
+VoxenApi.updateReport(id, ReportInfo.Action.RESOLVE, "AutoMod");
+```
+
+Reports live in the database, so every one of these methods answers through a
+`CompletableFuture` instead of blocking the caller. Use `thenAccept` from the server thread,
+or `join()` when you are already on one of your own.
+
+| Method | What it does |
+| --- | --- |
+| `reports(limit)` | the queue: everything still `OPEN` or `CLAIMED`, newest first |
+| `reports(statuses, limit)` | the same for any set of statuses; an empty set means all |
+| `report(id)` | one report, or `null` when it is gone |
+| `updateReport(id, action, moderator)` | claim, resolve, dismiss or delete it |
+
+`updateReport` goes through the same path as the queue commands: the audit trail records the
+action under `moderator`, and [ReportUpdateEvent](/api/events/#reportupdateevent) fires first,
+so another plugin can still refuse it. It completes with `false` when the report is gone, when
+it already has that status, or when a listener cancelled the change.
+
+<Aside type="tip" title="A moderator is a name">
+	`moderator` is written straight into the audit log, so pass something a human will
+	recognise later — your plugin's name is fine for an automated decision.
+</Aside>
+
+### Look around the network
+
+```java
+if (VoxenApi.networkConnected()) {
+    String where = VoxenApi.serverOf("Steve");        // "survival", or null
+    for (NetworkPlayer player : VoxenApi.networkPlayers()) {
+        getLogger().info(player.getName() + " on " + player.getServer());
+    }
+}
+```
+
+| Method | What it does |
+| --- | --- |
+| `serverId()` | this server's network id, from `network.server-id` |
+| `networkConnected()` | whether the broker is up right now |
+| `serverOf(name)` | which server a player is on, `null` when nobody answers to the name |
+| `networkPlayers()` | everyone on the network, this server included |
+
+`networkPlayers()` leaves vanished players out, the way a player list should. `serverOf` does
+not, so a message can still be routed to a hidden moderator.
+
+Remote entries come from [presence tracking](/configuration/modules/#presence), so
+`modules/presence.yml` has to be on. Without a network both methods still work and simply
+describe this server alone.
 
 ### Add a page to the web panel
 
