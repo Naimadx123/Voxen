@@ -61,7 +61,7 @@ users:
 The audit node is separate on purpose: a trainee can be given `reports.view` and
 `reports.manage` without being handed a record of what everyone else on the team did.
 
-A page the account may not see is not in the navigation, is not on the start page and
+A page the account may not see is not in the sidebar, is not on the start page and
 answers with 403 when it is opened directly. Every action checks its permission again when it
 runs, so a page left open in a tab grants nothing after the permission is taken away.
 

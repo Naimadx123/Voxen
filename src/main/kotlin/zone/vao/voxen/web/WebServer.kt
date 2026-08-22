@@ -89,12 +89,14 @@ class WebServer(
 
     fun stop() {
         val current = server ?: return
+        val previous = bound
         server = null
         bound = null
         tokens.clear()
         failures.clear()
         runCatching { current.stop(0) }
         (current.executor as? ExecutorService)?.shutdownNow()
+        logger.info("Voxen web panel on $previous stopped.")
     }
 
     private fun handle(exchange: HttpExchange) {
@@ -175,10 +177,12 @@ class WebServer(
         val nav = modules.values
             .filter { it.enabled() && user.allows(it.permission) }
             .joinToString("") { module ->
+                val title = module.title()
                 val current = if (module.id == active) " class=\"active\"" else ""
-                "<a href=\"/${module.id}\"$current>${Html.escape(module.title())}</a>"
+                "<a href=\"/${module.id}\"$current><span class=\"ico\">${Html.badge(title)}</span>" +
+                    "<span>${Html.escape(title)}</span></a>"
             }
-        return Html.document(config().title, nav, body)
+        return Html.document(config().title, nav, body, user.name)
     }
 
     private fun redirect(segment: String, query: Map<String, String>): String {
