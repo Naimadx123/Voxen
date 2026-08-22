@@ -88,7 +88,7 @@ class ReportDialogs(private val plugin: Voxen) {
         val reopen = { service.openReport(viewer, entry.id) }
         val buttons = buildList {
             for (choice in ReportService.Action.entries) {
-                if (choice == ReportService.Action.DELETE) continue
+                if (choice == ReportService.Action.DELETE || choice.status == entry.status) continue
                 add(
                     button(label(viewer, "dialog-report-${choice.id}"), action(viewer, ReportService.MANAGE) {
                         service.act(viewer, entry.id, choice) { service.openQueue(viewer) }

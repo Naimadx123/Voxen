@@ -169,6 +169,7 @@ object ReportsWeb {
     private fun actions(plugin: Voxen, request: WebRequest, web: WebConfig, entry: ReportEntry): String {
         val buttons = buildString {
             for (action in ReportService.Action.entries) {
+                if (action.status == entry.status) continue
                 val label = web.label("reports.action.${action.id}", action.id.replaceFirstChar(Char::titlecase))
                 append("<button name=\"action\" value=\"${action.id}\">${Html.escape(label)}</button>")
             }

@@ -446,15 +446,32 @@ class ReportService(
     }
 
     private fun finish(storage: PlayerStorage, sender: CommandSender, id: UUID, choice: Action) {
+        val current = storage.report(id)
+        if (current != null && current.status == choice.status) {
+            threads.main { unchanged(sender, current) }
+            return
+        }
         val updated = handle(storage, sender.name, id, choice)
         if (updated == null) threads.main { config().messages.send(sender, "report-invalid-index") }
         else announce(sender, updated, choice)
+    }
+
+    private fun unchanged(sender: CommandSender, entry: ReportEntry) {
+        val messages = config().messages
+        messages.send(
+            sender,
+            "report-unchanged",
+            Placeholder.unparsed("player", entry.targetName),
+            Placeholder.unparsed("status", messages.raw(sender, "report-status-${entry.status.id}")),
+            Placeholder.unparsed("moderator", entry.handler ?: "-"),
+        )
     }
 
     private fun handle(storage: PlayerStorage, actor: String, id: UUID, choice: Action): ReportEntry? {
         val entry = storage.report(id) ?: return null
         val now = System.currentTimeMillis()
         val status = choice.status ?: return if (storage.deleteReport(id)) entry else null
+        if (entry.status == status) return null
         if (!storage.updateReport(id, status, actor, now)) return null
         storage.saveReportAction(action(id, actor, choice.id, null, now))
         return entry.copy(status = status, handler = actor, updatedAt = now)

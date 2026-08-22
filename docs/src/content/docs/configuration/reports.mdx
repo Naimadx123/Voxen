@@ -114,6 +114,11 @@ into it; resolving or dismissing takes it out of the queue.
 Numbers come from the list itself and count across pages, so entry 11 is the first one on page
 two. All of it needs `voxen.report.manage`.
 
+A report cannot be moved into the status it already has, so a claimed case stays with the
+moderator who claimed it until someone resolves or dismisses it. The button for the current
+status is left out of the dialog and the panel, and the command answers that the report is
+already in that state.
+
 `cooldown` limits how often one player may report, and `voxen.bypass.cooldown` skips it.
 `allow-self: false` blocks reporting yourself, `allow-offline: false` limits reports to players
 who are online right now, and `allow-duplicates: false` refuses a second report on a message

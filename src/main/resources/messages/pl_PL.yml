@@ -249,6 +249,7 @@ report-resolved: "<green>Rozpatrzono zgłoszenie gracza <white><player></white>.
 report-dismissed: "<yellow>Odrzucono zgłoszenie gracza <white><player></white>."
 report-deleted: "<green>Usunięto zgłoszenie gracza <white><player></white>."
 report-status-changed: "<gray>Twoje zgłoszenie gracza <white><player></white> ma teraz status <white><status></white> <gray>(<moderator>)."
+report-unchanged: "<red>Zgłoszenie gracza <white><player></white> ma już status <white><status></white> <red>(<moderator>)."
 report-status-open: "otwarte"
 report-status-claimed: "w toku"
 report-status-resolved: "rozpatrzone"
