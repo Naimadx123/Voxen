@@ -76,6 +76,15 @@ permissions:
   voxen.helpop.receive:
     description: Receives /helpop requests.
     default: op
+  voxen.report:
+    description: Allows reporting players with /report.
+    default: true
+  voxen.report.exempt:
+    description: Protects a player from being reported.
+    default: op
+  voxen.report.manage:
+    description: Allows working through the report queue in chat, in the dialog and in the web panel.
+    default: op
   voxen.socialspy:
     description: Allows toggling the private message spy.
     default: op

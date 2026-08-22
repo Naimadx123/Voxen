@@ -1,6 +1,5 @@
 package zone.vao.voxen.util
 
-/** Chat pagination: a slice plus the numbers a footer needs. Indexes stay global so /delete <index> still lines up. */
 object Pages {
 
     const val SIZE = 10

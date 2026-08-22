@@ -1,0 +1,92 @@
+# The built-in web panel. It serves the staff pages that other modules register, today the
+# report queue from modules/reports.yml.
+#
+# It speaks plain HTTP with Basic authentication, so keep it on 127.0.0.1 and reach it through
+# an SSH tunnel, or put a reverse proxy with TLS in front of it. The panel refuses to start
+# while a user still has the default password, one shorter than 8 characters, or a name that
+# is used twice.
+enabled: false
+
+# Which address to listen on. 127.0.0.1 is only reachable from the machine itself,
+# 0.0.0.0 from everywhere.
+host: "127.0.0.1"
+port: 8085
+
+# Shown in the browser tab and in the top left corner.
+title: "Voxen"
+# The name the browser shows in its login prompt.
+realm: "Voxen"
+# How many requests the panel handles at the same time.
+threads: 2
+
+# Wrong passwords from one address before it is locked out, and how long that lockout lasts.
+# Either one at 0 turns the lockout off, which is only sensible behind a proxy that already
+# rate limits.
+max-login-attempts: 10
+lockout: 15m
+
+# Who may log in and what they see. 'permissions' are panel permissions, not Minecraft ones:
+#   reports.view    - see the report queue and a single case
+#   reports.manage  - claim, resolve, dismiss and delete reports, and use the custom buttons
+#   reports.audit   - see the audit log of every moderator action
+#   *               - everything, also every page added later
+# 'reports.*' style wildcards work too.
+users:
+  - name: "admin"
+    password: "change-me"
+    permissions: ["*"]
+#  - name: "moderator"
+#    password: "another-password"
+#    permissions: ["reports.view", "reports.manage"]
+
+# Panel wording. Anything left out falls back to the English default, so only list what you
+# want to rename or translate.
+labels:
+  reports:
+    title: "Reports"
+    heading: "Player reports"
+    empty: "Nothing to handle here."
+    filter:
+      queue: "Queue"
+      open: "Open"
+      claimed: "Claimed"
+      resolved: "Resolved"
+      dismissed: "Dismissed"
+      all: "All"
+    column:
+      time: "Time"
+      player: "Player"
+      reporter: "Reporter"
+      reason: "Reason"
+      server: "Server"
+      status: "Status"
+      moderator: "Handled by"
+      actions: "Actions"
+    status:
+      open: "Open"
+      claimed: "Claimed"
+      resolved: "Resolved"
+      dismissed: "Dismissed"
+    action:
+      open: "Open"
+      claim: "Claim"
+      resolve: "Resolve"
+      dismiss: "Dismiss"
+      delete: "Delete"
+    message: "Reported message"
+    context: "Context"
+    history: "Audit trail"
+    back: "Back to the queue"
+  audit:
+    title: "Audit log"
+    heading: "Moderator actions"
+    empty: "Nothing has been done yet."
+    action:
+      opened: "reported"
+      claim: "claimed"
+      resolve: "resolved"
+      dismiss: "dismissed"
+      warned: "warned"
+      muted: "muted"
+      message-deleted: "deleted the message"
+      command: "ran a command"

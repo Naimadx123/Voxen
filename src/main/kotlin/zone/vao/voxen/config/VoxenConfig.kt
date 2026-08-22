@@ -20,6 +20,8 @@ data class VoxenConfig(
     val presence: PresenceConfig,
     val mail: MailConfig,
     val moderatorTools: ModeratorToolsConfig,
+    val reports: ReportsConfig,
+    val web: WebConfig,
     val aiModeration: AiModerationConfig,
     val storage: StorageConfig,
     val commands: CommandNames,

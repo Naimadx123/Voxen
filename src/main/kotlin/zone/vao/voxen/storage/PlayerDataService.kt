@@ -66,12 +66,10 @@ class PlayerDataService(
         return io.submit { runCatching { task(current) }.onFailure(::warn) }
     }
 
-    /** Durable write with no caller to notify: a rejected op is logged loudly instead of vanishing. */
     fun durable(label: String, task: (PlayerStorage) -> Unit) {
         durable(task) { plugin.logger.severe("$label was not persisted: the storage queue is full or failing.") }
     }
 
-    /** Like [async], but a write that cannot be queued or fails calls [onReject] instead of vanishing. */
     fun durable(task: (PlayerStorage) -> Unit, onReject: () -> Unit) {
         val current = storage ?: run {
             onReject()
@@ -92,7 +90,6 @@ class PlayerDataService(
     }
 
     fun shutdown() {
-        // drain queued work first, otherwise the pool writes through a closed data source
         io.shutdown(5)
         for (data in cache.values) dirty[data.uuid] = data
         cache.clear()
@@ -107,7 +104,6 @@ class PlayerDataService(
         if (event.loginResult != AsyncPlayerPreLoginEvent.Result.ALLOWED) return
         val data = load(event.uniqueId)
         cache[event.uniqueId] = data
-        // the name is what cross-server lookups (mail, mutes) search by, so keep it current
         if (!data.lastName.equals(event.name, ignoreCase = true)) {
             data.lastName = event.name
             save(data)
@@ -130,7 +126,6 @@ class PlayerDataService(
         if (!queued) flushQueued.set(false)
     }
 
-    /** Queue depth, writes dropped so far and how long the last player flush took, for /voxen status. */
     fun stats(): Triple<Int, Long, Long> = Triple(io.pending(), io.dropped(), lastWriteMillis.get())
 
     private fun flushPlayers() {
@@ -156,7 +151,6 @@ class PlayerDataService(
             chatLogSize.addAndGet(-batch.size)
             runCatching { current.logChat(batch) }.onFailure { failure ->
                 warn(failure)
-                // ponytail: the batch goes back for the next flush, so a hiccup costs order, not rows
                 if (chatLogSize.get() + batch.size <= queueCapacity) {
                     chatLog += batch
                     chatLogSize.addAndGet(batch.size)

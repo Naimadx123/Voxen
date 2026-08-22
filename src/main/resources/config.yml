@@ -53,5 +53,6 @@ commands:
   language: [language, lang]
   filter: [filter]
   helpop: [helpop]
+  report: [report]
   nickname: [nick, nickname]
   real-name: [realname]

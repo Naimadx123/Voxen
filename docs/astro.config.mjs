@@ -57,6 +57,8 @@ export default defineConfig({
 						{ label: 'config.yml', slug: 'configuration/config' },
 						{ label: 'Moderation', slug: 'configuration/moderation' },
 						{ label: 'Other modules', slug: 'configuration/modules' },
+						{ label: 'Player reports', slug: 'configuration/reports' },
+						{ label: 'Web panel', slug: 'configuration/web' },
 						{ label: 'Messages & languages', slug: 'configuration/messages' },
 						{ label: 'Storage', slug: 'configuration/storage' },
 					],

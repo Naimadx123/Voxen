@@ -9,4 +9,5 @@ data class ChatLogEntry(
     val content: String,
     val server: String,
     val createdAt: Long,
+    val id: UUID = UUID.randomUUID(),
 )
