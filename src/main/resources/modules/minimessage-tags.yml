@@ -7,7 +7,7 @@ unauthorized-mode: escape
 # Legacy '&' color codes and '&#RRGGBB' hex codes, gated by
 # voxen.chat.legacy.color, voxen.chat.legacy.hex and voxen.chat.legacy.format.
 legacy:
-  enabled: true
+  enabled: false
 
 # Each tag can be disabled, given a custom permission, aliases and
 # blocked-params (regex checked against the tag arguments).
