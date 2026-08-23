@@ -248,6 +248,16 @@ class PrivateMessageService(
             }
         }
         var text = content
+        if (moderation.glyphsAffectsPm && !sender.hasPermission(GLYPHS)) {
+            when (val result = wordFilter.checkGlyphs(text)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(sender, "message-has-glyphs")
+                    return null
+                }
+                is WordFilter.Result.Censored -> text = result.content
+                WordFilter.Result.Clean -> Unit
+            }
+        }
         if (moderation.linksAffectsPm && !sender.hasPermission(BYPASS_LINKS)) {
             when (val result = wordFilter.checkLinks(text)) {
                 WordFilter.Result.Blocked -> {
@@ -434,5 +444,6 @@ class PrivateMessageService(
         private const val BYPASS_SPAM = "voxen.bypass.spam"
         private const val BYPASS_FILTER = "voxen.bypass.filter"
         private const val BYPASS_LINKS = "voxen.bypass.links"
+ const val GLYPHS = "voxen.chat.glyphs"
     }
 }

@@ -43,10 +43,10 @@ class ContentRenderer(
         if (!raw.contains('<')) return Component.text(raw)
         raw = escapeBlockedParams(raw, config)
         raw = escapeNegatedArgs(raw, config, mode, has, isPermissionSet)
-        raw = filterCustomTags(raw, config, mode, has)
+        raw = filterCustomTags(raw, config, mode, has, isPermissionSet)
 
-        val allowColor = permitted(config, "color", has)
-        val allowHex = permitted(config, "hex", has)
+        val allowColor = permitted(config, "color", has, isPermissionSet)
+        val allowHex = permitted(config, "hex", has, isPermissionSet)
         val allowed = mutableListOf<TagResolver>()
         val denied = mutableListOf<TagResolver>()
         if (allowColor || allowHex) allowed += ColorTag(allowColor, allowHex, keyword = true)
@@ -56,7 +56,7 @@ class ContentRenderer(
         for ((name, rule) in config.rules) {
             if (name == "color" || name == "hex") continue
             val resolver = standardResolver(name, rule, has) ?: continue
-            if (permitted(config, name, has) || argsPermitted(rule, raw, has)) {
+            if (permitted(config, name, has, isPermissionSet) || argsPermitted(rule, raw, has)) {
                 allowed += resolver
             } else {
                 denied += resolver
@@ -87,11 +87,23 @@ class ContentRenderer(
     fun visible(content: String): String =
         LEGACY_CODES.replace(plain(VISUAL_TAGS.replace(content, "*")), "").trim()
 
-    private fun permitted(config: TagsConfig, name: String, hasPermission: (String) -> Boolean): Boolean {
+    private fun permitted(
+        config: TagsConfig,
+        name: String,
+        hasPermission: (String) -> Boolean,
+        isPermissionSet: (String) -> Boolean,
+    ): Boolean {
         val rule = config.rules[name] ?: return false
         if (!rule.enabled) return false
+        if (denied(rule.permission, hasPermission, isPermissionSet)) return false
         return hasPermission(rule.permission) || hasPermission(TAG_WILDCARD)
     }
+
+    private fun denied(
+        permission: String,
+        hasPermission: (String) -> Boolean,
+        isPermissionSet: (String) -> Boolean,
+    ): Boolean = permission.isNotEmpty() && isPermissionSet(permission) && !hasPermission(permission)
 
     private fun argsPermitted(rule: TagsConfig.TagRule, raw: String, hasPermission: (String) -> Boolean): Boolean {
         if (!rule.enabled) return false
@@ -142,6 +154,7 @@ class ContentRenderer(
         config: TagsConfig,
         mode: TagsConfig.UnauthorizedMode,
         hasPermission: (String) -> Boolean,
+        isPermissionSet: (String) -> Boolean,
     ): String {
         var result = raw
         for (rule in config.custom.values + config.replacements.values) {
@@ -149,7 +162,7 @@ class ContentRenderer(
             val pattern = regex("(?<!\\\\)</?(?:$names)(?::([^>]*))?>")
             result = pattern.replace(result) { match ->
                 when {
-                    customPermitted(rule, match.groupValues[1], hasPermission) -> match.value
+                    customPermitted(rule, match.groupValues[1], hasPermission, isPermissionSet) -> match.value
                     mode == TagsConfig.UnauthorizedMode.STRIP -> ""
                     else -> "\\" + match.value
                 }
@@ -158,9 +171,15 @@ class ContentRenderer(
         return result
     }
 
-    private fun customPermitted(rule: TagsConfig.TagRule, args: String, hasPermission: (String) -> Boolean): Boolean {
+    private fun customPermitted(
+        rule: TagsConfig.TagRule,
+        args: String,
+        hasPermission: (String) -> Boolean,
+        isPermissionSet: (String) -> Boolean,
+    ): Boolean {
         if (!rule.enabled) return false
         if (!rule.requirePermission) return true
+        if (denied(rule.permission, hasPermission, isPermissionSet)) return false
         if (hasPermission(rule.permission) || hasPermission(TAG_WILDCARD)) return true
         val first = args.substringBefore(':').trim().lowercase()
         return first.isNotEmpty() && hasPermission("${rule.permission}.$first")

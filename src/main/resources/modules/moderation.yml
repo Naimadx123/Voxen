@@ -56,6 +56,16 @@ filter:
     separators: true
     repeated: true
 
+# Custom font characters, the ones Nexo, Oraxen and ItemsAdder call glyphs or emojis.
+# Those plugins check their own permission when they turn ':name:' into a glyph, but a player
+# who copies the finished character straight into chat never goes through that check, so the
+# glyph renders anyway. This removes them again unless the player holds 'voxen.chat.glyphs'.
+# mode: censor (drop the glyphs, keep the message) or block (refuse the whole message).
+glyphs:
+  enabled: false
+  mode: "censor"
+  affects-private-messages: true
+
 # Blocks links and IP addresses. mode: block (reject the message) or censor (mask the link).
 # Anything on the whitelist is allowed, including its subdomains.
 links:

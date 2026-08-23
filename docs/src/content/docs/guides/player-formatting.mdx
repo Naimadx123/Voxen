@@ -19,10 +19,12 @@ are shown as plain text or removed, depending on `unauthorized-mode`.
 | `escape` | it stays visible as literal text, e.g. `<red>` |
 | `strip` | it is removed from the message |
 
-<Aside type="caution" title="Nexo and Oraxen force strip">
-	When a plugin that re-parses chat text is installed, `escape` is not safe: the escaped
-	tag survives as plain text and that plugin renders it anyway. Voxen detects Nexo and
-	Oraxen, switches to `strip` automatically and logs a notice on startup.
+<Aside type="caution" title="Escape can be undone by another plugin">
+	A plugin that reads chat text again after Voxen — Nexo, Oraxen and ItemsAdder all do —
+	can render a tag that `escape` left as plain text, which hands it back to a player who
+	may not use it. Voxen notes that in the console when it sees one of them installed, and
+	leaves your setting alone; switch to `strip` if players get around a tag permission that
+	way.
 
 	Messages sent to other servers always use `strip` semantics, because the sending server
 	cannot know what re-parses chat on the receiving side.

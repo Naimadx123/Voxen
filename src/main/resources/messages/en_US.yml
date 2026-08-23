@@ -54,6 +54,7 @@ chat-repeat: "<red>Please don't repeat the same message. <gray>(over <threshold>
 chat-flood: "<red>Please don't flood the chat."
 message-blocked: "<red>Your message contains blocked words."
 message-has-link: "<red>You are not allowed to post links."
+message-has-glyphs: "<red>You may not use custom font characters here."
 message-too-long: "<red>Your message is too long. <gray>(max <max> characters)"
 
 chatmute-on: "<red>The chat has been muted."

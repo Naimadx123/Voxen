@@ -54,6 +54,7 @@ chat-repeat: "<red>Nie powtarzaj tej samej wiadomości. <gray>(podobieństwo pow
 chat-flood: "<red>Nie zaśmiecaj czatu."
 message-blocked: "<red>Twoja wiadomość zawiera zablokowane słowa."
 message-has-link: "<red>Nie możesz wysyłać linków."
+message-has-glyphs: "<red>Nie możesz tu używać znaków z własnej czcionki."
 message-too-long: "<red>Wiadomość jest za długa. <gray>(maksymalnie <max> znaków)"
 
 chatmute-on: "<red>Czat został wyciszony."

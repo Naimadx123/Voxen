@@ -73,6 +73,9 @@ permissions:
   voxen.helpop:
     description: Allows asking staff for help with /helpop.
     default: true
+  voxen.chat.glyphs:
+    description: Allows custom font characters (Nexo, Oraxen and ItemsAdder glyphs) in chat.
+    default: op
   voxen.helpop.receive:
     description: Receives /helpop requests.
   voxen.helpop.manage:

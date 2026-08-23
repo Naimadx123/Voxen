@@ -1,7 +1,9 @@
 # What happens with tags a player is not allowed to use:
 # escape - shown as plain text, strip - removed from the message.
-# When a plugin that re-parses chat text is installed (Nexo, Oraxen), escaped
-# tags would render anyway, so Voxen switches to strip automatically.
+# A plugin that reads chat text again after Voxen (Nexo, Oraxen, ItemsAdder) can render a
+# tag that 'escape' left as plain text, which hands the tag back to a player who may not
+# use it. Voxen says so in the console when it sees one of them, and 'strip' is the answer
+# if that happens on your server.
 unauthorized-mode: escape
 
 # Legacy '&' color codes and '&#RRGGBB' hex codes, gated by

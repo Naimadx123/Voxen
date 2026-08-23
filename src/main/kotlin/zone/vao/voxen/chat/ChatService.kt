@@ -110,6 +110,7 @@ class ChatService(
         val content: String,
         val bypassLinks: Boolean,
         val bypassFilter: Boolean,
+        val bypassGlyphs: Boolean,
         val emotePermissions: Map<String, Boolean>,
     )
 
@@ -193,6 +194,7 @@ class ChatService(
             content,
             player.hasPermission(BYPASS_LINKS),
             player.hasPermission(BYPASS_FILTER),
+            player.hasPermission(GLYPHS),
             emotePermissions(player),
         )
     }
@@ -221,6 +223,19 @@ class ChatService(
                 }
                 is WordFilter.Result.Censored -> {
                     uncensored = content
+                    content = result.content
+                }
+                WordFilter.Result.Clean -> Unit
+            }
+        }
+        if (!snapshot.bypassGlyphs) {
+            when (val result = wordFilter.checkGlyphs(content)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(player, "message-has-glyphs")
+                    return null
+                }
+                is WordFilter.Result.Censored -> {
+                    uncensored = uncensored ?: content
                     content = result.content
                 }
                 WordFilter.Result.Clean -> Unit
@@ -480,6 +495,7 @@ class ChatService(
         const val BYPASS_SPAM = "voxen.bypass.spam"
         const val BYPASS_FILTER = "voxen.bypass.filter"
         const val BYPASS_LINKS = "voxen.bypass.links"
+        const val GLYPHS = "voxen.chat.glyphs"
         const val FILTER_TOGGLE = "voxen.filter.toggle"
         const val BYPASS_ITEM_COOLDOWN = "voxen.bypass.item-cooldown"
         const val MENTION_PERMISSION = "voxen.chat.mention"

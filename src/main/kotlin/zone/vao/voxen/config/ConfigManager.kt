@@ -274,6 +274,9 @@ class ConfigManager(
             normalizeDiacritics = yaml.getBoolean("filter.normalize.diacritics", true),
             normalizeSeparators = yaml.getBoolean("filter.normalize.separators", true),
             normalizeRepeated = yaml.getBoolean("filter.normalize.repeated", true),
+            glyphsEnabled = yaml.getBoolean("glyphs.enabled", false),
+            glyphMode = ModerationConfig.FilterMode.from(yaml.getString("glyphs.mode")?.ifEmpty { "censor" } ?: "censor"),
+            glyphsAffectsPm = yaml.getBoolean("glyphs.affects-private-messages", true),
             linksEnabled = yaml.getBoolean("links.enabled", false),
             linkMode = ModerationConfig.FilterMode.from(yaml.getString("links.mode")),
             linkIps = yaml.getBoolean("links.ips", true),
@@ -358,10 +361,11 @@ class ConfigManager(
         val reparser = REPARSING_PLUGINS.firstOrNull { plugin.server.pluginManager.getPlugin(it) != null }
             ?: return configured
         plugin.logger.info(
-            "modules/minimessage-tags.yml: $reparser re-parses chat text, so 'unauthorized-mode: escape' " +
-                "would let blocked tags render anyway; using 'strip' instead."
+            "modules/minimessage-tags.yml: $reparser reads chat text again after Voxen, so a tag left as " +
+                "plain text by 'unauthorized-mode: escape' can still be rendered by it. Switch to 'strip' " +
+                "if players get around a tag permission that way."
         )
-        return TagsConfig.UnauthorizedMode.STRIP
+        return configured
     }
 
     private fun parseTagSection(yaml: YamlConfiguration, sectionName: String): Map<String, TagsConfig.TagRule> =
@@ -929,7 +933,7 @@ class ConfigManager(
             "messages/pl_PL.yml",
         )
         val DEFAULT_CHANNELS = listOf("global.yml", "local.yml", "world.yml", "server.yml", "staff.yml", "party.yml")
-        val REPARSING_PLUGINS = listOf("Nexo", "Oraxen")
+        val REPARSING_PLUGINS = listOf("Nexo", "Oraxen", "ItemsAdder")
         val VALID_SCOPES = setOf("towny", "factions", "mcmmo")
         val EMOTE_NAME = Regex("[a-z0-9_+-]{1,32}")
         const val CHANNELS_DIR = "channels"

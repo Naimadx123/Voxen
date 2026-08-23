@@ -207,6 +207,33 @@ In `censor` mode, players with `voxen.filter.toggle` can run `/filter` to see th
 uncensored original. `block` mode rejects messages before they exist, so there is nothing
 to reveal.
 
+## Custom font glyphs
+
+```yaml title="plugins/Voxen/modules/moderation.yml"
+glyphs:
+  enabled: false
+  mode: "censor"
+  affects-private-messages: true
+```
+
+Nexo, Oraxen and ItemsAdder let players write `:name:` and turn it into a glyph from the
+resource pack, each checking its own permission before it substitutes. That check only covers
+the substitution. A player who copies the finished character out of chat and pastes it back is
+not substituting anything, so the glyph renders whatever those permissions say.
+
+Voxen closes that by looking at the characters themselves: anything in the Unicode private use
+areas, which is where all of those plugins put their glyphs, is removed unless the player holds
+`voxen.chat.glyphs`. `mode: block` refuses the whole message instead of cleaning it, and
+`affects-private-messages` covers `/msg` as well.
+
+Staff with `voxen.filter.toggle` see the original text, the same as with the word filter, so
+nothing is hidden from the people reviewing it.
+
+<Aside type="note" title="It is off by default">
+	Turning it on takes glyphs away from everyone without `voxen.chat.glyphs`, including players
+	your other plugin allowed. Grant the node to the groups that should keep them first.
+</Aside>
+
 ## Link filter
 
 | Key | Meaning |
