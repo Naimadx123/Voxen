@@ -12,6 +12,7 @@ import zone.vao.voxen.NetworkPlayer
 import zone.vao.voxen.channel.ChannelService
 import zone.vao.voxen.chat.ChatService
 import zone.vao.voxen.chat.FormatService
+import zone.vao.voxen.config.NetworkConfig
 import zone.vao.voxen.config.SystemMessagesConfig
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.event.NetworkJoinEvent
@@ -97,7 +98,7 @@ class SystemMessageService(
             name = player.name,
             server = config().network.serverId,
         )
-        val delay = settings.events[SystemMessagesConfig.Kind.QUIT]?.delayMillis ?: 0L
+        val delay = if (networked()) settings.events[SystemMessagesConfig.Kind.QUIT]?.delayMillis ?: 0L else 0L
         val uuid = player.uniqueId
         val scheduler = schedule
         if (delay <= 0L || scheduler == null) {
@@ -153,7 +154,13 @@ class SystemMessageService(
         )
     }
 
+    private fun networked(): Boolean {
+        val settings = config()
+        return settings.presence.enabled && settings.network.transport != NetworkConfig.Transport.NONE
+    }
+
     private fun previousServer(uuid: UUID): String? {
+        if (!networked()) return null
         val window = switchWindow()
         if (window <= 0L) return null
         val from = presence.lastServer(uuid, window) ?: return null

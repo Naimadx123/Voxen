@@ -34,9 +34,12 @@ first-join:
   discord: true
 
 # 'delay' holds the message back for a moment. On a network that is what tells a real
-# departure apart from a walk to another server: leave the delay long enough for the player
-# to land on the next server and Voxen drops the quit line and writes 'server-switch'
-# instead. On a single server the delay only postpones the message, so 0 is fine there.
+# departure apart from a walk to another server: leave it long enough for the player to land
+# on the next server, and Voxen drops the quit line and writes 'server-switch' instead.
+#
+# It is ignored unless a switch is actually possible, meaning modules/presence.yml is on and
+# network.transport is set in integrations.yml. On a single server the message is written the
+# moment the player disconnects, whatever is written here.
 quit:
   enabled: true
   delay: 2s

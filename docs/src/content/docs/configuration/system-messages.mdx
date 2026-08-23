@@ -67,8 +67,11 @@ without help they look like someone who left the network and someone else who ar
 
 `delay` on `quit` is what prevents that. The quit message waits that long before it is
 written; if the player turns up on another server in the meantime, the origin server drops it
-and the new server writes `server-switch` instead. Two seconds is enough for a proxy
-transfer, and a delay that short is not noticeable on a real disconnect.
+and the new server writes `server-switch` instead. Two seconds is enough for a proxy transfer.
+
+The wait only happens where a switch is possible, meaning `modules/presence.yml` is on and
+`network.transport` is set. On a single server there is nothing to tell apart, so the message
+is written the moment the player disconnects and `delay` is ignored.
 
 ```yaml title="plugins/Voxen/modules/system-messages.yml"
 quit:
