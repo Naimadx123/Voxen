@@ -12,6 +12,7 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
 import zone.vao.voxen.config.VoxenConfig
+import zone.vao.voxen.event.ChatMessageDeleteEvent
 import zone.vao.voxen.event.PlayerWarnEvent
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.storage.PlayerDataService
@@ -263,6 +264,7 @@ class ModeratorService(
             return
         }
         broadcastDelete(picked)
+        announceDelete(target, sender.name, picked, null)
         messages.send(
             sender,
             "deleted-messages",
@@ -271,7 +273,13 @@ class ModeratorService(
         )
     }
 
-    fun deleteSigned(sender: CommandSender, target: Target, signed: SignedMessage): Boolean {
+    fun deleteSigned(
+        sender: CommandSender,
+        target: Target,
+        signed: SignedMessage,
+        actor: String = sender.name,
+        messageId: UUID? = null,
+    ): Boolean {
         val settings = config().moderatorTools
         val messages = config().messages
         if (!enabled(sender)) return false
@@ -285,6 +293,7 @@ class ModeratorService(
         }
         synchronized(recent) { recent.removeAll { it.second == signed } }
         broadcastDelete(listOf(signed))
+        announceDelete(target, actor, listOf(signed), messageId)
         messages.send(
             sender,
             "deleted-messages",
@@ -340,6 +349,14 @@ class ModeratorService(
                     ClickCallback.Options.builder().uses(1).lifetime(Duration.ofMinutes(15)).build(),
                 )
             )
+    }
+
+    private fun announceDelete(target: Target, actor: String, picked: List<SignedMessage>, messageId: UUID?) {
+        for (signed in picked) {
+            server.pluginManager.callEvent(
+                ChatMessageDeleteEvent(target.uuid, target.name, actor, signed.message(), messageId)
+            )
+        }
     }
 
     private fun broadcastDelete(picked: List<SignedMessage>) {

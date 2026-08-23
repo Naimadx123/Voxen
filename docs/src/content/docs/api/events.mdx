@@ -5,7 +5,7 @@ description: The chat, private message and report events Voxen fires, and how to
 
 import { Aside } from '@astrojs/starlight/components';
 
-Thirteen Bukkit events, all in `zone.vao.voxen.event`.
+Eighteen Bukkit events, all in `zone.vao.voxen.event`.
 
 ## ChatMessageSendEvent
 
@@ -189,6 +189,41 @@ public void onReportUpdate(ReportUpdateEvent event) {
 	scheduler.
 </Aside>
 
+## ReportUpdatedEvent
+
+Fires once the change is written. `ReportUpdateEvent` runs before the write so it can still be
+vetoed, which means the report it carries is the state as it **was** — redrawing anything from
+it shows the old status.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `report` | `ReportInfo` | the state **after** the change; for `DELETE`, the last state it had |
+| `action` | `ReportInfo.Action` | what was done |
+| `moderator` | `String` | who did it |
+
+```java
+@EventHandler
+public void onReportUpdated(ReportUpdatedEvent event) {
+    if (event.getModerator().startsWith("discord:")) return;
+    redraw(event.getReport());
+}
+```
+
+Mirror a report from this one, never from `ReportUpdateEvent`. Also on the storage worker.
+
+## ChatMessageDeleteEvent
+
+Fires for every chat message a moderator deletes, one event per message, whether it came from
+the delete command, the chat button, a report or the API.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `target` | `UUID` | whose message it was |
+| `targetName` | `String` | their name |
+| `moderator` | `String` | who deleted it |
+| `content` | `String` | the text that was removed |
+| `messageId` | `UUID` | set only when the deletion started from a report |
+
 ## HelpRequestEvent
 
 Fires when a player asks the staff for help with `/helpop`, after the cooldown check and
@@ -268,6 +303,7 @@ someone who was never muted stays quiet. Cancelling leaves the mute in place.
 | Field | Type | Notes |
 | --- | --- | --- |
 | `target` | `UUID` | who is being unmuted |
+| `targetName` | `String` | the name the mute was recorded under |
 | `channelId` | `String` | the channel, or `null` for the mute covering every channel |
 | `allChannels` | `boolean` | every mute the player has is going at once |
 | `moderator` | `String` | who lifted it, `null` when nobody was named |
@@ -276,4 +312,33 @@ someone who was never muted stays quiet. Cancelling leaves the mute in place.
 	Both mute events fire on the server the mute was issued on. The copies that travel to the
 	rest of the network are applied without firing again, so a listener installed everywhere
 	sees each mute exactly once.
+</Aside>
+
+## NetworkJoinEvent, NetworkQuitEvent and NetworkSwitchEvent
+
+Three events covering where players are on the network, so nothing has to poll
+`networkPlayers()` and compare.
+
+| Event | Fires when | Carries |
+| --- | --- | --- |
+| `NetworkJoinEvent` | a player arrives on the network | `player` (`NetworkPlayer`) |
+| `NetworkQuitEvent` | a player leaves it for good | `uuid`, `name`, `server` |
+| `NetworkSwitchEvent` | a player moves between two servers | `player`, `from` |
+
+Each one fires on the server that saw it and nowhere else, so one movement means one event
+across the whole network — but it also means the addon has to be installed on every server to
+see everything.
+
+A walk from survival to lobby is one `NetworkSwitchEvent` on the lobby, not a quit and a join.
+That works because the quit is held back for `quit.delay` in `modules/system-messages.yml`; if
+the player turns up elsewhere inside that window, the quit is dropped. The same delay is how
+long `NetworkQuitEvent` waits, so a real leaver is reported a second or two after they
+disconnect.
+
+<Aside type="note" title="They do not need the messages turned on">
+	The three events fire whether or not `modules/system-messages.yml` is enabled — that file
+	only decides whether Voxen also writes a line in chat. What it does control is
+	`respect-vanish`, which keeps hidden moderators out of these events too, and `quit.delay`,
+	which is what tells a switch from a real disconnect. Switch detection also needs
+	`modules/presence.yml` on; without it every arrival is a plain join.
 </Aside>

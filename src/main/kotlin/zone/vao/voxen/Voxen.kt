@@ -227,6 +227,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         startPresenceHeartbeat()
 
         systemMessageService = SystemMessageService(
+            server,
             { configManager.config },
             channelService,
             chatService,

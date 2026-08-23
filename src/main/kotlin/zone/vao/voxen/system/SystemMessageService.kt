@@ -5,12 +5,18 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import org.bukkit.Server
 import org.bukkit.entity.Player
+import org.bukkit.event.Event
+import zone.vao.voxen.NetworkPlayer
 import zone.vao.voxen.channel.ChannelService
 import zone.vao.voxen.chat.ChatService
 import zone.vao.voxen.chat.FormatService
 import zone.vao.voxen.config.SystemMessagesConfig
 import zone.vao.voxen.config.VoxenConfig
+import zone.vao.voxen.event.NetworkJoinEvent
+import zone.vao.voxen.event.NetworkQuitEvent
+import zone.vao.voxen.event.NetworkSwitchEvent
 import zone.vao.voxen.hook.DiscordHooks
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
@@ -20,6 +26,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class SystemMessageService(
+    private val server: Server,
     private val config: () -> VoxenConfig,
     private val channels: ChannelService,
     private val chat: ChatService,
@@ -41,9 +48,11 @@ class SystemMessageService(
     private val codec = GsonComponentSerializer.gson()
 
     private class Pending(
-        val component: Component,
-        val event: SystemMessagesConfig.Event,
+        val component: Component?,
+        val event: SystemMessagesConfig.Event?,
         val player: Player,
+        val name: String,
+        val server: String,
     )
 
     fun handles(kind: SystemMessagesConfig.Kind): Boolean = config().systemMessages.handles(kind)
@@ -56,36 +65,54 @@ class SystemMessageService(
         if (hidden(player)) return
         val from = previousServer(player.uniqueId)
         if (from == null && rejoined) return
+        arrived(player, from)
+        val switched = from != null && config().systemMessages.handles(SystemMessagesConfig.Kind.SERVER_SWITCH)
         val kind = when {
-            from != null -> SystemMessagesConfig.Kind.SERVER_SWITCH
+            switched -> SystemMessagesConfig.Kind.SERVER_SWITCH
             !player.hasPlayedBefore() -> SystemMessagesConfig.Kind.FIRST_JOIN
             else -> SystemMessagesConfig.Kind.JOIN
         }
-        val extra = if (from == null) emptyArray() else arrayOf<TagResolver>(
-            Placeholder.unparsed("from", from),
+        val extra = if (!switched) emptyArray() else arrayOf<TagResolver>(
+            Placeholder.unparsed("from", from.orEmpty()),
             Placeholder.unparsed("to", config().network.serverId),
         )
         announce(kind, player, *extra)
     }
 
+    private fun arrived(player: Player, from: String?) {
+        val here = config().network.serverId
+        val info = NetworkPlayer(player.uniqueId, player.name, here, System.currentTimeMillis())
+        val event: Event = if (from == null) NetworkJoinEvent(info) else NetworkSwitchEvent(info, from)
+        server.pluginManager.callEvent(event)
+    }
+
     fun quit(player: Player) {
         if (hidden(player)) return
-        val event = config().systemMessages.event(SystemMessagesConfig.Kind.QUIT) ?: return
-        val component = render(event, player)
-        if (event.delayMillis <= 0L) {
-            publish(component, event, player)
-            return
-        }
+        val settings = config().systemMessages
+        val event = settings.event(SystemMessagesConfig.Kind.QUIT)
+        val pending = Pending(
+            component = event?.let { render(it, player) },
+            event = event,
+            player = player,
+            name = player.name,
+            server = config().network.serverId,
+        )
+        val delay = settings.events[SystemMessagesConfig.Kind.QUIT]?.delayMillis ?: 0L
         val uuid = player.uniqueId
-        leaving[uuid] = Pending(component, event, player)
-        val scheduler = schedule ?: run {
-            publish(component, event, player)
-            leaving.remove(uuid)
+        val scheduler = schedule
+        if (delay <= 0L || scheduler == null) {
+            release(uuid, pending)
             return
         }
-        scheduler(event.delayMillis) {
-            leaving.remove(uuid)?.let { pending -> publish(pending.component, pending.event, pending.player) }
-        }
+        leaving[uuid] = pending
+        scheduler(delay) { leaving.remove(uuid)?.let { held -> release(uuid, held) } }
+    }
+
+    private fun release(uuid: UUID, pending: Pending) {
+        server.pluginManager.callEvent(NetworkQuitEvent(uuid, pending.name, pending.server))
+        val event = pending.event ?: return
+        val component = pending.component ?: return
+        publish(component, event, pending.player)
     }
 
     fun cancelQuit(uuid: UUID) {
@@ -127,7 +154,6 @@ class SystemMessageService(
     }
 
     private fun previousServer(uuid: UUID): String? {
-        if (!config().systemMessages.handles(SystemMessagesConfig.Kind.SERVER_SWITCH)) return null
         val window = switchWindow()
         if (window <= 0L) return null
         val from = presence.lastServer(uuid, window) ?: return null

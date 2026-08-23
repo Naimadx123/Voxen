@@ -87,30 +87,36 @@ class MuteService(
     }
 
     fun unmute(uuid: UUID, channel: String?, moderator: String? = null): Boolean {
-        if (!holds(uuid, channel)) return false
-        if (!allowUnmute(uuid, channel, all = false, moderator = moderator)) return false
+        val name = holder(uuid, channel) ?: return false
+        if (!allowUnmute(uuid, name, channel, all = false, moderator = moderator)) return false
         val removed = applyUnmute(uuid, channel)
         if (removed) broadcastUnmute(uuid, channel, all = false)
         return removed
     }
 
     fun unmuteAll(uuid: UUID, moderator: String? = null): Int {
-        if (mutesFor(uuid).isEmpty()) return 0
-        if (!allowUnmute(uuid, null, all = true, moderator = moderator)) return 0
+        val name = mutesFor(uuid).firstOrNull()?.playerName ?: return 0
+        if (!allowUnmute(uuid, name, null, all = true, moderator = moderator)) return 0
         val count = applyUnmuteAll(uuid)
         if (count > 0) broadcastUnmute(uuid, null, all = true)
         return count
     }
 
-    private fun allowUnmute(uuid: UUID, channel: String?, all: Boolean, moderator: String?): Boolean {
-        val event = PlayerUnmuteEvent(uuid, channel, all, moderator)
+    private fun allowUnmute(
+        uuid: UUID,
+        name: String,
+        channel: String?,
+        all: Boolean,
+        moderator: String?,
+    ): Boolean {
+        val event = PlayerUnmuteEvent(uuid, name, channel, all, moderator)
         server.pluginManager.callEvent(event)
         return !event.isCancelled
     }
 
-    private fun holds(uuid: UUID, channel: String?): Boolean {
-        val list = mutes[uuid] ?: return false
-        return synchronized(list) { list.any { matches(it, channel) } }
+    private fun holder(uuid: UUID, channel: String?): String? {
+        val list = mutes[uuid] ?: return null
+        return synchronized(list) { list.firstOrNull { matches(it, channel) }?.playerName }
     }
 
     fun handleRemote(message: BrokerMessage) {

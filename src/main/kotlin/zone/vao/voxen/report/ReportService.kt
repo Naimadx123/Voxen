@@ -19,6 +19,7 @@ import zone.vao.voxen.ReportInfo
 import zone.vao.voxen.event.ReportCreateEvent
 import zone.vao.voxen.event.ReportOpenedEvent
 import zone.vao.voxen.event.ReportUpdateEvent
+import zone.vao.voxen.event.ReportUpdatedEvent
 import zone.vao.voxen.storage.ReportEntry
 import zone.vao.voxen.util.Durations
 import zone.vao.voxen.util.Pages
@@ -325,7 +326,7 @@ class ReportService(
             then?.invoke()
             return
         }
-        if (moderators.deleteSigned(sender, target(entry), signed)) {
+        if (moderators.deleteSigned(sender, target(entry), signed, sender.name, entry.messageId)) {
             audit(entry.id, sender.name, MESSAGE_DELETED, entry.messageContent)
         }
         then?.invoke()
@@ -368,7 +369,9 @@ class ReportService(
     fun deleteReported(actor: String, id: UUID): Boolean {
         val entry = find(id) ?: return false
         val signed = entry.messageId?.let { index.get(it) }?.signed ?: return false
-        val deleted = threads.await { moderators.deleteSigned(server.consoleSender, target(entry), signed) } ?: false
+        val deleted = threads.await {
+            moderators.deleteSigned(server.consoleSender, target(entry), signed, actor, entry.messageId)
+        } ?: false
         if (deleted) audit(entry.id, actor, MESSAGE_DELETED, entry.messageContent)
         return deleted
     }
@@ -515,11 +518,21 @@ class ReportService(
         val update = ReportUpdateEvent(info(entry), choice.info, actor)
         server.pluginManager.callEvent(update)
         if (update.isCancelled) return null
-        val status = choice.status ?: return if (storage.deleteReport(id)) entry else null
+        val status = choice.status ?: run {
+            if (!storage.deleteReport(id)) return null
+            settled(entry, choice, actor)
+            return entry
+        }
         if (entry.status == status) return null
         if (!storage.updateReport(id, status, actor, now)) return null
         storage.saveReportAction(action(id, actor, choice.id, null, now))
-        return entry.copy(status = status, handler = actor, updatedAt = now)
+        val updated = entry.copy(status = status, handler = actor, updatedAt = now)
+        settled(updated, choice, actor)
+        return updated
+    }
+
+    private fun settled(entry: ReportEntry, choice: Action, actor: String) {
+        server.pluginManager.callEvent(ReportUpdatedEvent(info(entry), choice.info, actor))
     }
 
     private fun case(storage: PlayerStorage, entry: ReportEntry): Case {

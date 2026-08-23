@@ -14,6 +14,9 @@ import java.util.UUID
  * covers every channel. [allChannels] means every mute the player has is
  * going at once, which is what `/voxen unmute <player>` does.
  *
+ * [targetName] is the name the mute was recorded under, so nothing has to be
+ * looked up to write a log line.
+ *
  * [moderator] is null when nobody is named, for instance when another plugin
  * lifted the mute through the API without saying who.
  *
@@ -21,6 +24,7 @@ import java.util.UUID
  */
 class PlayerUnmuteEvent(
     val target: UUID,
+    val targetName: String,
     val channelId: String?,
     val allChannels: Boolean,
     val moderator: String?,
