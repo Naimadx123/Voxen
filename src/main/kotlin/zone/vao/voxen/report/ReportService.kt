@@ -17,6 +17,7 @@ import zone.vao.voxen.storage.PlayerStorage
 import zone.vao.voxen.storage.ReportAction
 import zone.vao.voxen.ReportInfo
 import zone.vao.voxen.event.ReportCreateEvent
+import zone.vao.voxen.event.ReportOpenedEvent
 import zone.vao.voxen.event.ReportUpdateEvent
 import zone.vao.voxen.storage.ReportEntry
 import zone.vao.voxen.util.Durations
@@ -192,7 +193,8 @@ class ReportService(
                 }
             }
             storage.saveReport(entry)
-            storage.saveReportAction(action(entry.id, reporter.name, OPENED, text, now))
+            storage.saveReportAction(action(entry.id, reporter.name, OPENED, entry.reason, now))
+            server.pluginManager.callEvent(ReportOpenedEvent(info(entry)))
             lastUse[reporter.uniqueId] = now
             val pending = storage.reportCount(ReportEntry.Status.PENDING)
             threads.main {

@@ -5,7 +5,7 @@ description: The chat, private message and report events Voxen fires, and how to
 
 import { Aside } from '@astrojs/starlight/components';
 
-Twelve Bukkit events, all in `zone.vao.voxen.event`.
+Thirteen Bukkit events, all in `zone.vao.voxen.event`.
 
 ## ChatMessageSendEvent
 
@@ -116,8 +116,12 @@ everywhere to see every message.
 
 ## ReportCreateEvent
 
-Fires before a report is written to the database, after the cooldown and duplicate checks.
-Cancelling drops it silently, and `reason` may be rewritten before it is stored.
+Fires before a report is written to the database, after the cooldown check. Cancelling drops it
+silently, and `reason` may be rewritten before it is stored.
+
+There is deliberately no report id here: the row does not exist yet, and the duplicate check
+still runs afterwards, so a report that reaches this event may never be stored. Anything that
+needs the id belongs on [ReportOpenedEvent](#reportopenedevent).
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -136,6 +140,27 @@ public void onReport(ReportCreateEvent event) {
     else webhook.post(event.getTargetName() + ": " + event.getReason());
 }
 ```
+
+## ReportOpenedEvent
+
+Fires once the report is in the database and has an id. `ReportCreateEvent` runs earlier so it
+can still be vetoed, which is exactly why it has no id yet — and why a report that the
+duplicate check drops never reaches this event.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `report` | `ReportInfo` | the stored report, id and all |
+
+```java
+@EventHandler
+public void onReportOpened(ReportOpenedEvent event) {
+    VoxenApi.reportCase(event.getReport().getId()).thenAccept(this::buildPanel);
+}
+```
+
+Use this one to build anything that has to point back at a report, and pair it with
+`ReportUpdateEvent` to follow it afterwards. It fires only on the server the report was filed
+on, so one report means one event across the whole network.
 
 ## ReportUpdateEvent
 
