@@ -7,6 +7,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.AiModerationConfig
+import zone.vao.voxen.event.AiModerationEvent
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.WorkQueue
@@ -53,6 +54,19 @@ class AiModerationService(
 
     private fun apply(target: ModeratorService.Target, content: String, score: Double, rule: AiModerationConfig.Rule) {
         val messages = config().messages
+        val online = server.getPlayer(target.uuid)
+        if (online != null) {
+            val event = AiModerationEvent(
+                online,
+                content,
+                score,
+                rule.actions.mapNotNullTo(HashSet()) { action ->
+                    runCatching { AiModerationEvent.Action.valueOf(action.name) }.getOrNull()
+                },
+            )
+            server.pluginManager.callEvent(event)
+            if (event.isCancelled) return
+        }
         val percent = String.format("%.1f", score * 100.0)
         val resolvers = arrayOf(
             Placeholder.unparsed("player", target.name),
@@ -73,8 +87,8 @@ class AiModerationService(
             moderator.warn(server.consoleSender, target, messages.raw(server.consoleSender, "ai-warn-reason").replace("<score>", percent))
         }
         if (AiModerationConfig.Action.KICK in rule.actions) {
-            server.getPlayer(target.uuid)?.let { online ->
-                threads.forPlayer(online) { online.kick(messages.line(online, "ai-kick", *resolvers)) }
+            online?.let { player ->
+                threads.forPlayer(player) { player.kick(messages.line(player, "ai-kick", *resolvers)) }
             }
         }
         for (command in rule.commands) {

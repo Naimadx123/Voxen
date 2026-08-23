@@ -49,6 +49,7 @@ import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.PlayerStorage
 import zone.vao.voxen.storage.ReportEntry
 import zone.vao.voxen.storage.StaffNote
+import zone.vao.voxen.storage.TicketEntry
 import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
@@ -541,6 +542,84 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         muteService.unmute(target, channelId?.lowercase(), moderator)
 
     override fun unmuteAll(target: UUID, moderator: String): Int = muteService.unmuteAll(target, moderator)
+
+    override fun warn(target: UUID, targetName: String, reason: String, moderator: String): Boolean =
+        moderatorService.warn(moderator, ModeratorService.Target(target, targetName), reason)
+
+    override fun warnings(target: UUID): CompletableFuture<List<WarningInfo>> = onStorage { storage ->
+        storage.staffNotes(target, StaffNote.Kind.WARN, configManager.config.moderatorTools.warningCutoff)
+            .map { note ->
+                WarningInfo(
+                    id = note.id,
+                    target = note.target,
+                    targetName = note.targetName,
+                    moderator = note.author,
+                    reason = note.content,
+                    createdAt = note.createdAt,
+                )
+            }
+    }
+
+    override fun activeMutes(target: UUID): List<MuteInfo> = muteService.mutesFor(target).map { mute ->
+        MuteInfo(
+            target = mute.uuid,
+            targetName = mute.playerName,
+            channelId = mute.channel,
+            reason = mute.reason,
+            moderator = mute.moderator,
+            expiresAt = mute.expiresAt,
+            createdAt = mute.createdAt,
+        )
+    }
+
+    override fun reportCase(id: UUID): CompletableFuture<ReportCase?> = onStorage {
+        reportService.case(id)?.let { loaded ->
+            ReportCase(
+                report = reportService.info(loaded.entry),
+                context = loaded.context.map { line ->
+                    ChatLine(
+                        id = line.id,
+                        player = line.uuid,
+                        playerName = line.playerName,
+                        channelId = line.channel,
+                        content = line.content,
+                        server = line.server,
+                        createdAt = line.createdAt,
+                    )
+                },
+                history = loaded.actions.map { action ->
+                    ReportCase.AuditEntry(
+                        id = action.id,
+                        actor = action.actor,
+                        action = action.action,
+                        detail = action.detail,
+                        createdAt = action.createdAt,
+                    )
+                },
+            )
+        }
+    }
+
+    override fun deleteReportedMessage(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        onStorage { reportService.deleteReported(moderator, id) }
+
+    override fun tickets(statuses: Collection<TicketInfo.Status>, limit: Int): CompletableFuture<List<TicketInfo>> {
+        val wanted = statuses.map { TicketEntry.Status.valueOf(it.name) }
+        return onStorage { storage -> storage.tickets(wanted, limit).map(ticketService::info) }
+    }
+
+    override fun ticket(id: UUID): CompletableFuture<TicketCase?> = onStorage { storage ->
+        storage.ticket(id)?.let { entry ->
+            val limit = configManager.config.helpop.historyLimit
+            TicketCase(ticketService.info(entry), storage.ticketMessages(id, limit).map(ticketService::info))
+        }
+    }
+
+    override fun replyToTicket(id: UUID, message: String, moderator: String): CompletableFuture<Boolean> =
+        onStorage { ticketService.answer(moderator, id, message) }
+
+    override fun closeTicket(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        onStorage { ticketService.close(moderator, id) }
 
     override fun reports(statuses: Collection<ReportInfo.Status>, limit: Int): CompletableFuture<List<ReportInfo>> {
         val wanted = statuses.map { ReportEntry.Status.valueOf(it.name) }

@@ -9,6 +9,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
 import zone.vao.voxen.config.HelpopConfig
+import zone.vao.voxen.event.HelpRequestEvent
 import zone.vao.voxen.util.Durations
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -64,14 +65,19 @@ object HelpopCommand {
             )
             return
         }
+        val tickets = settings.mode == HelpopConfig.Mode.TICKETS
+        val event = HelpRequestEvent(player, content.take(settings.maxLength), tickets)
+        plugin.server.pluginManager.callEvent(event)
+        if (event.isCancelled) return
+        val text = event.message.trim().ifEmpty { return }
         lastUse[player.uniqueId] = now
-        if (settings.mode == HelpopConfig.Mode.TICKETS) {
-            plugin.ticketService.open(player, content.take(settings.maxLength))
+        if (tickets) {
+            plugin.ticketService.open(player, text)
             return
         }
         val resolvers = arrayOf(
             Placeholder.unparsed("player", player.name),
-            Placeholder.unparsed("message", content),
+            Placeholder.unparsed("message", text),
         )
         messages.send(player, "helpop-sent")
         var staffOnline = false

@@ -323,6 +323,69 @@ Remote entries come from [presence tracking](/configuration/modules/#presence), 
 `modules/presence.yml` has to be on. Without a network both methods still work and simply
 describe this server alone.
 
+### One report with everything around it
+
+```java
+VoxenApi.reportCase(id).thenAccept(loaded -> {
+    for (ChatLine line : loaded.getContext()) {
+        boolean reported = line.getId().equals(loaded.getReport().getMessageId());
+    }
+});
+```
+
+`reportCase` is `report` plus the chat before and after the reported message and the audit
+trail of what moderators did to it — everything a moderation panel outside the game needs in
+one call. How much context comes back is `context` in `modules/reports.yml`.
+
+`deleteReportedMessage(id, moderator)` deletes the message a report points at and records it
+in the audit trail. It only works while the message is still deletable: signed messages live
+in memory on the server they were typed on, so it answers `false` after a restart and from
+another server on the network.
+
+### Warnings, mutes and tickets
+
+```java
+VoxenApi.warn(uuid, "Steve", "spam", moderator);
+VoxenApi.warnings(uuid).thenAccept(list -> ...);
+List<MuteInfo> mutes = VoxenApi.activeMutes(uuid);
+
+VoxenApi.tickets(TicketInfo.Status.ACTIVE, 25).thenAccept(queue -> ...);
+VoxenApi.replyToTicket(ticketId, "Looking into it", moderator);
+VoxenApi.closeTicket(ticketId, moderator);
+```
+
+`warn` goes through the same path as the warn command: it lands on the record, the warning
+rules for that count run, and [PlayerWarnEvent](/api/events/#playerwarnevent) fires first.
+`activeMutes` reads from memory, which is why it is the one moderation method without a
+future. The ticket methods are empty while `modules/helpop.yml` runs in broadcast mode.
+
+### Acting for somebody outside the game
+
+Every moderation method takes a `moderator` name and stores it as written, so an addon acting
+for a Discord user, a web dashboard or a bot passes its own identity:
+
+```java
+String who = VoxenApi.externalModerator("discord", "123456789");   // "discord:123456789"
+VoxenApi.updateReport(id, ReportInfo.Action.CLAIM, who);
+```
+
+That name comes back on the matching event, and that is the loop guard: check the prefix
+before reacting, or your addon will answer its own actions.
+
+```java
+@EventHandler
+public void onReportUpdate(ReportUpdateEvent event) {
+    if (event.getModerator().startsWith("discord:")) return;   // we did this ourselves
+    mirrorToDiscord(event);
+}
+```
+
+<Aside type="caution" title="Map roles to actions, never to commands">
+	Give an outside surface a closed list of actions — claim, warn, mute, resolve — and map
+	each one to a permission you check yourself. An addon that forwards arbitrary console
+	commands from a chat message is a remote shell with extra steps.
+</Aside>
+
 ### Add a page to the web panel
 
 ```java

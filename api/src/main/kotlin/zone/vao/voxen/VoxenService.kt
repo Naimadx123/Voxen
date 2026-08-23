@@ -45,9 +45,18 @@ interface VoxenService {
     fun mute(request: MuteRequest): Boolean
     fun unmute(target: UUID, channelId: String?, moderator: String): Boolean
     fun unmuteAll(target: UUID, moderator: String): Int
+    fun warn(target: UUID, targetName: String, reason: String, moderator: String): Boolean
+    fun warnings(target: UUID): CompletableFuture<List<WarningInfo>>
+    fun activeMutes(target: UUID): List<MuteInfo>
     fun reports(statuses: Collection<ReportInfo.Status>, limit: Int): CompletableFuture<List<ReportInfo>>
     fun report(id: UUID): CompletableFuture<ReportInfo?>
     fun updateReport(id: UUID, action: ReportInfo.Action, moderator: String): CompletableFuture<Boolean>
+    fun reportCase(id: UUID): CompletableFuture<ReportCase?>
+    fun deleteReportedMessage(id: UUID, moderator: String): CompletableFuture<Boolean>
+    fun tickets(statuses: Collection<TicketInfo.Status>, limit: Int): CompletableFuture<List<TicketInfo>>
+    fun ticket(id: UUID): CompletableFuture<TicketCase?>
+    fun replyToTicket(id: UUID, message: String, moderator: String): CompletableFuture<Boolean>
+    fun closeTicket(id: UUID, moderator: String): CompletableFuture<Boolean>
     fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean
     fun unregisterPanelPage(id: String): Boolean
     fun serverId(): String

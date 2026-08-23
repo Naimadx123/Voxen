@@ -6,7 +6,9 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import org.bukkit.Server
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
+import zone.vao.voxen.TicketInfo
 import zone.vao.voxen.config.HelpopConfig
+import zone.vao.voxen.event.TicketUpdateEvent
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.PlayerStorage
@@ -69,6 +71,7 @@ class TicketService(
             }
             storage.saveTicket(entry)
             storage.saveTicketMessage(message(entry.id, player.name, staff = false, content = text, at = now))
+            announce(entry, TicketUpdateEvent.Action.OPENED, player.name, staff = false, message = text)
             val waiting = storage.tickets(TicketEntry.Status.ACTIVE, settings.queueLimit).size
             threads.main {
                 messages.send(player, "ticket-opened", Placeholder.unparsed("subject", text))
@@ -105,6 +108,13 @@ class TicketService(
             val now = System.currentTimeMillis()
             storage.saveTicketMessage(message(entry.id, player.name, staff = false, content = text, at = now))
             storage.updateTicket(entry.id, TicketEntry.Status.OPEN, null, now)
+            announce(
+                entry.copy(status = TicketEntry.Status.OPEN, updatedAt = now),
+                TicketUpdateEvent.Action.REPLIED,
+                player.name,
+                staff = false,
+                message = text,
+            )
             threads.main {
                 messages.send(player, "ticket-reply-sent")
                 if (settings.notifyStaff) {
@@ -127,8 +137,9 @@ class TicketService(
             val now = System.currentTimeMillis()
             storage.saveTicketMessage(message(found.id, author, staff = true, content = text, at = now))
             storage.updateTicket(found.id, TicketEntry.Status.ANSWERED, author, now)
-            found
+            found.copy(status = TicketEntry.Status.ANSWERED, handler = author, updatedAt = now)
         } ?: return false
+        announce(entry, TicketUpdateEvent.Action.REPLIED, author, staff = true, message = text)
         notify(entry, "ticket-staff-reply", Placeholder.unparsed("message", text))
         return true
     }
@@ -136,9 +147,11 @@ class TicketService(
     fun close(author: String, id: UUID): Boolean {
         val entry = playerData.blocking { storage ->
             val found = storage.ticket(id)?.takeIf { it.status.active } ?: return@blocking null
-            storage.updateTicket(found.id, TicketEntry.Status.CLOSED, author, System.currentTimeMillis())
-            found
+            val now = System.currentTimeMillis()
+            storage.updateTicket(found.id, TicketEntry.Status.CLOSED, author, now)
+            found.copy(status = TicketEntry.Status.CLOSED, handler = author, updatedAt = now)
         } ?: return false
+        announce(entry, TicketUpdateEvent.Action.CLOSED, author, staff = true, message = null)
         notify(entry, "ticket-was-closed")
         return true
     }
@@ -276,6 +289,36 @@ class TicketService(
     private fun load(storage: PlayerStorage, id: UUID): Case? {
         val entry = storage.ticket(id) ?: return null
         return Case(entry, storage.ticketMessages(id, settings().historyLimit))
+    }
+
+    fun info(entry: TicketEntry): TicketInfo = TicketInfo(
+        id = entry.id,
+        player = entry.player,
+        playerName = entry.playerName,
+        subject = entry.subject,
+        server = entry.server,
+        status = TicketInfo.Status.valueOf(entry.status.name),
+        moderator = entry.handler,
+        createdAt = entry.createdAt,
+        updatedAt = entry.updatedAt,
+    )
+
+    fun info(message: TicketMessage): TicketInfo.Message = TicketInfo.Message(
+        id = message.id,
+        author = message.author,
+        staff = message.staff,
+        content = message.content,
+        createdAt = message.createdAt,
+    )
+
+    private fun announce(
+        entry: TicketEntry,
+        action: TicketUpdateEvent.Action,
+        author: String,
+        staff: Boolean,
+        message: String?,
+    ) {
+        server.pluginManager.callEvent(TicketUpdateEvent(info(entry), action, author, staff, message))
     }
 
     private fun message(ticket: UUID, author: String, staff: Boolean, content: String, at: Long) = TicketMessage(

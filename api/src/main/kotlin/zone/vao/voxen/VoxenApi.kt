@@ -285,6 +285,27 @@ object VoxenApi {
     fun unmuteAll(target: UUID, moderator: String): Int = service().unmuteAll(target, moderator)
 
     /**
+     * Warns a player, exactly as the warn command does: it goes on their
+     * record, the warning rules for that count run, and
+     * [zone.vao.voxen.event.PlayerWarnEvent] fires first.
+     *
+     * [moderator] is the name written into the record; see
+     * [externalModerator] for acting on behalf of someone outside the game.
+     * Returns false when warnings are turned off or a handler cancelled it.
+     */
+    @JvmStatic
+    fun warn(target: UUID, targetName: String, reason: String, moderator: String): Boolean =
+        service().warn(target, targetName, reason, moderator)
+
+    /** Reads a player's warnings that are still counted, newest first. */
+    @JvmStatic
+    fun warnings(target: UUID): CompletableFuture<List<WarningInfo>> = service().warnings(target)
+
+    /** Reads the mutes a player currently has. Answers from memory, so no future. */
+    @JvmStatic
+    fun activeMutes(target: UUID): List<MuteInfo> = service().activeMutes(target)
+
+    /**
      * Reads the reports still waiting for a moderator, newest first.
      *
      * Every report method talks to the database, so it answers through a
@@ -319,6 +340,71 @@ object VoxenApi {
     @JvmStatic
     fun updateReport(id: UUID, action: ReportInfo.Action, moderator: String): CompletableFuture<Boolean> =
         service().updateReport(id, action, moderator)
+
+    /**
+     * Reads one report with everything around it: the chat before and after
+     * the reported message, and the audit trail of what moderators did.
+     *
+     * How much context comes back is `context` in `modules/reports.yml`.
+     * Completes with null when the report is gone.
+     */
+    @JvmStatic
+    fun reportCase(id: UUID): CompletableFuture<ReportCase?> = service().reportCase(id)
+
+    /**
+     * Deletes the chat message a report points at, for everyone who can still
+     * see it, and records it in the report's audit trail.
+     *
+     * Only works while the message is still deletable: signed messages are
+     * kept in memory on the server they were typed on, so this completes with
+     * false after a restart or from another server on the network.
+     */
+    @JvmStatic
+    fun deleteReportedMessage(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        service().deleteReportedMessage(id, moderator)
+
+    /**
+     * Reads help tickets, newest activity first. Pass
+     * [TicketInfo.Status.ACTIVE] for the queue, or an empty collection for
+     * every status.
+     *
+     * Always empty while `modules/helpop.yml` runs in broadcast mode.
+     */
+    @JvmStatic
+    fun tickets(statuses: Collection<TicketInfo.Status>, limit: Int): CompletableFuture<List<TicketInfo>> =
+        service().tickets(statuses, limit)
+
+    /** Reads one ticket with its whole conversation, or null when it is gone. */
+    @JvmStatic
+    fun ticket(id: UUID): CompletableFuture<TicketCase?> = service().ticket(id)
+
+    /**
+     * Answers a ticket as [moderator]. The player is told in game when they
+     * are online, and [zone.vao.voxen.event.TicketUpdateEvent] fires.
+     *
+     * Completes with false when the ticket is gone or already closed.
+     */
+    @JvmStatic
+    fun replyToTicket(id: UUID, message: String, moderator: String): CompletableFuture<Boolean> =
+        service().replyToTicket(id, message, moderator)
+
+    /** Closes a ticket. Completes with false when it is gone or already closed. */
+    @JvmStatic
+    fun closeTicket(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        service().closeTicket(id, moderator)
+
+    /**
+     * Builds a moderator name for someone acting from outside the game, like
+     * `discord:123456789`, for the `moderator` argument every moderation
+     * method takes.
+     *
+     * Voxen stores it as written and hands it back on the matching event, so
+     * an addon can recognise its own doing and not act on it twice. That is
+     * the whole loop guard: check the prefix before reacting to an event.
+     */
+    @JvmStatic
+    fun externalModerator(system: String, id: String): String =
+        "${system.trim().lowercase()}:${id.trim()}"
 
     /**
      * Adds a page to the web panel. It appears in the sidebar as [title] for

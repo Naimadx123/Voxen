@@ -5,7 +5,7 @@ description: The chat, private message and report events Voxen fires, and how to
 
 import { Aside } from '@astrojs/starlight/components';
 
-Eight Bukkit events, all in `zone.vao.voxen.event`.
+Twelve Bukkit events, all in `zone.vao.voxen.event`.
 
 ## ChatMessageSendEvent
 
@@ -163,6 +163,54 @@ public void onReportUpdate(ReportUpdateEvent event) {
 	the database is written. Do not touch the world from it without hopping back to the
 	scheduler.
 </Aside>
+
+## HelpRequestEvent
+
+Fires when a player asks the staff for help with `/helpop`, after the cooldown check and
+before anything is sent or stored. Cancellable, and `message` is mutable.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `player` | `Player` | who is asking |
+| `message` | `String` | mutable |
+| `tickets` | `boolean` | false when the message is only broadcast, true when it opens a ticket |
+
+## TicketUpdateEvent
+
+Fires after a ticket was opened, answered or closed, from any side: the player's screen, the
+staff commands, the web panel or the API. Not cancellable — the change has already happened.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `ticket` | `TicketInfo` | the state **after** the change |
+| `action` | `TicketUpdateEvent.Action` | `OPENED`, `REPLIED` or `CLOSED` |
+| `author` | `String` | who wrote or closed it |
+| `staff` | `boolean` | which side of the conversation |
+| `message` | `String` | the text, `null` for `CLOSED` |
+
+## PlayerWarnEvent
+
+Fires before a warning goes on a player's record, whatever asked for it: a command, the
+moderator screens, AI moderation or the API. Cancellable, and `reason` is mutable.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `target` | `UUID` | who is being warned |
+| `targetName` | `String` | their name at the time |
+| `reason` | `String` | mutable |
+| `moderator` | `String` | a name, not a player |
+
+## AiModerationEvent
+
+Fires when AI moderation has scored a message and decided what to do, before any of it
+happens. Cancelling drops every action and the rule's commands with them.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `player` | `Player` | who wrote the message |
+| `content` | `String` | what they wrote |
+| `score` | `double` | 0 to 1 |
+| `actions` | `Set<AiModerationEvent.Action>` | `REPORT`, `DELETE`, `WARN`, `KICK` |
 
 ## PlayerMuteEvent
 

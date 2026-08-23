@@ -12,6 +12,7 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
 import zone.vao.voxen.config.VoxenConfig
+import zone.vao.voxen.event.PlayerWarnEvent
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.StaffNote
@@ -54,11 +55,28 @@ class ModeratorService(
             else messages.send(sender, "warn-needs-reason")
             return
         }
+        apply(sender, sender.name, target, text)
+    }
+
+    fun warn(actor: String, target: Target, reason: String): Boolean {
+        val settings = config().moderatorTools
+        if (!settings.enabled || !settings.warningsEnabled) return false
+        val text = reason.trim().ifEmpty { return false }
+        return apply(null, actor, target, text)
+    }
+
+    private fun apply(sender: CommandSender?, actor: String, target: Target, reason: String): Boolean {
+        val settings = config().moderatorTools
+        val messages = config().messages
+        val event = PlayerWarnEvent(target.uuid, target.name, reason, actor)
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return false
+        val text = event.reason.trim().ifEmpty { return false }
         val note = StaffNote(
             id = UUID.randomUUID(),
             target = target.uuid,
             targetName = target.name,
-            author = sender.name,
+            author = actor,
             content = text,
             kind = StaffNote.Kind.WARN,
             createdAt = System.currentTimeMillis(),
@@ -67,13 +85,15 @@ class ModeratorService(
             storage.saveStaffNote(note)
             val count = storage.staffNotes(target.uuid, StaffNote.Kind.WARN, settings.warningCutoff).size
             threads.main {
-                messages.send(
-                    sender,
-                    "warned-player",
-                    Placeholder.unparsed("player", target.name),
-                    Placeholder.unparsed("reason", text),
-                    Placeholder.unparsed("amount", count.toString()),
-                )
+                sender?.let {
+                    messages.send(
+                        it,
+                        "warned-player",
+                        Placeholder.unparsed("player", target.name),
+                        Placeholder.unparsed("reason", text),
+                        Placeholder.unparsed("amount", count.toString()),
+                    )
+                }
                 val online = server.getPlayer(target.uuid)
                 if (settings.notifyTarget && online != null) {
                     threads.forPlayer(online) {
@@ -88,13 +108,14 @@ class ModeratorService(
                 alert(
                     "warn-alert",
                     Placeholder.unparsed("player", target.name),
-                    Placeholder.unparsed("moderator", sender.name),
+                    Placeholder.unparsed("moderator", actor),
                     Placeholder.unparsed("reason", text),
                     Placeholder.unparsed("amount", count.toString()),
                 )
-                runRules(sender, target, count, text)
+                runRules(actor, target, count, text)
             }
-        }, { threads.main { messages.send(sender, "storage-busy") } })
+        }, { threads.main { sender?.let { messages.send(it, "storage-busy") } } })
+        return true
     }
 
     fun warnings(sender: CommandSender, target: Target, page: Int = 1) {
@@ -353,14 +374,14 @@ class ModeratorService(
         }
     }
 
-    private fun runRules(sender: CommandSender, target: Target, count: Int, reason: String) {
+    private fun runRules(actor: String, target: Target, count: Int, reason: String) {
         val rules = config().moderatorTools.warningRules.filter { it.matches(count) }
         if (rules.isEmpty()) return
         val commands = rules.flatMap { it.commands }.map { command ->
             command.replace("<player>", target.name)
                 .replace("<uuid>", target.uuid.toString())
                 .replace("<count>", count.toString())
-                .replace("<moderator>", sender.name)
+                .replace("<moderator>", actor)
                 .replace("<reason>", reason)
         }
         threads.main {

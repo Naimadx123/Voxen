@@ -363,6 +363,14 @@ class ReportService(
 
     fun find(id: UUID): ReportEntry? = playerData.blocking { storage -> storage.report(id) }
 
+    fun deleteReported(actor: String, id: UUID): Boolean {
+        val entry = find(id) ?: return false
+        val signed = entry.messageId?.let { index.get(it) }?.signed ?: return false
+        val deleted = threads.await { moderators.deleteSigned(server.consoleSender, target(entry), signed) } ?: false
+        if (deleted) audit(entry.id, actor, MESSAGE_DELETED, entry.messageContent)
+        return deleted
+    }
+
     fun info(entry: ReportEntry): ReportInfo = ReportInfo(
         id = entry.id,
         target = entry.target,
