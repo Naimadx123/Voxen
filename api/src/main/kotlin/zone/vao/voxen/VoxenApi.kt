@@ -197,6 +197,31 @@ object VoxenApi {
     fun stripTags(text: String): String = service().stripTags(text)
 
     /**
+     * Teaches Voxen to print moderator names that your addon wrote.
+     *
+     * A name stored as `discord:123456789` is shown through the resolver
+     * registered for `discord`, which is handed the `123456789` half and
+     * answers with something readable like `4g0 (Naimad123)`. It applies
+     * everywhere Voxen prints who did what: report and ticket screens, the
+     * web panel, audit trails, mute and warning lists.
+     *
+     * What events and the API hand back is always the stored string, so the
+     * prefix stays usable as a loop guard.
+     *
+     * Returns false when the prefix is invalid; only `a-z`, `0-9`, `-` and
+     * `_` are allowed. Registering an existing prefix replaces its resolver.
+     */
+    @JvmStatic
+    fun registerModeratorResolver(prefix: String, resolver: ModeratorResolver): Boolean =
+        service().registerModeratorResolver(prefix, resolver)
+
+    /** Removes a resolver registered with [registerModeratorResolver]. */
+    @JvmStatic
+    fun unregisterModeratorResolver(prefix: String) {
+        service().unregisterModeratorResolver(prefix)
+    }
+
+    /**
      * Registers a custom placeholder usable in chat formats as `<name>`.
      * The resolver runs for every message, so keep it fast and thread safe.
      *

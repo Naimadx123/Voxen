@@ -35,6 +35,8 @@ interface VoxenService {
     fun isClean(text: String): Boolean
     fun render(player: Player, text: String): Component
     fun stripTags(text: String): String
+    fun registerModeratorResolver(prefix: String, resolver: ModeratorResolver): Boolean
+    fun unregisterModeratorResolver(prefix: String)
     fun registerPlaceholder(name: String, placeholder: FormatPlaceholder): Boolean
     fun unregisterPlaceholder(name: String)
     fun registerChannel(id: String, displayName: String, format: String, recipients: RecipientProvider?): Boolean

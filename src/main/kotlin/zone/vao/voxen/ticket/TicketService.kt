@@ -15,6 +15,7 @@ import zone.vao.voxen.storage.PlayerStorage
 import zone.vao.voxen.storage.TicketEntry
 import zone.vao.voxen.storage.TicketMessage
 import zone.vao.voxen.util.Pages
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.util.Threads
 import java.time.Instant
 import java.time.ZoneId
@@ -261,7 +262,7 @@ class TicketService(
             Placeholder.unparsed("player", entry.playerName),
             Placeholder.unparsed("subject", entry.subject),
             Placeholder.unparsed("status", messages.raw(sender, "ticket-status-${entry.status.id}")),
-            Placeholder.unparsed("moderator", entry.handler ?: "-"),
+            Placeholder.unparsed("moderator", ModeratorNames.display(entry.handler) ?: "-"),
             Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.updatedAt))),
         )
     }
@@ -279,7 +280,7 @@ class TicketService(
             messages.line(
                 sender,
                 if (line.staff) "ticket-message-staff" else "ticket-message-player",
-                Placeholder.unparsed("author", line.author),
+                Placeholder.unparsed("author", ModeratorNames.display(line.author).orEmpty()),
                 Placeholder.unparsed("message", line.content),
                 Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(line.createdAt))),
             )
@@ -339,7 +340,7 @@ class TicketService(
                     key,
                     *extra,
                     Placeholder.unparsed("subject", entry.subject),
-                    Placeholder.unparsed("moderator", entry.handler ?: "-"),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(entry.handler) ?: "-"),
                 )
             }
         }

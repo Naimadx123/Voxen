@@ -22,6 +22,7 @@ import zone.vao.voxen.event.ReportUpdateEvent
 import zone.vao.voxen.event.ReportUpdatedEvent
 import zone.vao.voxen.storage.ReportEntry
 import zone.vao.voxen.util.Durations
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.util.Pages
 import zone.vao.voxen.util.Threads
 import java.time.Instant
@@ -401,7 +402,7 @@ class ReportService(
         add(STATUS_FIELD to entry.status.id)
         add("channel" to (entry.channel ?: "-"))
         add("server" to entry.server)
-        add("moderator" to (entry.handler ?: "-"))
+        add("moderator" to (ModeratorNames.display(entry.handler) ?: "-"))
         add("time" to TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt)))
         entry.messageContent?.let { add("message" to it) }
         entry.messageId?.let { add("message-id" to it.toString()) }
@@ -450,7 +451,7 @@ class ReportService(
                         sender,
                         "report-history-entry",
                         Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
-                        Placeholder.unparsed("moderator", entry.actor),
+                        Placeholder.unparsed("moderator", ModeratorNames.display(entry.actor).orEmpty()),
                         Placeholder.unparsed("action", messages.raw(sender, "report-action-${entry.action}")),
                         Placeholder.unparsed("detail", entry.detail ?: "-"),
                     )
@@ -471,7 +472,7 @@ class ReportService(
         Placeholder.unparsed("status", config().messages.raw(sender, "report-status-${entry.status.id}")),
         Placeholder.unparsed("channel", entry.channel ?: "-"),
         Placeholder.unparsed("server", entry.server),
-        Placeholder.unparsed("moderator", entry.handler ?: "-"),
+        Placeholder.unparsed("moderator", ModeratorNames.display(entry.handler) ?: "-"),
         Placeholder.unparsed("message", entry.messageContent ?: "-"),
     )
 
@@ -556,7 +557,7 @@ class ReportService(
                 },
                 Placeholder.unparsed("player", entry.targetName),
                 Placeholder.unparsed("reporter", entry.reporterName),
-                Placeholder.unparsed("moderator", entry.handler ?: sender.name),
+                Placeholder.unparsed("moderator", ModeratorNames.display(entry.handler) ?: sender.name),
             )
             if (!config().reports.notifyReporter || choice == Action.CLAIM) return@main
             val online = server.getPlayer(entry.reporter) ?: return@main
@@ -566,7 +567,7 @@ class ReportService(
                     "report-status-changed",
                     Placeholder.unparsed("player", entry.targetName),
                     Placeholder.unparsed("status", messages.raw(online, "report-status-${entry.status.id}")),
-                    Placeholder.unparsed("moderator", entry.handler ?: sender.name),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(entry.handler) ?: sender.name),
                 )
             }
         }

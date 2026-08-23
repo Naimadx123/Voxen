@@ -372,6 +372,21 @@ VoxenApi.updateReport(id, ReportInfo.Action.CLAIM, who);
 That name comes back on the matching event, and that is the loop guard: check the prefix
 before reacting, or your addon will answer its own actions.
 
+`discord:123456789` is fine in a database and useless on a screen, so register a resolver and
+Voxen prints something readable instead:
+
+```java
+VoxenApi.registerModeratorResolver("discord", id -> lookup(id));   // "4g0 (Naimad123)"
+```
+
+It is used everywhere Voxen prints who did what — report and ticket screens, the web panel,
+audit trails, mute and warning lists — while events and the API keep handing back the stored
+string, so the prefix stays usable as a loop guard. Return `null` to leave a name as it was
+stored, which is what happens for an id you do not know.
+
+The resolver runs on whichever thread is drawing, possibly once per row, so keep it fast,
+keep it thread safe and cache on your side. Unregister it when your plugin disables.
+
 ```java
 @EventHandler
 public void onReportUpdate(ReportUpdateEvent event) {

@@ -4,6 +4,7 @@ import zone.vao.voxen.Voxen
 import zone.vao.voxen.config.WebConfig
 import zone.vao.voxen.storage.ReportAction
 import zone.vao.voxen.storage.ReportEntry
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.web.Html
 import zone.vao.voxen.web.WebModule
 import zone.vao.voxen.web.WebRequest
@@ -93,7 +94,7 @@ object ReportsWeb {
             Html.escape(entry.reason),
             "<span class=\"muted\">${Html.escape(entry.channel ?: "-")}</span>",
             tag(web, entry.status),
-            Html.escape(entry.handler ?: "-"),
+            Html.escape(ModeratorNames.display(entry.handler) ?: "-"),
         ).joinToString("") { cell -> "<td>$cell</td>" }
         val open = web.label("reports.action.open", "Open")
         val link = "/reports?id=${Html.encode(entry.id.toString())}&filter=${Html.encode(filter)}"
@@ -165,7 +166,7 @@ object ReportsWeb {
                     "${Html.escape(web.label("reports.action.open", "Open"))}</a></td>"
             }
             "<tr><td class=\"muted\">${Html.escape(TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt)))}</td>" +
-                "<td>${Html.escape(entry.actor)}</td>" +
+                "<td>${Html.escape(ModeratorNames.display(entry.actor).orEmpty())}</td>" +
                 "<td>${Html.escape(web.label("audit.action.${entry.action}", entry.action))}</td>" +
                 "<td>${Html.escape(entry.detail ?: "-")}</td>$link</tr>"
         }

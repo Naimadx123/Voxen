@@ -54,6 +54,7 @@ import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
 import zone.vao.voxen.util.Vanish
@@ -369,6 +370,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
 
     override fun onDisable() {
         presenceTask?.cancel()
+        ModeratorNames.clear()
         if (::webServer.isInitialized) webServer.stop()
         if (::brokerService.isInitialized) brokerService.shutdown()
         if (::playerDataService.isInitialized) playerDataService.shutdown()
@@ -477,6 +479,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
 
     override fun party(member: UUID): PartyInfo? = partyService.partyOf(member)?.let {
         PartyInfo(id = it.id, name = it.name, leader = it.leader, members = it.members)
+    }
+
+    override fun registerModeratorResolver(prefix: String, resolver: ModeratorResolver): Boolean =
+        ModeratorNames.register(prefix, resolver)
+
+    override fun unregisterModeratorResolver(prefix: String) {
+        ModeratorNames.unregister(prefix)
     }
 
     override fun registerPlaceholder(name: String, placeholder: FormatPlaceholder): Boolean =

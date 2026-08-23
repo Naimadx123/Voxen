@@ -17,6 +17,7 @@ import zone.vao.voxen.event.PlayerWarnEvent
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.StaffNote
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.util.Pages
 import zone.vao.voxen.util.Threads
 import java.time.Duration
@@ -109,7 +110,7 @@ class ModeratorService(
                 alert(
                     "warn-alert",
                     Placeholder.unparsed("player", target.name),
-                    Placeholder.unparsed("moderator", actor),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(actor).orEmpty()),
                     Placeholder.unparsed("reason", text),
                     Placeholder.unparsed("amount", count.toString()),
                 )
@@ -155,7 +156,7 @@ class ModeratorService(
                         "note-list-entry",
                         Placeholder.unparsed("index", (index + 1).toString()),
                         Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
-                        Placeholder.unparsed("moderator", entry.author),
+                        Placeholder.unparsed("moderator", ModeratorNames.display(entry.author).orEmpty()),
                         Placeholder.unparsed("reason", entry.content),
                     )
                 }
@@ -448,7 +449,7 @@ class ModeratorService(
                             entryKey,
                             Placeholder.unparsed("index", (index + 1).toString()),
                             Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
-                            Placeholder.unparsed("moderator", entry.author),
+                            Placeholder.unparsed("moderator", ModeratorNames.display(entry.author).orEmpty()),
                             Placeholder.unparsed("reason", entry.content),
                         )
                     )

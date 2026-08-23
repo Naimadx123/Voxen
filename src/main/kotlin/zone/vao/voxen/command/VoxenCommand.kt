@@ -18,6 +18,7 @@ import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.report.ReportService
 import zone.vao.voxen.ticket.TicketService
 import zone.vao.voxen.util.Durations
+import zone.vao.voxen.util.ModeratorNames
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -499,7 +500,7 @@ object VoxenCommand {
                     "mute-list-entry",
                     Placeholder.unparsed("player", mute.playerName),
                     Placeholder.unparsed("channel", mute.channel ?: "all"),
-                    Placeholder.unparsed("moderator", mute.moderator),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(mute.moderator).orEmpty()),
                     Placeholder.unparsed("reason", mute.reason ?: messages.raw(sender, "mute-no-reason")),
                     Placeholder.unparsed(
                         "remaining",
@@ -599,7 +600,7 @@ object VoxenCommand {
                     "mute-list-entry",
                     Placeholder.unparsed("player", mute.playerName),
                     Placeholder.unparsed("channel", mute.channel ?: "all"),
-                    Placeholder.unparsed("moderator", mute.moderator),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(mute.moderator).orEmpty()),
                     Placeholder.unparsed("reason", mute.reason ?: messages.raw(sender, "mute-no-reason")),
                     Placeholder.unparsed(
                         "remaining",

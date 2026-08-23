@@ -3,6 +3,7 @@ package zone.vao.voxen.ticket
 import zone.vao.voxen.Voxen
 import zone.vao.voxen.config.WebConfig
 import zone.vao.voxen.storage.TicketEntry
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.web.Html
 import zone.vao.voxen.web.WebModule
 import zone.vao.voxen.web.WebRequest
@@ -69,7 +70,7 @@ object TicketsWeb {
             Html.escape(entry.playerName),
             Html.escape(entry.subject),
             tag(web, entry.status),
-            Html.escape(entry.handler ?: "-"),
+            Html.escape(ModeratorNames.display(entry.handler) ?: "-"),
         ).joinToString("") { cell -> "<td>$cell</td>" }
         val open = web.label("tickets.action.open", "Open")
         val link = "/tickets?id=${Html.encode(entry.id.toString())}&filter=${Html.encode(filter)}"
@@ -86,7 +87,7 @@ object TicketsWeb {
             "subject" to entry.subject,
             "status" to web.label("tickets.status.${entry.status.id}", entry.status.id),
             "server" to entry.server,
-            "moderator" to (entry.handler ?: "-"),
+            "moderator" to (ModeratorNames.display(entry.handler) ?: "-"),
             "opened" to time(entry.createdAt),
         ).joinToString("", prefix = "<div class=\"card\"><table><tbody>", postfix = "</tbody></table></div>") { (key, value) ->
             "<tr><th>${Html.escape(web.label("tickets.field.$key", key.replaceFirstChar(Char::titlecase)))}</th>" +
@@ -100,7 +101,8 @@ object TicketsWeb {
         ) { line ->
             val who = if (line.staff) " class=\"marked\"" else ""
             "<tr$who><td class=\"muted\">${Html.escape(time(line.createdAt))}</td>" +
-                "<td>${Html.escape(line.author)}</td><td>${Html.escape(line.content)}</td></tr>"
+                "<td>${Html.escape(ModeratorNames.display(line.author).orEmpty())}</td>" +
+                "<td>${Html.escape(line.content)}</td></tr>"
         }
         val back = "<div class=\"tabs\"><a href=\"/tickets?filter=${Html.encode(request.param("filter") ?: "queue")}\">" +
             "${Html.escape(web.label("tickets.back", "Back to the queue"))}</a></div>"
