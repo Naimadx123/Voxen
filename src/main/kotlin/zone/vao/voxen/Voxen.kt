@@ -803,7 +803,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             register(commands.chatToggle, "Toggle chat visibility") { ToggleCommands.buildChatToggle(this, it) }
             register(commands.language, "Choose your Voxen language") { ToggleCommands.buildLanguage(this, it) }
             register(commands.filter, "Toggle the chat filter for yourself") { ToggleCommands.buildFilterToggle(this, it) }
-            register(commands.helpop, "Ask staff for help") { HelpopCommand.build(this, it) }
+            if (configManager.config.helpop.enabled) {
+                register(commands.helpop, "Ask staff for help") { HelpopCommand.build(this, it) }
+            }
             if (configManager.config.reports.enabled) {
                 register(commands.report, "Report a player to the staff") { ReportCommand.build(this, it) }
             }

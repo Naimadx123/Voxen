@@ -411,7 +411,7 @@ class ConfigManager(
             }
         }
         return PartyConfig(
-            enabled = yaml.getBoolean("enabled", true),
+            enabled = yaml.getBoolean("enabled", false),
             maxMembers = yaml.getInt("max-members", 8).coerceAtLeast(2),
             inviteExpiryMillis = expiry,
         )
@@ -560,7 +560,7 @@ class ConfigManager(
             )
         }
         return HelpopConfig(
-            enabled = yaml.getBoolean("enabled", true),
+            enabled = yaml.getBoolean("enabled", false),
             mode = mode,
             cooldownMillis = cooldown,
             maxLength = yaml.getInt("max-length", 256).coerceIn(16, 1024),
@@ -582,7 +582,7 @@ class ConfigManager(
             }
         }
         return MailConfig(
-            enabled = yaml.getBoolean("enabled", true),
+            enabled = yaml.getBoolean("enabled", false),
             maxPerPlayer = yaml.getInt("max-per-player", 30).coerceAtLeast(1),
             expireDays = yaml.getInt("expire-days", 30).coerceAtLeast(0),
             notifyOnJoin = yaml.getBoolean("notify-on-join", true),
@@ -636,7 +636,7 @@ class ConfigManager(
         val minLength = yaml.getInt("min-length", 3).coerceAtLeast(1)
         val maxLength = yaml.getInt("max-length", 200).coerceAtLeast(minLength)
         return ReportsConfig(
-            enabled = yaml.getBoolean("enabled", true),
+            enabled = yaml.getBoolean("enabled", false),
             dialogs = yaml.getBoolean("interfaces.dialog", true),
             web = yaml.getBoolean("interfaces.web", true),
             chatButton = yaml.getBoolean("chat-button.enabled", true),

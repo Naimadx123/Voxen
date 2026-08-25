@@ -1,4 +1,6 @@
-# Disable if another party plugin is used; the /party command disappears after a restart.
-enabled: true
+# Parties with invites, so a group can talk in the 'party' channel.
+# Off by default, because most servers get their groups from a party, faction or guild
+# plugin. Turn it on and /party appears after a restart, along with channels/party.yml.
+enabled: false
 max-members: 8
 invite-expiry: 60s

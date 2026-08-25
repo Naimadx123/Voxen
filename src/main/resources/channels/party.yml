@@ -1,6 +1,8 @@
 display-name: "<gold>Party</gold>"
 type: party
-enabled: true
+# Follows modules/party.yml, which is off by default. With no parties around this channel
+# has no readers, so turn both on together.
+enabled: false
 default: false
 quick-prefix: "#"
 aliases: [pc, partychat]

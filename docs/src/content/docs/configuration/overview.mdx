@@ -26,6 +26,34 @@ touch more than one at a time.
 | `modules/minimessage-tags.yml` | which formatting tags players may use |
 | `messages/*.yml` | translations, one file per language |
 
+## What is on out of the box
+
+A fresh install runs the chat and nothing else. Channels, formats, tags, the word and link
+filters, mutes, `/msg`, mentions, emotes and the staff tooling are all live from the first
+start, because that is what you installed a chat plugin for.
+
+Everything that is a system of its own starts off:
+
+| Module | Turn it on with |
+| --- | --- |
+| `modules/reports.yml` | `enabled: true`, then `/report` appears after a restart |
+| `modules/helpop.yml` | `enabled: true`, then `/helpop` appears after a restart |
+| `modules/mail.yml` | `enabled: true`, then `/mail` appears after a restart |
+| `modules/party.yml` | `enabled: true` plus `channels/party.yml` |
+| `modules/system-messages.yml` | `enabled: true`, then Voxen writes join and quit lines |
+| `modules/web.yml` | `enabled: true` and an account |
+| `modules/ai-moderation.yml` | `enabled: true` and an API key |
+
+Most servers already have mail and parties from another plugin, and a server with no staff to
+work a queue does not need reports or tickets. Leaving them off keeps the commands, the
+database tables and the config surface out of your way until you ask for them.
+
+<Aside type="note" title="Updating never flips a switch">
+	`enabled` is only written when the file is created. An update adds new keys to the files
+	you already have and never touches a value you set, so a server that had reports or mail
+	running keeps them running.
+</Aside>
+
 ## Reloading
 
 ```
