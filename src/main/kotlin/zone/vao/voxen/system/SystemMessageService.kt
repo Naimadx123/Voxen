@@ -70,7 +70,9 @@ class SystemMessageService(
         val switched = from != null && config().systemMessages.handles(SystemMessagesConfig.Kind.SERVER_SWITCH)
         val kind = when {
             switched -> SystemMessagesConfig.Kind.SERVER_SWITCH
-            !player.hasPlayedBefore() -> SystemMessagesConfig.Kind.FIRST_JOIN
+            !player.hasPlayedBefore() &&
+                config().systemMessages.handles(SystemMessagesConfig.Kind.FIRST_JOIN) ->
+                SystemMessagesConfig.Kind.FIRST_JOIN
             else -> SystemMessagesConfig.Kind.JOIN
         }
         val extra = if (!switched) emptyArray() else arrayOf<TagResolver>(

@@ -60,6 +60,28 @@ set), `<username>`, `<display_name>`, `<prefix>`, `<suffix>`, `<group>`, `<world
 	Without it the line no longer says how the player died, only that they did.
 </Aside>
 
+## Turning a message off
+
+There are two ways to end up with no message, and they are not the same.
+
+`enabled: false` hands the event back to the server. Voxen writes nothing and the vanilla
+line comes back, so players still read `Steve joined the game` in the default yellow.
+
+An empty `format` with `enabled: true` keeps the event in Voxen's hands and writes nothing at
+all. The vanilla line stays suppressed, so nothing reaches chat, Discord or the other servers
+on the network.
+
+```yaml title="plugins/Voxen/modules/system-messages.yml"
+advancement:
+  enabled: true
+  format: ""
+```
+
+That is how you silence an event completely, which is the usual answer when advancement spam
+is the reason you opened this file. It works the same for every block: an empty `first-join`
+format lets a first login pass without a word, while `first-join.enabled: false` announces it
+with the `join` message instead.
+
 ## One message per network
 
 On a network a player walking from survival to lobby leaves one server and joins another, so
