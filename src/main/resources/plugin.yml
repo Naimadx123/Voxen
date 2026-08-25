@@ -206,3 +206,5 @@ permissions:
       voxen.chat.tag.score: true
       voxen.chat.tag.nbt: true
       voxen.chat.tag.reset: true
+      voxen.chat.tag.glyph: true
+      voxen.chat.tag.shift: true

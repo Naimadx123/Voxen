@@ -8,6 +8,7 @@ data class TagsConfig(
     val rules: Map<String, TagRule>,
     val custom: Map<String, TagRule> = emptyMap(),
     val replacements: Map<String, TagRule> = emptyMap(),
+    val reparsed: Boolean = false,
 ) {
     enum class UnauthorizedMode {
         STRIP,

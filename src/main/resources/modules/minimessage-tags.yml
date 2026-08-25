@@ -1,9 +1,8 @@
 # What happens with tags a player is not allowed to use:
 # escape - shown as plain text, strip - removed from the message.
-# A plugin that reads chat text again after Voxen (Nexo, Oraxen, ItemsAdder) can render a
-# tag that 'escape' left as plain text, which hands the tag back to a player who may not
-# use it. Voxen says so in the console when it sees one of them, and 'strip' is the answer
-# if that happens on your server.
+# Both hold up against a plugin that reads chat text again after Voxen (Nexo, Oraxen,
+# ItemsAdder), but only for tags listed under 'custom-tags' below. A tag Voxen has never
+# heard of is passed on untouched and whatever renders it decides who may use it.
 unauthorized-mode: escape
 
 # Legacy '&' color codes and '&#RRGGBB' hex codes, gated by
@@ -111,17 +110,22 @@ tags:
 # Tags added by other plugins (Nexo, Oraxen etc.) that Voxen does not render
 # itself. The base permission allows every argument; 'permission + .argument'
 # allows a single one, e.g. voxen.chat.tag.glyph.smile allows only <glyph:smile>.
-# Unauthorized tags follow 'unauthorized-mode'; 'strip' is safer here, because
-# an escaped tag may still be picked up by the plugin that renders it.
-custom-tags: {}
-#  glyph:
-#    enabled: true
-#    permission: voxen.chat.tag.glyph
-#    aliases: []
-#    blocked-params: []
-#  shift:
-#    enabled: true
-#    permission: voxen.chat.tag.shift
+# Unauthorized tags follow 'unauthorized-mode' and are handed to the other plugin
+# in a form it will not render, so its own permission check cannot be walked around.
+# Add an entry for every tag another plugin renders; anything missing here is
+# passed through untouched.
+custom-tags:
+  glyph:
+    enabled: true
+    permission: voxen.chat.tag.glyph
+    aliases:
+      - g
+    blocked-params: []
+  shift:
+    enabled: true
+    permission: voxen.chat.tag.shift
+    aliases: []
+    blocked-params: []
 
 # Your own tags. A player writes <xp> and it turns into whatever 'value' says.
 # The value is MiniMessage and PlaceholderAPI placeholders in it are filled in for

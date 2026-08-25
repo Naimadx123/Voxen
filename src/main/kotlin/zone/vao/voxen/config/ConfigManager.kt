@@ -347,25 +347,23 @@ class ConfigManager(
         sound = parseSound("modules/private-messages.yml", yaml.getConfigurationSection("sound")),
     )
 
-    private fun parseTags(yaml: YamlConfiguration): TagsConfig = TagsConfig(
-        mode = resolveUnauthorizedMode(yaml),
-        legacyEnabled = yaml.getBoolean("legacy.enabled", true),
-        rules = parseTagSection(yaml, "tags"),
-        custom = parseTagSection(yaml, "custom-tags"),
-        replacements = parseTagSection(yaml, "replacements"),
-    )
-
-    private fun resolveUnauthorizedMode(yaml: YamlConfiguration): TagsConfig.UnauthorizedMode {
-        val configured = TagsConfig.UnauthorizedMode.from(yaml.getString("unauthorized-mode"))
-        if (configured != TagsConfig.UnauthorizedMode.ESCAPE) return configured
+    private fun parseTags(yaml: YamlConfiguration): TagsConfig {
         val reparser = REPARSING_PLUGINS.firstOrNull { plugin.server.pluginManager.getPlugin(it) != null }
-            ?: return configured
-        plugin.logger.info(
-            "modules/minimessage-tags.yml: $reparser reads chat text again after Voxen, so a tag left as " +
-                "plain text by 'unauthorized-mode: escape' can still be rendered by it. Switch to 'strip' " +
-                "if players get around a tag permission that way."
+        if (reparser != null) {
+            plugin.logger.info(
+                "modules/minimessage-tags.yml: $reparser reads chat text again after Voxen, so tags a player " +
+                    "may not use are handed to it escaped. Tags it renders that are missing from 'custom-tags' " +
+                    "stay outside that protection."
+            )
+        }
+        return TagsConfig(
+            mode = TagsConfig.UnauthorizedMode.from(yaml.getString("unauthorized-mode")),
+            legacyEnabled = yaml.getBoolean("legacy.enabled", true),
+            rules = parseTagSection(yaml, "tags"),
+            custom = parseTagSection(yaml, "custom-tags"),
+            replacements = parseTagSection(yaml, "replacements"),
+            reparsed = reparser != null,
         )
-        return configured
     }
 
     private fun parseTagSection(yaml: YamlConfiguration, sectionName: String): Map<String, TagsConfig.TagRule> =

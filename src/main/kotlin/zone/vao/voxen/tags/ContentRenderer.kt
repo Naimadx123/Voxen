@@ -157,18 +157,36 @@ class ContentRenderer(
         isPermissionSet: (String) -> Boolean,
     ): String {
         var result = raw
-        for (rule in config.custom.values + config.replacements.values) {
-            val names = rule.names().joinToString("|") { Regex.escape(it) }
-            val pattern = regex("(?<!\\\\)</?(?:$names)(?::([^>]*))?>")
-            result = pattern.replace(result) { match ->
-                when {
-                    customPermitted(rule, match.groupValues[1], hasPermission, isPermissionSet) -> match.value
-                    mode == TagsConfig.UnauthorizedMode.STRIP -> ""
-                    else -> "\\" + match.value
-                }
-            }
+        for (rule in config.custom.values) {
+            result = filterTag(result, rule, mode, config.reparsed, hasPermission, isPermissionSet)
+        }
+        for (rule in config.replacements.values) {
+            result = filterTag(result, rule, mode, false, hasPermission, isPermissionSet)
         }
         return result
+    }
+
+    private fun filterTag(
+        raw: String,
+        rule: TagsConfig.TagRule,
+        mode: TagsConfig.UnauthorizedMode,
+        reparsed: Boolean,
+        hasPermission: (String) -> Boolean,
+        isPermissionSet: (String) -> Boolean,
+    ): String {
+        val names = rule.names().joinToString("|") { Regex.escape(it) }
+        val pattern = regex("\\\\?</?(?:$names)(?::([^>]*))?>")
+        return pattern.replace(raw) { match ->
+            val tag = match.value.removePrefix("\\")
+            val refused = tag != match.value ||
+                !customPermitted(rule, match.groupValues[1], hasPermission, isPermissionSet)
+            when {
+                !refused -> tag
+                mode == TagsConfig.UnauthorizedMode.STRIP -> ""
+                reparsed -> "\\\\" + tag
+                else -> "\\" + tag
+            }
+        }
     }
 
     private fun customPermitted(
