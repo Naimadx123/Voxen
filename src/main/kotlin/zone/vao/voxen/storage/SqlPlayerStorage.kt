@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource
 import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.party.PartyRecord
 import java.sql.Connection
+import java.sql.ResultSet
 import java.util.UUID
 
 class SqlPlayerStorage(
@@ -14,7 +15,6 @@ class SqlPlayerStorage(
 ) : PlayerStorage {
 
     init {
-        // every statement interpolates the prefix, so anything but plain identifiers is refused outright
         require(tablePrefix.matches(Regex("[A-Za-z0-9_]*"))) {
             "table-prefix '$tablePrefix' may only contain letters, digits and underscores"
         }
@@ -28,12 +28,22 @@ class SqlPlayerStorage(
     private val chatLogTable = "${tablePrefix}chat_log"
     private val mailTable = "${tablePrefix}mail"
     private val staffNotesTable = "${tablePrefix}staff_notes"
+    private val reportsTable = "${tablePrefix}reports"
+    private val reportActionsTable = "${tablePrefix}report_actions"
+    private val ticketsTable = "${tablePrefix}tickets"
+    private val ticketMessagesTable = "${tablePrefix}ticket_messages"
     private val schemaTable = "${tablePrefix}schema"
+    private val reportColumns =
+        "id, target, target_name, reporter, reporter_name, reason, server, status, handler, created_at, updated_at, " +
+            "channel, message_id, message_content, message_at"
+    private val chatLogColumns = "uuid, player, channel, content, server, created_at, id"
+    private val ticketColumns =
+        "id, player, player_name, subject, server, status, handler, created_at, updated_at"
+    private val ticketMessageColumns = "id, ticket, author, staff, content, created_at"
     private val dataSource = HikariDataSource(hikariConfig)
 
     init {
         dataSource.connection.use { conn ->
-            // one server at a time, or two starting together race the same CREATE/ALTER statements
             val lock = lockStatement(tablePrefix)
             if (lock != null) conn.createStatement().use { st -> st.executeQuery(lock).use { it.next() } }
             try {
@@ -48,7 +58,7 @@ class SqlPlayerStorage(
     private fun lockStatement(prefix: String): String? = when (type) {
         StorageType.MYSQL, StorageType.MARIADB -> "SELECT GET_LOCK('${prefix}migrate', 30)"
         StorageType.POSTGRES -> "SELECT pg_advisory_lock(${"${prefix}migrate".hashCode()})"
-        StorageType.SQLITE -> null // a single file writer already serialises this
+        StorageType.SQLITE -> null
     }
 
     private fun unlockStatement(prefix: String): String? = when (type) {
@@ -158,6 +168,80 @@ class SqlPlayerStorage(
                 runCatching { st.executeUpdate("CREATE INDEX ${playersTable}_name ON $playersTable (last_name)") }
             }
             writeVersion(conn, 7)
+            version = 7
+        }
+        if (version < 8) {
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $reportsTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, target VARCHAR(36) NOT NULL, target_name VARCHAR(16) NOT NULL, " +
+                        "reporter VARCHAR(36) NOT NULL, reporter_name VARCHAR(16) NOT NULL, reason TEXT NOT NULL, " +
+                        "server VARCHAR(64) NOT NULL, status VARCHAR(16) NOT NULL, handler VARCHAR(32), " +
+                        "created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)"
+                )
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${reportsTable}_queue ON $reportsTable (status, created_at)")
+                }
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${reportsTable}_target ON $reportsTable (target, created_at)")
+                }
+            }
+            writeVersion(conn, 8)
+            version = 8
+        }
+        if (version < 9) {
+            addColumn(conn, reportsTable, "channel", "VARCHAR(64)")
+            addColumn(conn, reportsTable, "message_id", "VARCHAR(36)")
+            addColumn(conn, reportsTable, "message_content", "TEXT")
+            addColumn(conn, reportsTable, "message_at", "BIGINT")
+            addColumn(conn, chatLogTable, "id", "VARCHAR(36)")
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $reportActionsTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, report VARCHAR(36) NOT NULL, actor VARCHAR(32) NOT NULL, " +
+                        "action VARCHAR(32) NOT NULL, detail TEXT, created_at BIGINT NOT NULL)"
+                )
+                runCatching {
+                    st.executeUpdate(
+                        "CREATE INDEX ${reportActionsTable}_report ON $reportActionsTable (report, created_at)"
+                    )
+                }
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${reportActionsTable}_recent ON $reportActionsTable (created_at)")
+                }
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${chatLogTable}_channel ON $chatLogTable (channel, created_at)")
+                }
+            }
+            writeVersion(conn, 9)
+            version = 9
+        }
+        if (version < 10) {
+            conn.createStatement().use { st ->
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $ticketsTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, player VARCHAR(36) NOT NULL, player_name VARCHAR(16) NOT NULL, " +
+                        "subject TEXT NOT NULL, server VARCHAR(64) NOT NULL, status VARCHAR(16) NOT NULL, " +
+                        "handler VARCHAR(32), created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)"
+                )
+                st.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS $ticketMessagesTable " +
+                        "(id VARCHAR(36) PRIMARY KEY, ticket VARCHAR(36) NOT NULL, author VARCHAR(32) NOT NULL, " +
+                        "staff INT NOT NULL, content TEXT NOT NULL, created_at BIGINT NOT NULL)"
+                )
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${ticketsTable}_queue ON $ticketsTable (status, updated_at)")
+                }
+                runCatching {
+                    st.executeUpdate("CREATE INDEX ${ticketsTable}_player ON $ticketsTable (player, updated_at)")
+                }
+                runCatching {
+                    st.executeUpdate(
+                        "CREATE INDEX ${ticketMessagesTable}_ticket ON $ticketMessagesTable (ticket, created_at)"
+                    )
+                }
+            }
+            writeVersion(conn, 10)
         }
     }
 
@@ -443,7 +527,7 @@ class SqlPlayerStorage(
         if (entries.isEmpty()) return
         transaction { conn ->
             conn.prepareStatement(
-                "INSERT INTO $chatLogTable (uuid, player, channel, content, server, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+                "INSERT INTO $chatLogTable ($chatLogColumns) VALUES (?, ?, ?, ?, ?, ?, ?)"
             ).use { ps ->
                 for (entry in entries) {
                     ps.setString(1, entry.uuid.toString())
@@ -452,6 +536,7 @@ class SqlPlayerStorage(
                     ps.setString(4, entry.content)
                     ps.setString(5, entry.server)
                     ps.setLong(6, entry.createdAt)
+                    ps.setString(7, entry.id.toString())
                     ps.addBatch()
                 }
                 ps.executeBatch()
@@ -484,6 +569,42 @@ class SqlPlayerStorage(
         }
         return result
     }
+
+    override fun chatContext(channel: String, at: Long, before: Int, after: Int): List<ChatLogEntry> {
+        val earlier = ArrayList<ChatLogEntry>()
+        val later = ArrayList<ChatLogEntry>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT $chatLogColumns FROM $chatLogTable WHERE channel = ? AND created_at <= ? " +
+                    "ORDER BY created_at DESC LIMIT ?"
+            ).use { ps ->
+                ps.setString(1, channel)
+                ps.setLong(2, at)
+                ps.setInt(3, before.coerceAtLeast(0))
+                ps.executeQuery().use { rs -> while (rs.next()) earlier += readChatLog(rs) }
+            }
+            conn.prepareStatement(
+                "SELECT $chatLogColumns FROM $chatLogTable WHERE channel = ? AND created_at > ? " +
+                    "ORDER BY created_at ASC LIMIT ?"
+            ).use { ps ->
+                ps.setString(1, channel)
+                ps.setLong(2, at)
+                ps.setInt(3, after.coerceAtLeast(0))
+                ps.executeQuery().use { rs -> while (rs.next()) later += readChatLog(rs) }
+            }
+        }
+        return earlier.reversed() + later
+    }
+
+    private fun readChatLog(rs: ResultSet): ChatLogEntry = ChatLogEntry(
+        uuid = runCatching { UUID.fromString(rs.getString(1)) }.getOrDefault(EMPTY_UUID),
+        playerName = rs.getString(2),
+        channel = rs.getString(3),
+        content = rs.getString(4),
+        server = rs.getString(5),
+        createdAt = rs.getLong(6),
+        id = runCatching { UUID.fromString(rs.getString(7)) }.getOrDefault(EMPTY_UUID),
+    )
 
     override fun purgeChatLog(before: Long) {
         dataSource.connection.use { conn ->
@@ -606,6 +727,391 @@ class SqlPlayerStorage(
         }
     }
 
+    override fun saveReport(entry: ReportEntry) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $reportsTable ($reportColumns) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, entry.id.toString())
+                ps.setString(2, entry.target.toString())
+                ps.setString(3, entry.targetName)
+                ps.setString(4, entry.reporter.toString())
+                ps.setString(5, entry.reporterName)
+                ps.setString(6, entry.reason)
+                ps.setString(7, entry.server)
+                ps.setString(8, entry.status.id)
+                ps.setString(9, entry.handler)
+                ps.setLong(10, entry.createdAt)
+                ps.setLong(11, entry.updatedAt)
+                ps.setString(12, entry.channel)
+                ps.setString(13, entry.messageId?.toString())
+                ps.setString(14, entry.messageContent)
+                if (entry.messageAt != null) ps.setLong(15, entry.messageAt) else ps.setNull(15, java.sql.Types.BIGINT)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun reports(statuses: Collection<ReportEntry.Status>, limit: Int): List<ReportEntry> {
+        val filter = if (statuses.isEmpty()) "" else " WHERE status IN (${statuses.joinToString(", ") { "?" }})"
+        val result = ArrayList<ReportEntry>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT $reportColumns FROM $reportsTable$filter ORDER BY created_at DESC LIMIT ?"
+            ).use { ps ->
+                var index = 1
+                for (status in statuses) ps.setString(index++, status.id)
+                ps.setInt(index, limit.coerceAtLeast(1))
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) result += readReport(rs) ?: continue
+                }
+            }
+        }
+        return result
+    }
+
+    override fun report(id: UUID): ReportEntry? {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("SELECT $reportColumns FROM $reportsTable WHERE id = ?").use { ps ->
+                ps.setString(1, id.toString())
+                ps.executeQuery().use { rs -> return if (rs.next()) readReport(rs) else null }
+            }
+        }
+    }
+
+    override fun reportCount(statuses: Collection<ReportEntry.Status>): Int {
+        val filter = if (statuses.isEmpty()) "" else " WHERE status IN (${statuses.joinToString(", ") { "?" }})"
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("SELECT COUNT(*) FROM $reportsTable$filter").use { ps ->
+                statuses.forEachIndexed { index, status -> ps.setString(index + 1, status.id) }
+                ps.executeQuery().use { rs -> return if (rs.next()) rs.getInt(1) else 0 }
+            }
+        }
+    }
+
+    override fun hasOpenReport(reporter: UUID, target: UUID): Boolean {
+        val pending = ReportEntry.Status.PENDING
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT COUNT(*) FROM $reportsTable WHERE reporter = ? AND target = ? " +
+                    "AND status IN (${pending.joinToString(", ") { "?" }})"
+            ).use { ps ->
+                ps.setString(1, reporter.toString())
+                ps.setString(2, target.toString())
+                pending.forEachIndexed { index, status -> ps.setString(index + 3, status.id) }
+                ps.executeQuery().use { rs -> return rs.next() && rs.getInt(1) > 0 }
+            }
+        }
+    }
+
+    override fun hasReportFor(messageId: UUID): Boolean {
+        val pending = ReportEntry.Status.PENDING
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT COUNT(*) FROM $reportsTable WHERE message_id = ? " +
+                    "AND status IN (${pending.joinToString(", ") { "?" }})"
+            ).use { ps ->
+                ps.setString(1, messageId.toString())
+                pending.forEachIndexed { index, status -> ps.setString(index + 2, status.id) }
+                ps.executeQuery().use { rs -> return rs.next() && rs.getInt(1) > 0 }
+            }
+        }
+    }
+
+    override fun updateReport(id: UUID, status: ReportEntry.Status, handler: String?, updatedAt: Long): Boolean =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("UPDATE $reportsTable SET status = ?, handler = ?, updated_at = ? WHERE id = ?").use { ps ->
+                ps.setString(1, status.id)
+                ps.setString(2, handler)
+                ps.setLong(3, updatedAt)
+                ps.setString(4, id.toString())
+                ps.executeUpdate() > 0
+            }
+        }
+
+    override fun deleteReport(id: UUID): Boolean = transaction { conn ->
+        conn.prepareStatement("DELETE FROM $reportActionsTable WHERE report = ?").use { ps ->
+            ps.setString(1, id.toString())
+            ps.executeUpdate()
+        }
+        conn.prepareStatement("DELETE FROM $reportsTable WHERE id = ?").use { ps ->
+            ps.setString(1, id.toString())
+            ps.executeUpdate() > 0
+        }
+    }
+
+    override fun saveReportAction(entry: ReportAction) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $reportActionsTable (id, report, actor, action, detail, created_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, entry.id.toString())
+                ps.setString(2, entry.report.toString())
+                ps.setString(3, entry.actor)
+                ps.setString(4, entry.action)
+                ps.setString(5, entry.detail)
+                ps.setLong(6, entry.createdAt)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun reportActions(report: UUID?, limit: Int): List<ReportAction> {
+        val filter = if (report == null) "" else " WHERE report = ?"
+        val result = ArrayList<ReportAction>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT id, report, actor, action, detail, created_at FROM $reportActionsTable$filter " +
+                    "ORDER BY created_at DESC LIMIT ?"
+            ).use { ps ->
+                var index = 1
+                if (report != null) ps.setString(index++, report.toString())
+                ps.setInt(index, limit.coerceAtLeast(1))
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: continue
+                        val owner = runCatching { UUID.fromString(rs.getString(2)) }.getOrNull() ?: continue
+                        result += ReportAction(
+                            id = id,
+                            report = owner,
+                            actor = rs.getString(3),
+                            action = rs.getString(4),
+                            detail = rs.getString(5),
+                            createdAt = rs.getLong(6),
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    override fun purgeReports(before: Long) {
+        val handled = ReportEntry.Status.entries.filterNot { it.pending }
+        val placeholders = handled.joinToString(", ") { "?" }
+        transaction { conn ->
+            conn.prepareStatement(
+                "DELETE FROM $reportActionsTable WHERE report IN " +
+                    "(SELECT id FROM $reportsTable WHERE updated_at < ? AND status IN ($placeholders))"
+            ).use { ps ->
+                ps.setLong(1, before)
+                handled.forEachIndexed { index, status -> ps.setString(index + 2, status.id) }
+                ps.executeUpdate()
+            }
+            conn.prepareStatement(
+                "DELETE FROM $reportsTable WHERE updated_at < ? AND status IN ($placeholders)"
+            ).use { ps ->
+                ps.setLong(1, before)
+                handled.forEachIndexed { index, status -> ps.setString(index + 2, status.id) }
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    private fun readReport(rs: ResultSet): ReportEntry? {
+        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: return null
+        val target = runCatching { UUID.fromString(rs.getString(2)) }.getOrNull() ?: return null
+        val reporter = runCatching { UUID.fromString(rs.getString(4)) }.getOrNull() ?: return null
+        return ReportEntry(
+            id = id,
+            target = target,
+            targetName = rs.getString(3),
+            reporter = reporter,
+            reporterName = rs.getString(5),
+            reason = rs.getString(6),
+            server = rs.getString(7),
+            status = ReportEntry.Status.from(rs.getString(8)) ?: ReportEntry.Status.OPEN,
+            handler = rs.getString(9),
+            createdAt = rs.getLong(10),
+            updatedAt = rs.getLong(11),
+            channel = rs.getString(12),
+            messageId = runCatching { UUID.fromString(rs.getString(13)) }.getOrNull(),
+            messageContent = rs.getString(14),
+            messageAt = rs.getLong(15).takeIf { !rs.wasNull() },
+        )
+    }
+
+    override fun saveTicket(entry: TicketEntry) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $ticketsTable ($ticketColumns) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, entry.id.toString())
+                ps.setString(2, entry.player.toString())
+                ps.setString(3, entry.playerName)
+                ps.setString(4, entry.subject)
+                ps.setString(5, entry.server)
+                ps.setString(6, entry.status.id)
+                ps.setString(7, entry.handler)
+                ps.setLong(8, entry.createdAt)
+                ps.setLong(9, entry.updatedAt)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun ticket(id: UUID): TicketEntry? {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("SELECT $ticketColumns FROM $ticketsTable WHERE id = ?").use { ps ->
+                ps.setString(1, id.toString())
+                ps.executeQuery().use { rs -> return if (rs.next()) readTicket(rs) else null }
+            }
+        }
+    }
+
+    override fun tickets(statuses: Collection<TicketEntry.Status>, limit: Int): List<TicketEntry> {
+        val filter = if (statuses.isEmpty()) "" else " WHERE status IN (${statuses.joinToString(", ") { "?" }})"
+        val result = ArrayList<TicketEntry>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT $ticketColumns FROM $ticketsTable$filter ORDER BY updated_at DESC LIMIT ?"
+            ).use { ps ->
+                var index = 1
+                for (status in statuses) ps.setString(index++, status.id)
+                ps.setInt(index, limit.coerceAtLeast(1))
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) result += readTicket(rs) ?: continue
+                }
+            }
+        }
+        return result
+    }
+
+    override fun ticketsOf(player: UUID, statuses: Collection<TicketEntry.Status>, limit: Int): List<TicketEntry> {
+        val filter = if (statuses.isEmpty()) "" else " AND status IN (${statuses.joinToString(", ") { "?" }})"
+        val result = ArrayList<TicketEntry>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT $ticketColumns FROM $ticketsTable WHERE player = ?$filter ORDER BY updated_at DESC LIMIT ?"
+            ).use { ps ->
+                var index = 1
+                ps.setString(index++, player.toString())
+                for (status in statuses) ps.setString(index++, status.id)
+                ps.setInt(index, limit.coerceAtLeast(1))
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) result += readTicket(rs) ?: continue
+                }
+            }
+        }
+        return result
+    }
+
+    override fun ticketCount(player: UUID, statuses: Collection<TicketEntry.Status>): Int {
+        val filter = if (statuses.isEmpty()) "" else " AND status IN (${statuses.joinToString(", ") { "?" }})"
+        dataSource.connection.use { conn ->
+            conn.prepareStatement("SELECT COUNT(*) FROM $ticketsTable WHERE player = ?$filter").use { ps ->
+                ps.setString(1, player.toString())
+                statuses.forEachIndexed { index, status -> ps.setString(index + 2, status.id) }
+                ps.executeQuery().use { rs -> return if (rs.next()) rs.getInt(1) else 0 }
+            }
+        }
+    }
+
+    override fun updateTicket(id: UUID, status: TicketEntry.Status, handler: String?, updatedAt: Long): Boolean =
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "UPDATE $ticketsTable SET status = ?, handler = COALESCE(?, handler), updated_at = ? WHERE id = ?"
+            ).use { ps ->
+                ps.setString(1, status.id)
+                ps.setString(2, handler)
+                ps.setLong(3, updatedAt)
+                ps.setString(4, id.toString())
+                ps.executeUpdate() > 0
+            }
+        }
+
+    override fun deleteTicket(id: UUID): Boolean = transaction { conn ->
+        conn.prepareStatement("DELETE FROM $ticketMessagesTable WHERE ticket = ?").use { ps ->
+            ps.setString(1, id.toString())
+            ps.executeUpdate()
+        }
+        conn.prepareStatement("DELETE FROM $ticketsTable WHERE id = ?").use { ps ->
+            ps.setString(1, id.toString())
+            ps.executeUpdate() > 0
+        }
+    }
+
+    override fun saveTicketMessage(message: TicketMessage) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO $ticketMessagesTable ($ticketMessageColumns) VALUES (?, ?, ?, ?, ?, ?)"
+            ).use { ps ->
+                ps.setString(1, message.id.toString())
+                ps.setString(2, message.ticket.toString())
+                ps.setString(3, message.author)
+                ps.setInt(4, if (message.staff) 1 else 0)
+                ps.setString(5, message.content)
+                ps.setLong(6, message.createdAt)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    override fun ticketMessages(ticket: UUID, limit: Int): List<TicketMessage> {
+        val result = ArrayList<TicketMessage>()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                "SELECT $ticketMessageColumns FROM $ticketMessagesTable WHERE ticket = ? " +
+                    "ORDER BY created_at ASC LIMIT ?"
+            ).use { ps ->
+                ps.setString(1, ticket.toString())
+                ps.setInt(2, limit.coerceAtLeast(1))
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) result += readTicketMessage(rs) ?: continue
+                }
+            }
+        }
+        return result
+    }
+
+    override fun purgeTickets(before: Long) {
+        transaction { conn ->
+            conn.prepareStatement(
+                "DELETE FROM $ticketMessagesTable WHERE ticket IN " +
+                    "(SELECT id FROM $ticketsTable WHERE updated_at < ? AND status = ?)"
+            ).use { ps ->
+                ps.setLong(1, before)
+                ps.setString(2, TicketEntry.Status.CLOSED.id)
+                ps.executeUpdate()
+            }
+            conn.prepareStatement("DELETE FROM $ticketsTable WHERE updated_at < ? AND status = ?").use { ps ->
+                ps.setLong(1, before)
+                ps.setString(2, TicketEntry.Status.CLOSED.id)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    private fun readTicket(rs: ResultSet): TicketEntry? {
+        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: return null
+        val player = runCatching { UUID.fromString(rs.getString(2)) }.getOrNull() ?: return null
+        return TicketEntry(
+            id = id,
+            player = player,
+            playerName = rs.getString(3),
+            subject = rs.getString(4),
+            server = rs.getString(5),
+            status = TicketEntry.Status.from(rs.getString(6)) ?: TicketEntry.Status.OPEN,
+            handler = rs.getString(7),
+            createdAt = rs.getLong(8),
+            updatedAt = rs.getLong(9),
+        )
+    }
+
+    private fun readTicketMessage(rs: ResultSet): TicketMessage? {
+        val id = runCatching { UUID.fromString(rs.getString(1)) }.getOrNull() ?: return null
+        val ticket = runCatching { UUID.fromString(rs.getString(2)) }.getOrNull() ?: return null
+        return TicketMessage(
+            id = id,
+            ticket = ticket,
+            author = rs.getString(3),
+            staff = rs.getInt(4) != 0,
+            content = rs.getString(5),
+            createdAt = rs.getLong(6),
+        )
+    }
+
     override fun saveStaffNote(entry: StaffNote) {
         dataSource.connection.use { conn ->
             conn.prepareStatement(
@@ -693,6 +1199,8 @@ class SqlPlayerStorage(
             }
         }
     }
+
+    private val EMPTY_UUID: UUID = UUID(0L, 0L)
 
     private fun <T> transaction(block: (Connection) -> T): T =
         dataSource.connection.use { conn ->

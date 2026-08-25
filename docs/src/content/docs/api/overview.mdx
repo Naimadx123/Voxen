@@ -101,6 +101,17 @@ if (VoxenApi.isAvailable()) {
 }
 ```
 
+## Threads
+
+Methods that take a `Player` read that player's permissions and state, so Voxen runs them on
+the thread that owns them: the main thread on Paper, that player's own region on Folia.
+Calling one from anywhere else still works, but the call waits for the hop, so keep those out
+of tight loops and off the network thread.
+
+Everything else — mutes, reports, network lookups, panel pages, the text filter — is safe
+from any thread. The report methods are the only ones that reach the database, and they hand
+back a `CompletableFuture` rather than blocking.
+
 ## What you can do
 
 ### Read channels
@@ -113,6 +124,24 @@ ChannelInfo current       = VoxenApi.activeChannel(player);
 
 `ChannelInfo` is an immutable snapshot: `id`, `displayName`, `type`, `enabled`,
 `readOnly`, `crossServer`, `radius`, `worlds`.
+
+### Move players between channels
+
+```java
+VoxenApi.setActiveChannel(player, "auction");   // joins it and talks in it
+VoxenApi.joinChannel(player, "trade");          // joins it, keeps talking where they were
+VoxenApi.leaveChannel(player, "trade");
+Collection<ChannelInfo> mine = VoxenApi.joinedChannels(player);
+```
+
+All three answer `false` when the channel is unknown or disabled, or when the player may not
+join it; `leaveChannel` also answers `false` when they were not in it. Leaving the channel a
+player was talking in drops them back to the default one.
+
+`setActiveChannel` is the one players notice, so it fires
+[ChannelSwitchEvent](/api/events/#channelswitchevent) first and answers `false` when a
+listener cancels it. This is also how you make a channel you registered yourself usable:
+register it, then move the players who should be in it.
 
 ### Send chat
 
@@ -146,6 +175,38 @@ PartyInfo party = VoxenApi.party(uuid);
 	deciding who may do it. Config length limits and the word filter still apply.
 </Aside>
 
+### Reuse the filter and the renderer
+
+Voxen's chat filter and tag renderer work on any text, not only on chat, so a sign, a book,
+an auction name or a shop title can be held to exactly the rules your server already
+configured.
+
+```java
+FilterResult result = VoxenApi.filterWords(input);
+if (result.isBlocked()) return;
+String safe = result.getContent();          // censored parts already replaced
+
+Component pretty = VoxenApi.render(player, safe);
+```
+
+| Method | What it does |
+| --- | --- |
+| `filterWords(text)` | the word list and the blocked patterns from `modules/moderation.yml` |
+| `filterLinks(text)` | the link filter, obfuscated addresses included |
+| `isClean(text)` | true when neither has anything against it |
+| `render(player, text)` | MiniMessage and `&` codes, limited to the tags that player may use |
+| `stripTags(text)` | the readable text with every tag removed |
+
+`FilterResult` carries a `verdict` of `CLEAN`, `BLOCKED` or `CENSORED` and the `content` to
+use from there: unchanged when it is clean or blocked, and with the offending parts already
+replaced when it was censored.
+
+<Aside type="caution" title="Render player text through Voxen, not MiniMessage">
+	`MiniMessage.miniMessage().deserialize(input)` on text a player typed hands them every
+	tag there is. `render` applies the same permission rules as chat, so
+	`modules/minimessage-tags.yml` decides once for the whole server.
+</Aside>
+
 ### Add a format placeholder
 
 ```java
@@ -159,13 +220,12 @@ disable.
 ### Register your own channel
 
 ```java
-VoxenApi.registerChannel(
-        "auction",
-        "<gold>Auction",
-        "<gold>[A] <player> <dark_gray>» <white><message>",
-        sender -> Bukkit.getOnlinePlayers().stream()
+VoxenApi.registerChannel(ChannelRegistration.builder("auction", "<gold>Auction")
+        .format("<gold>[A] <player> <dark_gray>» <white><message>")
+        .recipients(sender -> Bukkit.getOnlinePlayers().stream()
                 .filter(this::wantsAuctions)
-                .toList());
+                .toList())
+        .build());
 ```
 
 The `RecipientProvider` is optional; without one the channel behaves like a normal global
@@ -173,7 +233,211 @@ channel. `registerRecipients` does the same thing for a channel that already exi
 `channels/`, which is how you bolt a custom audience onto the bundled ones.
 
 Runtime channels are not written to disk and disappear on restart. Register them in
-`onEnable`.
+`onEnable`, and put the players who belong in one there with
+[setActiveChannel](#move-players-between-channels).
+
+<Aside type="note">
+	The older `registerChannel(id, displayName, format, recipients)` still works and is
+	deprecated. Three strings in a row are easy to swap by accident, which is the whole
+	reason for the builder.
+</Aside>
+
+### Mute and unmute
+
+```java
+VoxenApi.mute(MuteRequest.builder(uuid, "Steve", "AutoMod")
+        .duration(1, TimeUnit.HOURS)
+        .reason("spam")
+        .build());
+
+VoxenApi.unmute(uuid, null, "AutoMod");
+```
+
+A bare request mutes every channel, forever, with no reason given; `.channel(id)` narrows it
+and `.duration(...)` limits it. Mutes go through the same path as the mute commands: stored,
+sent to the other servers on the network, and [PlayerMuteEvent](/api/events/#playermuteevent)
+fires first, so another plugin can still refuse or shorten it.
+
+| Method | What it does |
+| --- | --- |
+| `mute(request)` | mutes; `false` when the channel is unknown or a listener cancelled it |
+| `unmute(target, channelId, moderator)` | lifts one mute; `false` when there was none |
+| `unmuteAll(target, moderator)` | lifts every mute and returns how many went |
+| `isMuted(uuid)` / `isMuted(uuid, channelId)` | reads the current state, no database call |
+
+### Read and manage reports
+
+```java
+VoxenApi.reports(20).thenAccept(open -> {
+    for (ReportInfo report : open) {
+        getLogger().info(report.getTargetName() + " — " + report.getReason());
+    }
+});
+
+VoxenApi.updateReport(id, ReportInfo.Action.RESOLVE, "AutoMod");
+```
+
+Reports live in the database, so every one of these methods answers through a
+`CompletableFuture` instead of blocking the caller. Use `thenAccept` from the server thread,
+or `join()` when you are already on one of your own.
+
+| Method | What it does |
+| --- | --- |
+| `reports(limit)` | the queue: everything still `OPEN` or `CLAIMED`, newest first |
+| `reports(statuses, limit)` | the same for any set of statuses; an empty set means all |
+| `report(id)` | one report, or `null` when it is gone |
+| `updateReport(id, action, moderator)` | claim, resolve, dismiss or delete it |
+
+`updateReport` goes through the same path as the queue commands: the audit trail records the
+action under `moderator`, and [ReportUpdateEvent](/api/events/#reportupdateevent) fires first,
+so another plugin can still refuse it. It completes with `false` when the report is gone, when
+it already has that status, or when a listener cancelled the change.
+
+<Aside type="tip" title="A moderator is a name">
+	`moderator` is written straight into the audit log, so pass something a human will
+	recognise later — your plugin's name is fine for an automated decision.
+</Aside>
+
+### Look around the network
+
+```java
+if (VoxenApi.networkConnected()) {
+    String where = VoxenApi.serverOf("Steve");        // "survival", or null
+    for (NetworkPlayer player : VoxenApi.networkPlayers()) {
+        getLogger().info(player.getName() + " on " + player.getServer());
+    }
+}
+```
+
+| Method | What it does |
+| --- | --- |
+| `serverId()` | this server's network id, from `network.server-id` |
+| `networkConnected()` | whether the broker is up right now |
+| `serverOf(name)` | which server a player is on, `null` when nobody answers to the name |
+| `networkPlayers()` | everyone on the network, this server included |
+
+`networkPlayers()` leaves vanished players out, the way a player list should. `serverOf` does
+not, so a message can still be routed to a hidden moderator.
+
+Remote entries come from [presence tracking](/configuration/modules/#presence), so
+`modules/presence.yml` has to be on. Without a network both methods still work and simply
+describe this server alone.
+
+### One report with everything around it
+
+```java
+VoxenApi.reportCase(id).thenAccept(loaded -> {
+    for (ChatLine line : loaded.getContext()) {
+        boolean reported = line.getId().equals(loaded.getReport().getMessageId());
+    }
+});
+```
+
+`reportCase` is `report` plus the chat before and after the reported message and the audit
+trail of what moderators did to it — everything a moderation panel outside the game needs in
+one call. How much context comes back is `context` in `modules/reports.yml`.
+
+`deleteReportedMessage(id, moderator)` deletes the message a report points at and records it
+in the audit trail. It only works while the message is still deletable: signed messages live
+in memory on the server they were typed on, so it answers `false` after a restart and from
+another server on the network.
+
+### Warnings, mutes and tickets
+
+```java
+VoxenApi.warn(uuid, "Steve", "spam", moderator);
+VoxenApi.warnings(uuid).thenAccept(list -> ...);
+List<MuteInfo> mutes = VoxenApi.activeMutes(uuid);
+
+VoxenApi.tickets(TicketInfo.Status.ACTIVE, 25).thenAccept(queue -> ...);
+VoxenApi.replyToTicket(ticketId, "Looking into it", moderator);
+VoxenApi.closeTicket(ticketId, moderator);
+```
+
+`warn` goes through the same path as the warn command: it lands on the record, the warning
+rules for that count run, and [PlayerWarnEvent](/api/events/#playerwarnevent) fires first.
+`activeMutes` reads from memory, which is why it is the one moderation method without a
+future. The ticket methods are empty while `modules/helpop.yml` runs in broadcast mode.
+
+### Acting for somebody outside the game
+
+Every moderation method takes a `moderator` name and stores it as written, so an addon acting
+for a Discord user, a web dashboard or a bot passes its own identity:
+
+```java
+String who = VoxenApi.externalModerator("discord", "123456789");   // "discord:123456789"
+VoxenApi.updateReport(id, ReportInfo.Action.CLAIM, who);
+```
+
+That name comes back on the matching event, and that is the loop guard: check the prefix
+before reacting, or your addon will answer its own actions.
+
+`discord:123456789` is fine in a database and useless on a screen, so register a resolver and
+Voxen prints something readable instead:
+
+```java
+VoxenApi.registerModeratorResolver("discord", id -> lookup(id));   // "4g0 (Naimad123)"
+```
+
+It is used everywhere Voxen prints who did what — report and ticket screens, the web panel,
+audit trails, mute and warning lists — while events and the API keep handing back the stored
+string, so the prefix stays usable as a loop guard. Return `null` to leave a name as it was
+stored, which is what happens for an id you do not know.
+
+The resolver runs on whichever thread is drawing, possibly once per row, so keep it fast,
+keep it thread safe and cache on your side. Unregister it when your plugin disables.
+
+```java
+@EventHandler
+public void onReportUpdate(ReportUpdateEvent event) {
+    if (event.getModerator().startsWith("discord:")) return;   // we did this ourselves
+    mirrorToDiscord(event);
+}
+```
+
+<Aside type="caution" title="Map roles to actions, never to commands">
+	Give an outside surface a closed list of actions — claim, warn, mute, resolve — and map
+	each one to a permission you check yourself. An addon that forwards arbitrary console
+	commands from a chat message is a remote shell with extra steps.
+</Aside>
+
+### Add a page to the web panel
+
+```java
+VoxenApi.registerPanelPage("shop", "Shop", "shop.view", new PanelPage() {
+    @Override
+    public String render(PanelRequest request) {
+        return "<h1>Shop</h1><div class=\"card\"><p class=\"quote\">"
+                + PanelHtml.escape(latestSale())
+                + "</p></div>";
+    }
+});
+```
+
+The page appears in the panel sidebar as `Shop` for every account whose `permissions` in
+`modules/web.yml` cover `shop.view`, and answers with 403 for the rest. Return the body of
+the page only; Voxen wraps it in the panel frame, so the classes the bundled pages use
+(`card`, `tabs`, `tag`, `quote`, `muted`) style your markup as well.
+
+`PanelHtml.escape` is the one thing not to skip. Everything a player can influence goes
+through it, otherwise a nickname is enough to inject markup into the panel.
+
+To take a form back, override `submit` and read the fields with `request.param`. The panel
+rejects any POST without its CSRF token, so put it in a hidden field:
+
+```java
+String form = "<form method=\"post\" action=\"" + request.link(Map.of()) + "\">"
+        + "<input type=\"hidden\" name=\"token\" value=\"" + PanelHtml.escape(request.getToken()) + "\">"
+        + "<button name=\"action\" value=\"restock\">Restock</button></form>";
+```
+
+<Aside type="caution" title="Panel pages run off the main thread">
+	`render` and `submit` are called on a panel thread. Read your own data there, but hop to
+	the scheduler before touching anything from the Bukkit API.
+</Aside>
+
+Pages are not written to disk. Register them in `onEnable` and drop them with
+`unregisterPanelPage` in `onDisable`; the two built-in pages cannot be removed this way.
 
 ## Events
 

@@ -14,12 +14,14 @@ import org.bukkit.event.player.PlayerQuitEvent
 import zone.vao.voxen.config.ChatDelivery
 import zone.vao.voxen.moderation.AiModerationService
 import zone.vao.voxen.moderation.ModeratorService
+import zone.vao.voxen.report.ReportService
 
 class ChatListener(
     private val chatService: ChatService,
     private val delivery: () -> ChatDelivery,
     private val moderator: ModeratorService,
     private val ai: AiModerationService,
+    private val reports: ReportService,
 ) : Listener {
 
     private val plain = PlainTextComponentSerializer.plainText()
@@ -50,7 +52,10 @@ class ChatListener(
         }
         chatService.finish(out)
         ai.inspect(event.player, raw)
-        if (signed != null) moderator.remember(event.player, signed)
+        if (signed != null) {
+            moderator.remember(event.player, signed)
+            reports.attach(out.id, signed)
+        }
     }
 
     private fun renderFor(

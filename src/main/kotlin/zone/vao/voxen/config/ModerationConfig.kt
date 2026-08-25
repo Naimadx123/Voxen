@@ -22,6 +22,8 @@ data class ModerationConfig(
     val normalizeDiacritics: Boolean = true,
     val normalizeSeparators: Boolean = true,
     val normalizeRepeated: Boolean = true,
+    val glyphsEnabled: Boolean = false,
+    val glyphMode: FilterMode = FilterMode.CENSOR,
     val linksEnabled: Boolean = false,
     val linkMode: FilterMode = FilterMode.BLOCK,
     val linkIps: Boolean = true,
@@ -37,6 +39,7 @@ data class ModerationConfig(
     val floodAffectsPm: Boolean = true,
     val filterAffectsPm: Boolean = true,
     val linksAffectsPm: Boolean = true,
+    val glyphsAffectsPm: Boolean = true,
     val historyAffectsPm: Boolean = false,
     val maxLengthAffectsPm: Boolean = true,
 ) {

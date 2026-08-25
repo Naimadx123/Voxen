@@ -15,7 +15,10 @@ import org.bukkit.entity.Player
 import zone.vao.voxen.Voxen
 import zone.vao.voxen.moderation.ModeratorService
 import zone.vao.voxen.moderation.MuteEntry
+import zone.vao.voxen.report.ReportService
+import zone.vao.voxen.ticket.TicketService
 import zone.vao.voxen.util.Durations
+import zone.vao.voxen.util.ModeratorNames
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -57,7 +60,7 @@ object VoxenCommand {
                 permLiteral("mute", "voxen.mod.mute")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> mute(plugin, ctx, null, null, null) }
                             .then(
                                 Commands.argument("duration", StringArgumentType.word())
@@ -80,7 +83,7 @@ object VoxenCommand {
                 permLiteral("muteinfo", "voxen.mod.mute")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> muteInfo(plugin, ctx) }
                     )
             )
@@ -88,7 +91,7 @@ object VoxenCommand {
                 permLiteral("history", "voxen.mod.history")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> history(plugin, ctx) }
                     )
             )
@@ -96,7 +99,7 @@ object VoxenCommand {
                 permLiteral("unmute", "voxen.mod.mute")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> unmute(plugin, ctx, null) }
                             .then(
                                 Commands.argument("channel", StringArgumentType.word())
@@ -156,7 +159,7 @@ object VoxenCommand {
                     .executes { ctx -> chatClear(plugin, ctx.source.sender, null) }
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> chatClear(plugin, ctx.source.sender, arg(ctx, "player")) }
                     )
             )
@@ -164,7 +167,7 @@ object VoxenCommand {
                 permLiteral("inspect", "voxen.mod.inspect")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.inspect(sender, target) } }
                     )
             )
@@ -172,7 +175,7 @@ object VoxenCommand {
                 permLiteral("warn", "voxen.mod.warn")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.warn(sender, target, null) } }
                             .then(
                                 Commands.argument("reason", StringArgumentType.greedyString())
@@ -187,7 +190,7 @@ object VoxenCommand {
                 permLiteral("warns", "voxen.mod.warn")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.warnings(sender, target) } }
                             .then(
                                 Commands.argument("page", IntegerArgumentType.integer(1))
@@ -204,7 +207,7 @@ object VoxenCommand {
                 permLiteral("unwarn", "voxen.mod.warn")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .then(
                                 Commands.argument("index", IntegerArgumentType.integer(1))
                                     .executes { ctx ->
@@ -218,7 +221,7 @@ object VoxenCommand {
                 permLiteral("notes", "voxen.mod.notes")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.notes(sender, target) } }
                             .then(
                                 Commands.argument("page", IntegerArgumentType.integer(1))
@@ -255,7 +258,7 @@ object VoxenCommand {
                 permLiteral("delete", "voxen.mod.delete")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .executes { ctx -> staff(plugin, ctx) { sender, target -> plugin.moderatorService.deleteMessages(sender, target, 1) } }
                             .then(
                                 Commands.argument("amount", IntegerArgumentType.integer(1, 100))
@@ -294,6 +297,18 @@ object VoxenCommand {
                         Command.SINGLE_SUCCESS
                     }
             )
+            .then(reportsNode(plugin))
+            .then(ticketsNode(plugin))
+            .then(
+                permLiteral("report", ReportService.MANAGE)
+                    .then(
+                        Commands.argument("index", IntegerArgumentType.integer(1))
+                            .executes { ctx ->
+                                plugin.reportService.show(ctx.source.sender, IntegerArgumentType.getInteger(ctx, "index"))
+                                Command.SINGLE_SUCCESS
+                            }
+                    )
+            )
             .then(
                 permLiteral("spy", "voxen.socialspy")
                     .executes { ctx ->
@@ -309,6 +324,79 @@ object VoxenCommand {
                     }
             )
             .build()
+
+    private fun ticketsNode(plugin: Voxen): LiteralArgumentBuilder<CommandSourceStack> {
+        val index = Commands.argument("index", IntegerArgumentType.integer(1))
+            .executes { ctx ->
+                val sender = ctx.source.sender
+                plugin.ticketService.pending(sender, IntegerArgumentType.getInteger(ctx, "index")) { entry ->
+                    plugin.ticketService.show(sender, entry.id)
+                }
+                Command.SINGLE_SUCCESS
+            }
+            .then(
+                Commands.literal("close").executes { ctx ->
+                    val sender = ctx.source.sender
+                    plugin.ticketService.pending(sender, IntegerArgumentType.getInteger(ctx, "index")) { entry ->
+                        val closed = plugin.ticketService.close(sender.name, entry.id)
+                        plugin.messages().send(sender, if (closed) "ticket-closed" else "ticket-not-found")
+                    }
+                    Command.SINGLE_SUCCESS
+                }
+            )
+            .then(
+                Commands.literal("reply").then(
+                    Commands.argument("message", StringArgumentType.greedyString()).executes { ctx ->
+                        val sender = ctx.source.sender
+                        val text = StringArgumentType.getString(ctx, "message")
+                        plugin.ticketService.pending(sender, IntegerArgumentType.getInteger(ctx, "index")) { entry ->
+                            val sent = plugin.ticketService.answer(sender.name, entry.id, text)
+                            plugin.messages().send(sender, if (sent) "ticket-answered" else "ticket-not-found")
+                        }
+                        Command.SINGLE_SUCCESS
+                    }
+                )
+            )
+        return permLiteral("tickets", TicketService.MANAGE)
+            .executes { ctx ->
+                plugin.ticketService.queue(ctx.source.sender, 1)
+                Command.SINGLE_SUCCESS
+            }
+            .then(
+                Commands.argument("page", IntegerArgumentType.integer(1))
+                    .executes { ctx ->
+                        plugin.ticketService.queue(ctx.source.sender, IntegerArgumentType.getInteger(ctx, "page"))
+                        Command.SINGLE_SUCCESS
+                    }
+            )
+            .then(Commands.literal("open").then(index))
+    }
+
+    private fun reportsNode(plugin: Voxen): LiteralArgumentBuilder<CommandSourceStack> {
+        val index = Commands.argument("index", IntegerArgumentType.integer(1))
+            .executes { ctx -> reports(plugin, ctx.source.sender, IntegerArgumentType.getInteger(ctx, "index"), false) }
+        for (action in ReportService.Action.entries) {
+            index.then(
+                Commands.literal(action.id).executes { ctx ->
+                    plugin.reportService.act(ctx.source.sender, IntegerArgumentType.getInteger(ctx, "index"), action)
+                    Command.SINGLE_SUCCESS
+                }
+            )
+        }
+        return permLiteral("reports", ReportService.MANAGE)
+            .executes { ctx -> reports(plugin, ctx.source.sender, 1, true) }
+            .then(index)
+    }
+
+    private fun reports(plugin: Voxen, sender: CommandSender, page: Int, dialog: Boolean): Int {
+        val viewer = sender as? Player
+        if (dialog && viewer != null && plugin.configManager.config.reports.dialogs) {
+            plugin.reportService.openQueue(viewer)
+        } else {
+            plugin.reportService.queue(sender, page)
+        }
+        return Command.SINGLE_SUCCESS
+    }
 
     private fun sendHelp(plugin: Voxen, sender: CommandSender): Int {
         plugin.messages().send(sender, "help")
@@ -334,6 +422,7 @@ object VoxenCommand {
             "placeholderapi" to (plugin.hookManager.papi != null).toString(),
             "discordsrv" to plugin.hookManager.discord.discordSrv().toString(),
             "essentials-discord" to plugin.hookManager.discord.essentials().toString(),
+            "web-panel" to if (plugin.webServer.running()) plugin.webServer.address() else "off",
             "channels" to config.channels.count { it.value.enabled }.toString(),
             "active-mutes" to plugin.muteService.activeMutes().size.toString(),
             "chat-muted" to plugin.muteService.globalChatMuted.toString(),
@@ -354,7 +443,9 @@ object VoxenCommand {
 
     private fun find(plugin: Voxen, sender: CommandSender, name: String): Int {
         val messages = plugin.messages()
-        val server = plugin.server.getPlayerExact(name)?.let { plugin.configManager.config.network.serverId }
+        val local = plugin.server.getPlayerExact(name)
+            ?.takeIf { sender !is Player || sender.canSee(it) }
+        val server = local?.let { plugin.configManager.config.network.serverId }
             ?: plugin.presenceService.serverOf(name)
         if (server == null) {
             messages.send(sender, "player-not-found", Placeholder.unparsed("player", name))
@@ -409,7 +500,7 @@ object VoxenCommand {
                     "mute-list-entry",
                     Placeholder.unparsed("player", mute.playerName),
                     Placeholder.unparsed("channel", mute.channel ?: "all"),
-                    Placeholder.unparsed("moderator", mute.moderator),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(mute.moderator).orEmpty()),
                     Placeholder.unparsed("reason", mute.reason ?: messages.raw(sender, "mute-no-reason")),
                     Placeholder.unparsed(
                         "remaining",
@@ -462,7 +553,7 @@ object VoxenCommand {
                 return Command.SINGLE_SUCCESS
             }
         }
-        plugin.muteService.mute(
+        val muted = plugin.muteService.mute(
             MuteEntry(
                 uuid = target.first,
                 playerName = target.second,
@@ -473,6 +564,7 @@ object VoxenCommand {
                 createdAt = System.currentTimeMillis(),
             )
         )
+        if (!muted) return Command.SINGLE_SUCCESS
         messages.send(
             sender,
             "muted-player",
@@ -508,7 +600,7 @@ object VoxenCommand {
                     "mute-list-entry",
                     Placeholder.unparsed("player", mute.playerName),
                     Placeholder.unparsed("channel", mute.channel ?: "all"),
-                    Placeholder.unparsed("moderator", mute.moderator),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(mute.moderator).orEmpty()),
                     Placeholder.unparsed("reason", mute.reason ?: messages.raw(sender, "mute-no-reason")),
                     Placeholder.unparsed(
                         "remaining",
@@ -605,9 +697,9 @@ object VoxenCommand {
             return Command.SINGLE_SUCCESS
         }
         val removed = when {
-            channelInput == null -> plugin.muteService.unmuteAll(target.first) > 0
-            channelInput.equals("all", true) -> plugin.muteService.unmute(target.first, null)
-            else -> plugin.muteService.unmute(target.first, channelInput.lowercase())
+            channelInput == null -> plugin.muteService.unmuteAll(target.first, sender.name) > 0
+            channelInput.equals("all", true) -> plugin.muteService.unmute(target.first, null, sender.name)
+            else -> plugin.muteService.unmute(target.first, channelInput.lowercase(), sender.name)
         }
         messages.send(
             sender,

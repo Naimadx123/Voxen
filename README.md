@@ -3,7 +3,8 @@
 Chat plugin for Paper 1.21.8+ (and Folia). Channels with their own formats, ranges and
 permissions, private messages, parties, ignoring, @name mentions, nicknames, item sharing in
 chat, a moderation stack (cooldowns, anti-repeat, anti-flood, word and link filters, mutes,
-chat log) and optional cross-server chat over Redis, NATS or RabbitMQ.
+chat log), player reports with an in-game and a browser queue, and optional cross-server chat
+over Redis, NATS or RabbitMQ.
 
 ## Links
 

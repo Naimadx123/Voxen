@@ -24,8 +24,6 @@ class FormatService(
     private val legacy = LegacyComponentSerializer.legacyAmpersand()
     private val customPlaceholders = ConcurrentHashMap<String, FormatPlaceholder>()
 
-    // prefix/suffix/group came from LuckPerms three to five times per message; one snapshot covers the message
-    // ponytail: TTL instead of quit hooks, so a rank change shows up a second late at worst
     private val metaCache = ConcurrentHashMap<UUID, Meta>()
 
     private class Meta(val prefix: String, val suffix: String, val group: String, val at: Long)
@@ -65,6 +63,15 @@ class FormatService(
 
     fun render(format: String, player: Player, channel: Channel, message: Component): Component {
         val meta = meta(player)
+        return build(format, player, meta, resolvers(player, channel, message, meta))
+    }
+
+    fun renderSystem(format: String, player: Player, vararg extra: TagResolver): Component {
+        val meta = meta(player)
+        return build(format, player, meta, TagResolver.resolver(base(player, meta) + extra.toList()))
+    }
+
+    private fun build(format: String, player: Player, meta: Meta, resolvers: TagResolver): Component {
         val trimmed = Components.stripEmptyPlaceholders(format) { token ->
             when (token) {
                 "<prefix>" -> if (meta.prefix.isBlank()) "" else token
@@ -73,16 +80,12 @@ class FormatService(
             }
         }
         val expanded = hooks.applyPlaceholders(player, trimmed)
-        return Components.tidy(mm.deserialize(expanded, resolvers(player, channel, message, meta)))
+        return Components.tidy(mm.deserialize(expanded, resolvers))
     }
 
     fun renderConsole(channel: Channel, player: Player, message: Component): Component =
         render(channel.consoleFormat ?: formatFor(channel, player), player, channel, message)
 
-    /**
-     * Renders a message that arrived from another server. The sender is not online here, so only the
-     * placeholders the network carries are available and [message] is inserted as plain text.
-     */
     fun renderExternal(channel: Channel, senderName: String, senderServer: String, message: String): Component {
         val format = channel.externalFormat ?: return Component.text(message)
         val trimmed = Components.stripEmptyPlaceholders(format) { token ->
@@ -110,15 +113,21 @@ class FormatService(
         }
     }
 
-    private fun resolvers(player: Player, channel: Channel, message: Component, meta: Meta): TagResolver {
+    private fun resolvers(player: Player, channel: Channel, message: Component, meta: Meta): TagResolver =
+        TagResolver.resolver(
+            base(player, meta) + listOf(
+                Placeholder.component("message", message),
+                Placeholder.parsed("channel", channel.displayName),
+                Placeholder.unparsed("channel_id", channel.id),
+            )
+        )
+
+    private fun base(player: Player, meta: Meta): List<TagResolver> {
         val list = mutableListOf<TagResolver>(
-            Placeholder.component("message", message),
             Placeholder.component("player", nickname(player) ?: Component.text(player.name)),
             Placeholder.unparsed("username", player.name),
             Placeholder.component("display_name", player.displayName()),
             Placeholder.unparsed("world", player.world.name),
-            Placeholder.parsed("channel", channel.displayName),
-            Placeholder.unparsed("channel_id", channel.id),
             Placeholder.unparsed("server", config().serverName),
             Placeholder.component("prefix", metaComponent(meta.prefix)),
             Placeholder.component("suffix", metaComponent(meta.suffix)),
@@ -129,7 +138,7 @@ class FormatService(
             list += Placeholder.component(name, resolved)
         }
         hooks.miniPlaceholders?.let { list += it.resolvers(player) }
-        return TagResolver.resolver(list)
+        return list
     }
 
     private companion object {

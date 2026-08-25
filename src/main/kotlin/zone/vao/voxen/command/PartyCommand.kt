@@ -49,7 +49,7 @@ object PartyCommand {
             .then(
                 Commands.literal("invite").then(
                     Commands.argument("player", StringArgumentType.word())
-                        .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                        .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                         .executes { ctx ->
                             val player = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
                             val target = target(plugin, ctx, player) ?: return@executes Command.SINGLE_SUCCESS
@@ -111,7 +111,7 @@ object PartyCommand {
             .then(
                 Commands.literal("kick").then(
                     Commands.argument("player", StringArgumentType.word())
-                        .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                        .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                         .executes { ctx ->
                             val player = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
                             val target = target(plugin, ctx, player) ?: return@executes Command.SINGLE_SUCCESS
@@ -126,7 +126,7 @@ object PartyCommand {
             .then(
                 Commands.literal("transfer").then(
                     Commands.argument("player", StringArgumentType.word())
-                        .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                        .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                         .executes { ctx ->
                             val player = player(plugin, ctx) ?: return@executes Command.SINGLE_SUCCESS
                             val target = target(plugin, ctx, player) ?: return@executes Command.SINGLE_SUCCESS

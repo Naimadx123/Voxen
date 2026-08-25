@@ -31,7 +31,6 @@ class MailService(
 
     private val lastSent = ConcurrentHashMap<UUID, Long>()
 
-    /** Resolves [targetName] locally, falling back to a storage lookup for players who never joined here. */
     fun send(sender: Player, targetName: String, content: String) {
         val local = runCatching { UUID.fromString(targetName) }.getOrNull()
             ?.let { id -> id to (server.getOfflinePlayer(id).name ?: id.toString()) }
@@ -75,7 +74,6 @@ class MailService(
         val guarded = cooldown > 0 && !sender.hasPermission(BYPASS_COOLDOWN)
         val now = System.currentTimeMillis()
         if (guarded) {
-            // claimed before anything async runs, otherwise two quick commands both pass the check
             val previous = lastSent.merge(sender.uniqueId, now) { old, fresh ->
                 if (fresh - old >= cooldown) fresh else old
             } ?: now

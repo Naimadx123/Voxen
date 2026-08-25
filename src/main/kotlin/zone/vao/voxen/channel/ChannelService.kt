@@ -3,6 +3,7 @@ package zone.vao.voxen.channel
 import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.RecipientProvider
+import zone.vao.voxen.event.ChannelSwitchEvent
 import zone.vao.voxen.config.SoundConfig
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.hook.TeamHooks
@@ -96,6 +97,9 @@ class ChannelService(
 
     fun setActive(player: Player, channel: Channel): Boolean {
         if (!channel.enabled || !channel.canJoin(player)) return false
+        val event = ChannelSwitchEvent(player, activeChannel(player)?.id, channel.id)
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return false
         val data = playerData.get(player.uniqueId)
         data.activeChannel = channel.id
         data.joinedChannels += channel.id

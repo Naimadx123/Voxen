@@ -25,6 +25,7 @@ import zone.vao.voxen.mention.MentionService
 import zone.vao.voxen.moderation.AiModerationService
 import zone.vao.voxen.moderation.ModeratorDialogs
 import zone.vao.voxen.moderation.ModeratorService
+import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
 import zone.vao.voxen.moderation.WordFilter
@@ -32,18 +33,34 @@ import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.party.PartyService
 import zone.vao.voxen.presence.PresenceListener
+import zone.vao.voxen.report.ReportDialogs
+import zone.vao.voxen.report.ReportService
+import zone.vao.voxen.report.ReportsWeb
+import zone.vao.voxen.system.SystemMessageListener
+import zone.vao.voxen.system.SystemMessageService
+import zone.vao.voxen.ticket.TicketDialogs
+import zone.vao.voxen.ticket.TicketService
+import zone.vao.voxen.ticket.TicketsWeb
+import zone.vao.voxen.web.WebModule
+import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.PlayerDataService
+import zone.vao.voxen.storage.PlayerStorage
+import zone.vao.voxen.storage.ReportEntry
 import zone.vao.voxen.storage.StaffNote
+import zone.vao.voxen.storage.TicketEntry
 import zone.vao.voxen.storage.StorageConfig
 import zone.vao.voxen.storage.StorageFactory
 import zone.vao.voxen.storage.StorageType
 import zone.vao.voxen.tags.ContentRenderer
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.util.Threads
 import zone.vao.voxen.util.UpdateChecker
 import zone.vao.voxen.util.Vanish
 import java.util.*
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 
 @Suppress("UnstableApiUsage")
 class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
@@ -77,6 +94,14 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var mailService: MailService
         private set
     lateinit var moderatorService: ModeratorService
+    lateinit var reportService: ReportService
+        private set
+    lateinit var systemMessageService: SystemMessageService
+        private set
+    lateinit var ticketService: TicketService
+        private set
+    lateinit var webServer: WebServer
+        private set
     lateinit var aiModerationService: AiModerationService
         private set
     lateinit var wordFilter: WordFilter
@@ -85,6 +110,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         private set
 
     private var presenceTask: ScheduledTask? = null
+
+    private val panelPages = ConcurrentHashMap.newKeySet<String>()
 
     private val componentCodec = GsonComponentSerializer.gson()
     private val miniMessageCodec = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
@@ -109,7 +136,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         server.pluginManager.registerEvents(ignoreService, this)
         ignoreService.loadOnline(server.onlinePlayers.map { it.uniqueId })
 
-        muteService = MuteService(playerDataService)
+        muteService = MuteService(server, playerDataService)
         muteService.load()
 
         partyService = PartyService(server, playerDataService) { configManager.config.party }
@@ -200,6 +227,28 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         privateMessageService.routeLookup = { name -> presenceService.serverOf(name) }
         startPresenceHeartbeat()
 
+        systemMessageService = SystemMessageService(
+            server,
+            { configManager.config },
+            channelService,
+            chatService,
+            formatService,
+            { hookManager.discord },
+            presenceService,
+        )
+        systemMessageService.remotePublisher = { message -> brokerService.publish(message) }
+        systemMessageService.schedule = { delayMillis, task ->
+            server.asyncScheduler.runDelayed(
+                this,
+                { threads.main { task() } },
+                delayMillis,
+                java.util.concurrent.TimeUnit.MILLISECONDS,
+            )
+        }
+        brokerService.onSystemMessage = { message -> systemMessageService.handleRemote(message) }
+        presenceService.onRemoteJoin = { uuid -> systemMessageService.cancelQuit(uuid) }
+        server.pluginManager.registerEvents(SystemMessageListener(systemMessageService), this)
+
         privateMessageService.remotePublisher = { message ->
             brokerService.publish(message.copy(server = configManager.config.network.serverId))
         }
@@ -225,7 +274,6 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         brokerService.onChatMessage = { message ->
             val channel = message.channel?.let { channelService.channel(it) }
             val component = when {
-                // external-format is a receiver-side format, so the raw text is re-rendered here
                 channel?.externalFormat != null && message.sender != null && message.content != null ->
                     formatService.renderExternal(channel, message.sender, message.server.orEmpty(), message.content)
 
@@ -269,9 +317,40 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         moderatorService.notesDialog = { viewer, target, lines -> dialogs.notes(viewer, target, lines) }
         server.pluginManager.registerEvents(moderatorService, this)
         purgeWarnings()
+        reportService = ReportService(server, { configManager.config }, playerDataService, moderatorService, threads)
+        val reportDialogs = ReportDialogs(this)
+        reportService.submitDialog = { viewer, target, reference -> reportDialogs.submit(viewer, target, reference) }
+        reportService.queueDialog = { viewer, entries -> reportDialogs.queue(viewer, entries) }
+        reportService.viewDialog = { viewer, case -> reportDialogs.view(viewer, case) }
+        reportService.historyDialog = { viewer, case -> reportDialogs.history(viewer, case) }
+        reportService.muteAction = { sender, name, duration, reason ->
+            VoxenCommand.mute(this, sender, name, duration, "all", reason)
+        }
+        chatService.onMessage = { out -> reportService.remember(out.id, out.player, out.channel.id, out.content) }
+        chatService.messageButton = { out, viewer -> reportService.chatButton(out.player, out.id, viewer) }
+        purgeReports()
+
+        ticketService = TicketService(server, { configManager.config }, playerDataService, threads)
+        val ticketDialogs = TicketDialogs(this)
+        ticketService.panelDialog = { viewer, entries -> ticketDialogs.panel(viewer, entries) }
+        ticketService.viewDialog = { viewer, case -> ticketDialogs.view(viewer, case) }
+        ticketService.purge()
+
+        webServer = WebServer(logger) { configManager.config.web }
+        webServer.register(ReportsWeb.module(this))
+        webServer.register(ReportsWeb.auditModule(this))
+        webServer.register(TicketsWeb.module(this))
+        webServer.start()
+
         aiModerationService = AiModerationService(server, { configManager.config }, moderatorService, threads, logger)
         server.pluginManager.registerEvents(
-            ChatListener(chatService, { configManager.config.chatDelivery }, moderatorService, aiModerationService),
+            ChatListener(
+                chatService,
+                { configManager.config.chatDelivery },
+                moderatorService,
+                aiModerationService,
+                reportService,
+            ),
             this,
         )
 
@@ -291,6 +370,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
 
     override fun onDisable() {
         presenceTask?.cancel()
+        ModeratorNames.clear()
+        if (::webServer.isInitialized) webServer.stop()
         if (::brokerService.isInitialized) brokerService.shutdown()
         if (::playerDataService.isInitialized) playerDataService.shutdown()
         if (::aiModerationService.isInitialized) aiModerationService.shutdown()
@@ -303,6 +384,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         muteService.load()
         partyService.load()
         brokerService.start()
+        webServer.start()
         presenceService.clear()
         startPresenceHeartbeat()
         refreshClientCommands()
@@ -317,7 +399,47 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         channelService.channel(id)?.let(::info)
 
     override fun activeChannel(player: Player): ChannelInfo? =
-        channelService.activeChannel(player)?.let(::info)
+        threads.awaitPlayer(player) { channelService.activeChannel(player)?.let(::info) }
+
+    override fun setActiveChannel(player: Player, channelId: String): Boolean =
+        threads.awaitPlayer(player) {
+            val channel = channelService.channel(channelId) ?: return@awaitPlayer false
+            channelService.setActive(player, channel)
+        } ?: false
+
+    override fun joinChannel(player: Player, channelId: String): Boolean =
+        threads.awaitPlayer(player) {
+            val channel = channelService.channel(channelId) ?: return@awaitPlayer false
+            channelService.join(player, channel)
+        } ?: false
+
+    override fun leaveChannel(player: Player, channelId: String): Boolean =
+        threads.awaitPlayer(player) {
+            val channel = channelService.channel(channelId) ?: return@awaitPlayer false
+            channelService.leave(player, channel)
+        } ?: false
+
+    override fun joinedChannels(player: Player): Collection<ChannelInfo> =
+        threads.awaitPlayer(player) { channelService.joinedChannels(player).map(::info) } ?: emptyList()
+
+    override fun filterWords(text: String): FilterResult = verdict(wordFilter.check(text), text)
+
+    override fun filterLinks(text: String): FilterResult = verdict(wordFilter.checkLinks(text), text)
+
+    override fun isClean(text: String): Boolean = filterWords(text).isClean() && filterLinks(text).isClean()
+
+    override fun render(player: Player, text: String): Component =
+        threads.awaitPlayer(player) {
+            contentRenderer.render(text, player::hasPermission, isPermissionSet = player::isPermissionSet)
+        } ?: Component.text(text)
+
+    override fun stripTags(text: String): String = contentRenderer.plain(text)
+
+    private fun verdict(result: WordFilter.Result, original: String): FilterResult = when (result) {
+        WordFilter.Result.Clean -> FilterResult(FilterResult.Verdict.CLEAN, original)
+        WordFilter.Result.Blocked -> FilterResult(FilterResult.Verdict.BLOCKED, original)
+        is WordFilter.Result.Censored -> FilterResult(FilterResult.Verdict.CENSORED, result.content)
+    }
 
     override fun sendChannelMessage(player: Player, channelId: String, content: String): Boolean {
         val channel = channelService.channel(channelId) ?: return false
@@ -337,7 +459,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     override fun isIgnoring(source: UUID, target: UUID): Boolean = ignoreService.isIgnoring(source, target)
 
     override fun sendPrivateMessage(sender: Player, target: Player, content: String): Boolean =
-        privateMessageService.send(sender, target, content)
+        threads.awaitPlayer(sender) { privateMessageService.send(sender, target, content) } ?: false
 
     override fun nickname(player: Player): String? = playerDataService.get(player.uniqueId).nickname
 
@@ -359,6 +481,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         PartyInfo(id = it.id, name = it.name, leader = it.leader, members = it.members)
     }
 
+    override fun registerModeratorResolver(prefix: String, resolver: ModeratorResolver): Boolean =
+        ModeratorNames.register(prefix, resolver)
+
+    override fun unregisterModeratorResolver(prefix: String) {
+        ModeratorNames.unregister(prefix)
+    }
+
     override fun registerPlaceholder(name: String, placeholder: FormatPlaceholder): Boolean =
         formatService.registerPlaceholder(name, placeholder)
 
@@ -372,13 +501,177 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         return true
     }
 
+    override fun registerChannel(channel: ChannelRegistration): Boolean =
+        registerChannel(channel.id, channel.displayName, channel.format, channel.recipients)
+
     override fun unregisterChannel(id: String): Boolean = channelService.unregisterApiChannel(id)
+
+    override fun serverId(): String = configManager.config.network.serverId
+
+    override fun networkConnected(): Boolean = brokerService.active()
+
+    override fun serverOf(name: String): String? =
+        server.getPlayerExact(name)?.let { configManager.config.network.serverId }
+            ?: presenceService.serverOf(name)
+
+    override fun networkPlayers(): Collection<NetworkPlayer> {
+        val here = configManager.config.network.serverId
+        val now = System.currentTimeMillis()
+        val local = server.onlinePlayers
+            .filterNot(Vanish::hidden)
+            .map { NetworkPlayer(it.uniqueId, it.name, here, now) }
+        val remote = presenceService.entries()
+            .map { NetworkPlayer(it.uuid, it.name, it.server, it.seenAt) }
+        return (local + remote).distinctBy { it.uuid }
+    }
 
     override fun registerRecipients(channelId: String, provider: RecipientProvider): Boolean =
         channelService.registerRecipients(channelId, provider)
 
     override fun unregisterRecipients(channelId: String) {
         channelService.unregisterRecipients(channelId)
+    }
+
+    override fun mute(request: MuteRequest): Boolean {
+        val channel = request.channelId?.let { channelService.channel(it)?.id ?: return false }
+        val now = System.currentTimeMillis()
+        return muteService.mute(
+            MuteEntry(
+                uuid = request.target,
+                playerName = request.targetName,
+                channel = channel,
+                reason = request.reason?.trim()?.ifEmpty { null },
+                moderator = request.moderator,
+                expiresAt = if (request.durationMillis > 0L) now + request.durationMillis else null,
+                createdAt = now,
+            )
+        )
+    }
+
+    override fun unmute(target: UUID, channelId: String?, moderator: String): Boolean =
+        muteService.unmute(target, channelId?.lowercase(), moderator)
+
+    override fun unmuteAll(target: UUID, moderator: String): Int = muteService.unmuteAll(target, moderator)
+
+    override fun warn(target: UUID, targetName: String, reason: String, moderator: String): Boolean =
+        moderatorService.warn(moderator, ModeratorService.Target(target, targetName), reason)
+
+    override fun warnings(target: UUID): CompletableFuture<List<WarningInfo>> = onStorage { storage ->
+        storage.staffNotes(target, StaffNote.Kind.WARN, configManager.config.moderatorTools.warningCutoff)
+            .map { note ->
+                WarningInfo(
+                    id = note.id,
+                    target = note.target,
+                    targetName = note.targetName,
+                    moderator = note.author,
+                    reason = note.content,
+                    createdAt = note.createdAt,
+                )
+            }
+    }
+
+    override fun activeMutes(target: UUID): List<MuteInfo> = muteService.mutesFor(target).map { mute ->
+        MuteInfo(
+            target = mute.uuid,
+            targetName = mute.playerName,
+            channelId = mute.channel,
+            reason = mute.reason,
+            moderator = mute.moderator,
+            expiresAt = mute.expiresAt,
+            createdAt = mute.createdAt,
+        )
+    }
+
+    override fun reportCase(id: UUID): CompletableFuture<ReportCase?> = onStorage {
+        reportService.case(id)?.let { loaded ->
+            ReportCase(
+                report = reportService.info(loaded.entry),
+                context = loaded.context.map { line ->
+                    ChatLine(
+                        id = line.id,
+                        player = line.uuid,
+                        playerName = line.playerName,
+                        channelId = line.channel,
+                        content = line.content,
+                        server = line.server,
+                        createdAt = line.createdAt,
+                    )
+                },
+                history = loaded.actions.map { action ->
+                    ReportCase.AuditEntry(
+                        id = action.id,
+                        actor = action.actor,
+                        action = action.action,
+                        detail = action.detail,
+                        createdAt = action.createdAt,
+                    )
+                },
+            )
+        }
+    }
+
+    override fun deleteReportedMessage(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        onStorage { reportService.deleteReported(moderator, id) }
+
+    override fun tickets(statuses: Collection<TicketInfo.Status>, limit: Int): CompletableFuture<List<TicketInfo>> {
+        val wanted = statuses.map { TicketEntry.Status.valueOf(it.name) }
+        return onStorage { storage -> storage.tickets(wanted, limit).map(ticketService::info) }
+    }
+
+    override fun ticket(id: UUID): CompletableFuture<TicketCase?> = onStorage { storage ->
+        storage.ticket(id)?.let { entry ->
+            val limit = configManager.config.helpop.historyLimit
+            TicketCase(ticketService.info(entry), storage.ticketMessages(id, limit).map(ticketService::info))
+        }
+    }
+
+    override fun replyToTicket(id: UUID, message: String, moderator: String): CompletableFuture<Boolean> =
+        onStorage { ticketService.answer(moderator, id, message) }
+
+    override fun closeTicket(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        onStorage { ticketService.close(moderator, id) }
+
+    override fun reports(statuses: Collection<ReportInfo.Status>, limit: Int): CompletableFuture<List<ReportInfo>> {
+        val wanted = statuses.map { ReportEntry.Status.valueOf(it.name) }
+        return onStorage { storage -> storage.reports(wanted, limit).map(reportService::info) }
+    }
+
+    override fun report(id: UUID): CompletableFuture<ReportInfo?> =
+        onStorage { storage -> storage.report(id)?.let(reportService::info) }
+
+    override fun updateReport(id: UUID, action: ReportInfo.Action, moderator: String): CompletableFuture<Boolean> {
+        val choice = ReportService.Action.entries.first { it.info == action }
+        return onStorage { reportService.apply(moderator, id, choice) }
+    }
+
+    private fun <T> onStorage(task: (PlayerStorage) -> T): CompletableFuture<T> {
+        val future = CompletableFuture<T>()
+        val queued = playerDataService.async { storage ->
+            runCatching { task(storage) }.fold(future::complete, future::completeExceptionally)
+        }
+        if (!queued) future.completeExceptionally(IllegalStateException("Voxen storage is not available."))
+        return future
+    }
+
+    override fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean {
+        val lower = id.lowercase()
+        if (!lower.matches(Regex("[a-z0-9_-]+")) || permission.isBlank()) return false
+        val added = webServer.register(
+            WebModule(
+                id = lower,
+                title = { title },
+                permission = permission,
+                render = { request -> page.render(request) },
+                submit = { request -> page.submit(request) },
+            )
+        )
+        if (added) panelPages.add(lower)
+        return added
+    }
+
+    override fun unregisterPanelPage(id: String): Boolean {
+        val lower = id.lowercase()
+        return panelPages.remove(lower) && webServer.unregister(lower)
     }
 
     private fun info(channel: Channel): ChannelInfo = ChannelInfo(
@@ -396,7 +689,6 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         val config = configManager.config.storage
         return runCatching { StorageFactory.create(this, config) }.getOrElse { first ->
             if (config.type != StorageType.SQLITE && !config.sqliteFallback) {
-                // silently writing to a local file would split data across servers, so refuse to start
                 throw IllegalStateException(
                     "Failed to initialise ${config.type.name.lowercase()} storage: ${first.message}. " +
                         "Fix the connection or set sqlite-fallback: true in storage.yml.",
@@ -447,6 +739,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         if (!mail.enabled || mail.expireDays <= 0) return
         val cutoff = System.currentTimeMillis() - mail.expireDays * 86_400_000L
         playerDataService.async { it.purgeMail(cutoff) }
+    }
+
+    private fun purgeReports() {
+        val reports = configManager.config.reports
+        if (!reports.enabled || reports.expireDays <= 0) return
+        val cutoff = System.currentTimeMillis() - reports.expireDays * 86_400_000L
+        playerDataService.async { it.purgeReports(cutoff) }
     }
 
     private fun purgeWarnings() {
@@ -505,6 +804,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             register(commands.language, "Choose your Voxen language") { ToggleCommands.buildLanguage(this, it) }
             register(commands.filter, "Toggle the chat filter for yourself") { ToggleCommands.buildFilterToggle(this, it) }
             register(commands.helpop, "Ask staff for help") { HelpopCommand.build(this, it) }
+            if (configManager.config.reports.enabled) {
+                register(commands.report, "Report a player to the staff") { ReportCommand.build(this, it) }
+            }
             if (configManager.config.nicknames.enabled) {
                 register(commands.nickname, "Manage nicknames") { NickCommand.build(this, it) }
                 register(commands.realName, "Look up who is using a nickname") { NickCommand.buildRealName(this, it) }

@@ -12,9 +12,12 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
 import zone.vao.voxen.config.VoxenConfig
+import zone.vao.voxen.event.ChatMessageDeleteEvent
+import zone.vao.voxen.event.PlayerWarnEvent
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.StaffNote
+import zone.vao.voxen.util.ModeratorNames
 import zone.vao.voxen.util.Pages
 import zone.vao.voxen.util.Threads
 import java.time.Duration
@@ -32,7 +35,6 @@ class ModeratorService(
     private val threads: Threads,
 ) : Listener {
 
-    // ponytail: one flat ring scanned per delete, 200 entries by default; key by player if it grows
     private val recent = ArrayDeque<Pair<UUID, SignedMessage>>()
 
     var dialogs: ((Player, Target, List<Component>) -> Unit)? = null
@@ -55,11 +57,28 @@ class ModeratorService(
             else messages.send(sender, "warn-needs-reason")
             return
         }
+        apply(sender, sender.name, target, text)
+    }
+
+    fun warn(actor: String, target: Target, reason: String): Boolean {
+        val settings = config().moderatorTools
+        if (!settings.enabled || !settings.warningsEnabled) return false
+        val text = reason.trim().ifEmpty { return false }
+        return apply(null, actor, target, text)
+    }
+
+    private fun apply(sender: CommandSender?, actor: String, target: Target, reason: String): Boolean {
+        val settings = config().moderatorTools
+        val messages = config().messages
+        val event = PlayerWarnEvent(target.uuid, target.name, reason, actor)
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return false
+        val text = event.reason.trim().ifEmpty { return false }
         val note = StaffNote(
             id = UUID.randomUUID(),
             target = target.uuid,
             targetName = target.name,
-            author = sender.name,
+            author = actor,
             content = text,
             kind = StaffNote.Kind.WARN,
             createdAt = System.currentTimeMillis(),
@@ -68,13 +87,15 @@ class ModeratorService(
             storage.saveStaffNote(note)
             val count = storage.staffNotes(target.uuid, StaffNote.Kind.WARN, settings.warningCutoff).size
             threads.main {
-                messages.send(
-                    sender,
-                    "warned-player",
-                    Placeholder.unparsed("player", target.name),
-                    Placeholder.unparsed("reason", text),
-                    Placeholder.unparsed("amount", count.toString()),
-                )
+                sender?.let {
+                    messages.send(
+                        it,
+                        "warned-player",
+                        Placeholder.unparsed("player", target.name),
+                        Placeholder.unparsed("reason", text),
+                        Placeholder.unparsed("amount", count.toString()),
+                    )
+                }
                 val online = server.getPlayer(target.uuid)
                 if (settings.notifyTarget && online != null) {
                     threads.forPlayer(online) {
@@ -89,13 +110,14 @@ class ModeratorService(
                 alert(
                     "warn-alert",
                     Placeholder.unparsed("player", target.name),
-                    Placeholder.unparsed("moderator", sender.name),
+                    Placeholder.unparsed("moderator", ModeratorNames.display(actor).orEmpty()),
                     Placeholder.unparsed("reason", text),
                     Placeholder.unparsed("amount", count.toString()),
                 )
-                runRules(sender, target, count, text)
+                runRules(actor, target, count, text)
             }
-        }, { threads.main { messages.send(sender, "storage-busy") } })
+        }, { threads.main { sender?.let { messages.send(it, "storage-busy") } } })
+        return true
     }
 
     fun warnings(sender: CommandSender, target: Target, page: Int = 1) {
@@ -134,7 +156,7 @@ class ModeratorService(
                         "note-list-entry",
                         Placeholder.unparsed("index", (index + 1).toString()),
                         Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
-                        Placeholder.unparsed("moderator", entry.author),
+                        Placeholder.unparsed("moderator", ModeratorNames.display(entry.author).orEmpty()),
                         Placeholder.unparsed("reason", entry.content),
                     )
                 }
@@ -184,7 +206,6 @@ class ModeratorService(
         }
         val active = mutes.mutesFor(target.uuid)
         playerData.async { storage ->
-            // counts only, so inspecting a veteran does not drag every note across the wire
             val warns =
                 if (settings.warningsEnabled) storage.staffNoteCount(target.uuid, StaffNote.Kind.WARN, settings.warningCutoff)
                 else 0
@@ -230,7 +251,6 @@ class ModeratorService(
             messages.send(sender, "delete-disabled")
             return
         }
-        // the [x] button already honours this, so the command has to as well
         if (server.getPlayer(target.uuid)?.hasPermission(DELETE_EXEMPT) == true) {
             messages.send(sender, "delete-exempt", Placeholder.unparsed("player", target.name))
             return
@@ -245,12 +265,43 @@ class ModeratorService(
             return
         }
         broadcastDelete(picked)
+        announceDelete(target, sender.name, picked, null)
         messages.send(
             sender,
             "deleted-messages",
             Placeholder.unparsed("player", target.name),
             Placeholder.unparsed("amount", picked.size.toString()),
         )
+    }
+
+    fun deleteSigned(
+        sender: CommandSender,
+        target: Target,
+        signed: SignedMessage,
+        actor: String = sender.name,
+        messageId: UUID? = null,
+    ): Boolean {
+        val settings = config().moderatorTools
+        val messages = config().messages
+        if (!enabled(sender)) return false
+        if (!settings.deleteEnabled) {
+            messages.send(sender, "delete-disabled")
+            return false
+        }
+        if (server.getPlayer(target.uuid)?.hasPermission(DELETE_EXEMPT) == true) {
+            messages.send(sender, "delete-exempt", Placeholder.unparsed("player", target.name))
+            return false
+        }
+        synchronized(recent) { recent.removeAll { it.second == signed } }
+        broadcastDelete(listOf(signed))
+        announceDelete(target, actor, listOf(signed), messageId)
+        messages.send(
+            sender,
+            "deleted-messages",
+            Placeholder.unparsed("player", target.name),
+            Placeholder.unparsed("amount", "1"),
+        )
+        return true
     }
 
     fun chatButtons(sender: Player, signed: SignedMessage, viewer: Player): Component? {
@@ -301,6 +352,14 @@ class ModeratorService(
             )
     }
 
+    private fun announceDelete(target: Target, actor: String, picked: List<SignedMessage>, messageId: UUID?) {
+        for (signed in picked) {
+            server.pluginManager.callEvent(
+                ChatMessageDeleteEvent(target.uuid, target.name, actor, signed.message(), messageId)
+            )
+        }
+    }
+
     private fun broadcastDelete(picked: List<SignedMessage>) {
         for (viewer in server.onlinePlayers) {
             threads.forPlayer(viewer) { for (signed in picked) viewer.deleteMessage(signed) }
@@ -333,14 +392,14 @@ class ModeratorService(
         }
     }
 
-    private fun runRules(sender: CommandSender, target: Target, count: Int, reason: String) {
+    private fun runRules(actor: String, target: Target, count: Int, reason: String) {
         val rules = config().moderatorTools.warningRules.filter { it.matches(count) }
         if (rules.isEmpty()) return
         val commands = rules.flatMap { it.commands }.map { command ->
             command.replace("<player>", target.name)
                 .replace("<uuid>", target.uuid.toString())
                 .replace("<count>", count.toString())
-                .replace("<moderator>", sender.name)
+                .replace("<moderator>", actor)
                 .replace("<reason>", reason)
         }
         threads.main {
@@ -390,7 +449,7 @@ class ModeratorService(
                             entryKey,
                             Placeholder.unparsed("index", (index + 1).toString()),
                             Placeholder.unparsed("time", TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt))),
-                            Placeholder.unparsed("moderator", entry.author),
+                            Placeholder.unparsed("moderator", ModeratorNames.display(entry.author).orEmpty()),
                             Placeholder.unparsed("reason", entry.content),
                         )
                     )

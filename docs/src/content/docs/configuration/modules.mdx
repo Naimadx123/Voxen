@@ -6,7 +6,9 @@ description: Mentions, private messages, parties and emotes.
 import { Aside } from '@astrojs/starlight/components';
 
 The remaining files in `modules/`. Moderation has
-[its own page](/configuration/moderation/), and so does
+[its own page](/configuration/moderation/), and so do
+[reports.yml](/configuration/reports/), [web.yml](/configuration/web/),
+[system-messages.yml](/configuration/system-messages/) and
 [minimessage-tags.yml](/guides/player-formatting/).
 
 ## Mentions
@@ -216,6 +218,8 @@ suggest-remote-players: true
 
 Tracks which server each player on the network is on so private messages go straight there.
 Does nothing without `network.transport`, see [Cross-server](/network/cross-server/#player-tracking).
+It is also what tells a server switch apart from a real disconnect in
+[system messages](/configuration/system-messages/#one-message-per-network).
 
 ## Emotes
 

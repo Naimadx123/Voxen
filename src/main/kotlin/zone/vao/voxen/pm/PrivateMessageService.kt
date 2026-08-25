@@ -7,6 +7,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.VoxenConfig
+import zone.vao.voxen.event.PrivateMessageEvent
 import zone.vao.voxen.ignore.IgnoreService
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
@@ -77,7 +78,8 @@ class PrivateMessageService(
             return false
         }
 
-        val text = moderate(sender, content) ?: return false
+        val requested = fire(sender, target, target.name, content, remote = false) ?: return false
+        val text = moderate(sender, requested) ?: return false
         val message = renderContent(sender, text)
         val resolvers = arrayOf<TagResolver>(
             Placeholder.component("message", message),
@@ -122,7 +124,8 @@ class PrivateMessageService(
             return false
         }
         if (isMuted(sender)) return false
-        val text = moderate(sender, content) ?: return false
+        val requested = fire(sender, null, targetName, content, remote = true) ?: return false
+        val text = moderate(sender, requested) ?: return false
         val message = renderContent(sender, text)
         val requestId = UUID.randomUUID().toString()
         pending.add(requestId, sender.uniqueId, targetName, message)
@@ -184,6 +187,13 @@ class PrivateMessageService(
         pending.forget(uuid)
     }
 
+    private fun fire(sender: Player, target: Player?, targetName: String, content: String, remote: Boolean): String? {
+        val event = PrivateMessageEvent(sender, target, targetName, content, remote)
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return null
+        return event.content.trim().ifEmpty { null }
+    }
+
     internal fun isMuted(sender: Player): Boolean {
         if (!config().privateMessages.respectMutes) return false
         val mute = mutes.activeMute(sender.uniqueId, null) ?: return false
@@ -238,6 +248,16 @@ class PrivateMessageService(
             }
         }
         var text = content
+        if (moderation.glyphsAffectsPm && !sender.hasPermission(GLYPHS)) {
+            when (val result = wordFilter.checkGlyphs(text)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(sender, "message-has-glyphs")
+                    return null
+                }
+                is WordFilter.Result.Censored -> text = result.content
+                WordFilter.Result.Clean -> Unit
+            }
+        }
         if (moderation.linksAffectsPm && !sender.hasPermission(BYPASS_LINKS)) {
             when (val result = wordFilter.checkLinks(text)) {
                 WordFilter.Result.Blocked -> {
@@ -424,5 +444,6 @@ class PrivateMessageService(
         private const val BYPASS_SPAM = "voxen.bypass.spam"
         private const val BYPASS_FILTER = "voxen.bypass.filter"
         private const val BYPASS_LINKS = "voxen.bypass.links"
+ const val GLYPHS = "voxen.chat.glyphs"
     }
 }

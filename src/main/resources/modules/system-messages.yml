@@ -1,0 +1,80 @@
+# Join, quit, death and advancement messages, written by Voxen instead of the server.
+# While this is off the server keeps printing its own; the moment it is on, Voxen replaces
+# the vanilla line of every event that is enabled below and leaves the rest alone.
+enabled: false
+
+# Hide vanished moderators. With this on they slip in and out without a word, and they are
+# also left out of /voxen find, player suggestions and the network player list.
+respect-vanish: true
+
+# Every block below takes the same settings:
+#   enabled       - whether Voxen writes this message at all
+#   format        - MiniMessage, with the placeholders listed under each block
+#   channel       - whose readers see it; a channel from channels/, usually 'global'
+#   cross-server  - also send it to the other servers on the network
+#   discord       - forward it to DiscordSRV or EssentialsDiscord, if either is installed
+#
+# Formats accept the same placeholders as chat formats: <player> (the nickname when one is
+# set), <username>, <display_name>, <prefix>, <suffix>, <group>, <world>, <server>, plus
+# PlaceholderAPI and MiniPlaceholders. Each block adds its own on top.
+
+join:
+  enabled: true
+  format: "<dark_gray>+ <green><player> <gray>joined <white><server>"
+  channel: "global"
+  cross-server: true
+  discord: true
+
+# The very first time a player logs in. Falls back to 'join' while this is off.
+first-join:
+  enabled: true
+  format: "<dark_gray>+ <gold><player> <yellow>is here for the first time. Welcome!"
+  channel: "global"
+  cross-server: true
+  discord: true
+
+# 'delay' holds the message back for a moment. On a network that is what tells a real
+# departure apart from a walk to another server: leave it long enough for the player to land
+# on the next server, and Voxen drops the quit line and writes 'server-switch' instead.
+#
+# It is ignored unless a switch is actually possible, meaning modules/presence.yml is on and
+# network.transport is set in integrations.yml. On a single server the message is written the
+# moment the player disconnects, whatever is written here.
+quit:
+  enabled: true
+  delay: 2s
+  format: "<dark_gray>- <red><player> <gray>left"
+  channel: "global"
+  cross-server: true
+  discord: true
+
+# Written when a player moves between two servers on the network instead of the quit and
+# join pair. Needs modules/presence.yml on and a working network.transport; without them
+# every arrival counts as a normal join.
+# Extra placeholders: <from> and <to>, the network ids of the two servers.
+server-switch:
+  enabled: true
+  format: "<dark_gray>» <aqua><player> <gray>went from <white><from></white> to <white><to>"
+  channel: "global"
+  cross-server: true
+  discord: false
+
+# Turning this on replaces the vanilla death message everywhere, so keep <message> in the
+# format unless you really mean to hide how the player died.
+# Extra placeholder: <message>, the death message the server would have printed.
+death:
+  enabled: false
+  format: "<dark_gray>☠ <gray><message>"
+  channel: "global"
+  cross-server: false
+  discord: false
+
+# Only advancements that announce themselves in chat are covered; recipes and hidden ones
+# stay quiet, exactly as in vanilla.
+# Extra placeholders: <advancement> and <message>, its title and its description.
+advancement:
+  enabled: false
+  format: "<dark_gray>★ <green><player> <gray>earned <white><advancement>"
+  channel: "global"
+  cross-server: false
+  discord: false

@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
 import org.jetbrains.annotations.ApiStatus
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 
 /**
  * Static entry point to the Voxen API.
@@ -19,7 +20,14 @@ import java.util.UUID
  * VoxenService voxen = getServer().getServicesManager().load(VoxenService.class);
  * ```
  *
- * All methods are safe to call from any thread unless noted otherwise.
+ * Methods that take a [org.bukkit.entity.Player] read that player's
+ * permissions and state, so Voxen runs them on the thread that owns them:
+ * the server thread on Paper, that player's region on Folia. Calling one
+ * from anywhere else works, but the call waits for the hop, so keep those
+ * off hot paths.
+ *
+ * Everything else — mutes, reports, network lookups, panel pages, the text
+ * filter — is safe from any thread.
  */
 object VoxenApi {
 
@@ -57,6 +65,37 @@ object VoxenApi {
     /** Returns the channel the player is currently talking in, or null if they have none. */
     @JvmStatic
     fun activeChannel(player: Player): ChannelInfo? = service().activeChannel(player)
+
+    /**
+     * Moves the player to another channel, exactly as the channel command
+     * does: they join it if they had not, and it becomes the one they talk
+     * in. [zone.vao.voxen.event.ChannelSwitchEvent] fires first.
+     *
+     * Returns false when the channel does not exist, is disabled, the player
+     * may not join it, or a handler cancelled the switch.
+     */
+    @JvmStatic
+    fun setActiveChannel(player: Player, channelId: String): Boolean =
+        service().setActiveChannel(player, channelId)
+
+    /**
+     * Adds the player to a channel without changing the one they talk in.
+     * Returns false when the channel does not exist or they may not join it.
+     */
+    @JvmStatic
+    fun joinChannel(player: Player, channelId: String): Boolean = service().joinChannel(player, channelId)
+
+    /**
+     * Removes the player from a channel. If it was the one they were talking
+     * in, they fall back to the default. Returns false when they were not in
+     * it to begin with.
+     */
+    @JvmStatic
+    fun leaveChannel(player: Player, channelId: String): Boolean = service().leaveChannel(player, channelId)
+
+    /** Returns the channels the player is in and may read, in config order. */
+    @JvmStatic
+    fun joinedChannels(player: Player): Collection<ChannelInfo> = service().joinedChannels(player)
 
     /**
      * Sends a chat message on behalf of the player, exactly as if they typed it
@@ -127,6 +166,62 @@ object VoxenApi {
     fun party(member: UUID): PartyInfo? = service().party(member)
 
     /**
+     * Runs Voxen's word filter over any text, so a sign, a book or an auction
+     * name can be held to the same rules as chat. Reads
+     * `modules/moderation.yml`, and answers CLEAN while the filter is off.
+     */
+    @JvmStatic
+    fun filterWords(text: String): FilterResult = service().filterWords(text)
+
+    /** The same for the link filter. */
+    @JvmStatic
+    fun filterLinks(text: String): FilterResult = service().filterLinks(text)
+
+    /** True when neither filter has anything against the text. */
+    @JvmStatic
+    fun isClean(text: String): Boolean = service().isClean(text)
+
+    /**
+     * Renders MiniMessage and legacy `&` codes the way Voxen renders chat:
+     * tags the player has no permission for are stripped or escaped, exactly
+     * as `modules/minimessage-tags.yml` says.
+     *
+     * Use this instead of MiniMessage directly whenever the text came from a
+     * player, or they can colour text your plugin never meant them to.
+     */
+    @JvmStatic
+    fun render(player: Player, text: String): Component = service().render(player, text)
+
+    /** Strips every MiniMessage tag, leaving the readable text. */
+    @JvmStatic
+    fun stripTags(text: String): String = service().stripTags(text)
+
+    /**
+     * Teaches Voxen to print moderator names that your addon wrote.
+     *
+     * A name stored as `discord:123456789` is shown through the resolver
+     * registered for `discord`, which is handed the `123456789` half and
+     * answers with something readable like `4g0 (Naimad123)`. It applies
+     * everywhere Voxen prints who did what: report and ticket screens, the
+     * web panel, audit trails, mute and warning lists.
+     *
+     * What events and the API hand back is always the stored string, so the
+     * prefix stays usable as a loop guard.
+     *
+     * Returns false when the prefix is invalid; only `a-z`, `0-9`, `-` and
+     * `_` are allowed. Registering an existing prefix replaces its resolver.
+     */
+    @JvmStatic
+    fun registerModeratorResolver(prefix: String, resolver: ModeratorResolver): Boolean =
+        service().registerModeratorResolver(prefix, resolver)
+
+    /** Removes a resolver registered with [registerModeratorResolver]. */
+    @JvmStatic
+    fun unregisterModeratorResolver(prefix: String) {
+        service().unregisterModeratorResolver(prefix)
+    }
+
+    /**
      * Registers a custom placeholder usable in chat formats as `<name>`.
      * The resolver runs for every message, so keep it fast and thread safe.
      *
@@ -158,8 +253,20 @@ object VoxenApi {
      */
     @JvmStatic
     @JvmOverloads
+    @Deprecated(
+        "Build the channel with ChannelRegistration.builder instead.",
+        ReplaceWith("registerChannel(ChannelRegistration.builder(id, displayName).format(format).recipients(recipients).build())"),
+    )
     fun registerChannel(id: String, displayName: String, format: String, recipients: RecipientProvider? = null): Boolean =
         service().registerChannel(id, displayName, format, recipients)
+
+    /**
+     * The same, with the parts named instead of lined up. Every channel is
+     * gone on restart, so register on every startup and drop it with
+     * [unregisterChannel] when your plugin disables.
+     */
+    @JvmStatic
+    fun registerChannel(channel: ChannelRegistration): Boolean = service().registerChannel(channel)
 
     /** Removes a channel registered with [registerChannel]. Returns false for unknown or configured channels. */
     @JvmStatic
@@ -178,6 +285,198 @@ object VoxenApi {
     fun unregisterRecipients(channelId: String) {
         service().unregisterRecipients(channelId)
     }
+
+    /**
+     * Mutes a player, exactly as the mute command does: it is stored, it
+     * reaches the rest of the network, and
+     * [zone.vao.voxen.event.PlayerMuteEvent] fires first.
+     *
+     * Build the request with [MuteRequest.builder]. Returns false when the
+     * channel does not exist or a handler cancelled the mute.
+     */
+    @JvmStatic
+    fun mute(request: MuteRequest): Boolean = service().mute(request)
+
+    /**
+     * Lifts one mute; [channelId] null lifts the one covering every channel.
+     * Returns false when there was nothing to lift or a handler cancelled it.
+     */
+    @JvmStatic
+    fun unmute(target: UUID, channelId: String?, moderator: String): Boolean =
+        service().unmute(target, channelId, moderator)
+
+    /** Lifts every mute the player has and returns how many were removed. */
+    @JvmStatic
+    fun unmuteAll(target: UUID, moderator: String): Int = service().unmuteAll(target, moderator)
+
+    /**
+     * Warns a player, exactly as the warn command does: it goes on their
+     * record, the warning rules for that count run, and
+     * [zone.vao.voxen.event.PlayerWarnEvent] fires first.
+     *
+     * [moderator] is the name written into the record; see
+     * [externalModerator] for acting on behalf of someone outside the game.
+     * Returns false when warnings are turned off or a handler cancelled it.
+     */
+    @JvmStatic
+    fun warn(target: UUID, targetName: String, reason: String, moderator: String): Boolean =
+        service().warn(target, targetName, reason, moderator)
+
+    /** Reads a player's warnings that are still counted, newest first. */
+    @JvmStatic
+    fun warnings(target: UUID): CompletableFuture<List<WarningInfo>> = service().warnings(target)
+
+    /** Reads the mutes a player currently has. Answers from memory, so no future. */
+    @JvmStatic
+    fun activeMutes(target: UUID): List<MuteInfo> = service().activeMutes(target)
+
+    /**
+     * Reads the reports still waiting for a moderator, newest first.
+     *
+     * Every report method talks to the database, so it answers through a
+     * [CompletableFuture] instead of blocking the caller. Handle the result
+     * with `thenAccept`, or `join()` it when you are already off the server
+     * thread.
+     */
+    @JvmStatic
+    fun reports(limit: Int): CompletableFuture<List<ReportInfo>> =
+        service().reports(ReportInfo.Status.PENDING, limit)
+
+    /**
+     * Reads reports with any of the given statuses, newest first. An empty
+     * collection means every status.
+     */
+    @JvmStatic
+    fun reports(statuses: Collection<ReportInfo.Status>, limit: Int): CompletableFuture<List<ReportInfo>> =
+        service().reports(statuses, limit)
+
+    /** Reads one report, or null when it is gone. */
+    @JvmStatic
+    fun report(id: UUID): CompletableFuture<ReportInfo?> = service().report(id)
+
+    /**
+     * Claims, resolves, dismisses or deletes a report under [moderator]'s
+     * name, exactly as the queue commands do: the audit trail records it and
+     * [zone.vao.voxen.event.ReportUpdateEvent] fires first.
+     *
+     * Completes with false when the report is gone or already has that
+     * status, and when a handler cancelled the event.
+     */
+    @JvmStatic
+    fun updateReport(id: UUID, action: ReportInfo.Action, moderator: String): CompletableFuture<Boolean> =
+        service().updateReport(id, action, moderator)
+
+    /**
+     * Reads one report with everything around it: the chat before and after
+     * the reported message, and the audit trail of what moderators did.
+     *
+     * How much context comes back is `context` in `modules/reports.yml`.
+     * Completes with null when the report is gone.
+     */
+    @JvmStatic
+    fun reportCase(id: UUID): CompletableFuture<ReportCase?> = service().reportCase(id)
+
+    /**
+     * Deletes the chat message a report points at, for everyone who can still
+     * see it, and records it in the report's audit trail.
+     *
+     * Only works while the message is still deletable: signed messages are
+     * kept in memory on the server they were typed on, so this completes with
+     * false after a restart or from another server on the network.
+     */
+    @JvmStatic
+    fun deleteReportedMessage(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        service().deleteReportedMessage(id, moderator)
+
+    /**
+     * Reads help tickets, newest activity first. Pass
+     * [TicketInfo.Status.ACTIVE] for the queue, or an empty collection for
+     * every status.
+     *
+     * Always empty while `modules/helpop.yml` runs in broadcast mode.
+     */
+    @JvmStatic
+    fun tickets(statuses: Collection<TicketInfo.Status>, limit: Int): CompletableFuture<List<TicketInfo>> =
+        service().tickets(statuses, limit)
+
+    /** Reads one ticket with its whole conversation, or null when it is gone. */
+    @JvmStatic
+    fun ticket(id: UUID): CompletableFuture<TicketCase?> = service().ticket(id)
+
+    /**
+     * Answers a ticket as [moderator]. The player is told in game when they
+     * are online, and [zone.vao.voxen.event.TicketUpdateEvent] fires.
+     *
+     * Completes with false when the ticket is gone or already closed.
+     */
+    @JvmStatic
+    fun replyToTicket(id: UUID, message: String, moderator: String): CompletableFuture<Boolean> =
+        service().replyToTicket(id, message, moderator)
+
+    /** Closes a ticket. Completes with false when it is gone or already closed. */
+    @JvmStatic
+    fun closeTicket(id: UUID, moderator: String): CompletableFuture<Boolean> =
+        service().closeTicket(id, moderator)
+
+    /**
+     * Builds a moderator name for someone acting from outside the game, like
+     * `discord:123456789`, for the `moderator` argument every moderation
+     * method takes.
+     *
+     * Voxen stores it as written and hands it back on the matching event, so
+     * an addon can recognise its own doing and not act on it twice. That is
+     * the whole loop guard: check the prefix before reacting to an event.
+     */
+    @JvmStatic
+    fun externalModerator(system: String, id: String): String =
+        "${system.trim().lowercase()}:${id.trim()}"
+
+    /**
+     * Adds a page to the web panel. It appears in the sidebar as [title] for
+     * every account holding [permission] in `modules/web.yml`, and answers
+     * with 403 for the rest.
+     *
+     * Returns false when [id] is taken or invalid (allowed: `a-z`, `0-9`,
+     * `-`, `_`). Pages are not written to disk, so register them on every
+     * startup and drop them with [unregisterPanelPage] on disable.
+     */
+    @JvmStatic
+    fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean =
+        service().registerPanelPage(id, title, permission, page)
+
+    /** Removes a page registered with [registerPanelPage]. Returns false for unknown or built-in pages. */
+    @JvmStatic
+    fun unregisterPanelPage(id: String): Boolean = service().unregisterPanelPage(id)
+
+    /** This server's network id, as set by `network.server-id` in integrations.yml. */
+    @JvmStatic
+    fun serverId(): String = service().serverId()
+
+    /**
+     * True while this server is connected to the network broker. False on a
+     * single server, and while the transport is down.
+     */
+    @JvmStatic
+    fun networkConnected(): Boolean = service().networkConnected()
+
+    /**
+     * Returns the network id of the server the named player is on, or null
+     * when nobody on the network answers to that name. Answers for vanished
+     * players too, so a message can still be routed to them.
+     */
+    @JvmStatic
+    fun serverOf(name: String): String? = service().serverOf(name)
+
+    /**
+     * Everyone on the network, this server included, vanished players left
+     * out. Without a network it is simply the local player list.
+     *
+     * Remote entries come from presence tracking, so they need
+     * `modules/presence.yml` on; a server that crashes has its players drop
+     * off once its entries go stale.
+     */
+    @JvmStatic
+    fun networkPlayers(): Collection<NetworkPlayer> = service().networkPlayers()
 
     /** Reloads the Voxen configuration, same as `/voxen reload`. */
     @JvmStatic

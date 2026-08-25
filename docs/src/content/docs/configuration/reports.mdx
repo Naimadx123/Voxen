@@ -1,0 +1,233 @@
+---
+title: Player reports
+description: /report, the [!] chat button, the staff queue, dialog screens, the audit trail and the web page.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Players hand a rule breaker to the staff with `/report` or with a click on the message itself.
+Reports live in the database, so on a network every server sees the same queue and no broker
+traffic is needed.
+
+```yaml title="plugins/Voxen/modules/reports.yml"
+enabled: true
+interfaces:
+  dialog: true
+  web: true
+chat-button:
+  enabled: true
+  staff-only: false
+  keep: 200
+context: 3
+mute-durations: ["10m", "1h", "1d"]
+audit-limit: 100
+reasons:
+  - id: cheating
+    label: "Cheating"
+  - id: chat
+    label: "Chat behaviour"
+  - id: griefing
+    label: "Griefing"
+  - id: advertising
+    label: "Advertising"
+free-text: true
+min-length: 3
+max-length: 200
+cooldown: 60s
+allow-self: false
+allow-offline: true
+allow-duplicates: false
+notify-staff: true
+notify-reporter: true
+queue-limit: 100
+expire-days: 30
+actions: []
+```
+
+## Reporting
+
+`/report <player> [reason]` files a report. The reason is either the `id` of an entry under
+`reasons`, which stores that entry's `label`, or free text when `free-text: true`. A reason
+shorter than `min-length` is refused and anything past `max-length` is cut. Give a `reasons`
+entry a `permission` and it disappears for players without it.
+
+Leaving the reason out opens the [dialog](#dialog-screens) when it is on, and otherwise asks
+for one in chat.
+
+### The `[!]` button
+
+With `chat-button.enabled: true` every chat message carries a clickable `[!]` in front of it
+that reports **that exact message**, so nobody has to retype a name or describe which line they
+meant. `staff-only: true` shows it only to staff holding `voxen.report.manage`; otherwise
+everyone with `voxen.report` sees it. It never appears on your own messages or on messages from
+players with `voxen.report.exempt`.
+
+The click runs `/report <player> #<id>`, where the short id names the message. With dialogs on
+that opens the reason screen straight away; with dialogs off the command is put into the chat
+box for the player to finish with a reason. Nothing stops a player from typing that form by
+hand, and `/report <player> <reason>` with no id at all still attaches the player's newest
+message on its own.
+
+`keep` is how many recent messages stay reportable this way. Older ones can still be reported
+by name, just without a message attached.
+
+<Aside type="note" title="The button reaches further than [x]">
+	Unlike the delete button from
+	[moderator tools](/configuration/modules/#moderator-tools), `[!]` does not need signed
+	messages, so it works with both `chat-delivery` modes.
+</Aside>
+
+## What a report holds
+
+| Field | Where it comes from |
+| --- | --- |
+| reported player, reporter | the two accounts, by UUID and name |
+| reason | the picked `reasons` label or the free text |
+| channel, server | the channel the message was in, the server it was reported on |
+| message and message id | the reported line, copied into the report so it survives |
+| time | when the report was filed |
+| context | the messages around it, read from the chat log |
+| status | `open`, `claimed`, `resolved` or `dismissed` |
+| handled by | the moderator who claimed or closed it |
+| audit trail | every action taken on the case |
+
+`context: 3` keeps three messages before and after the reported one in view. They are read
+from the chat log, so this needs `history` in
+[modules/moderation.yml](/configuration/moderation/); with the log off, a report still stores
+its own message but shows nothing around it. `context: 0` turns it off.
+
+## The queue
+
+Every report is `open`, `claimed`, `resolved` or `dismissed`. Claiming one marks who is looking
+into it; resolving or dismissing takes it out of the queue.
+
+| Command | What it does |
+| --- | --- |
+| `/voxen reports` | the open queue, as a dialog when dialogs are on |
+| `/voxen reports <page>` | the open queue in chat |
+| `/voxen report <number>` | one case with its message, context and audit trail |
+| `/voxen reports <number> claim` | mark a report as yours |
+| `/voxen reports <number> resolve` | close it as handled |
+| `/voxen reports <number> dismiss` | close it as unfounded |
+| `/voxen reports <number> delete` | remove it and its audit trail entirely |
+
+Numbers come from the list itself and count across pages, so entry 11 is the first one on page
+two. All of it needs `voxen.report.manage`.
+
+A report cannot be moved into the status it already has, so a claimed case stays with the
+moderator who claimed it until someone resolves or dismisses it. The button for the current
+status is left out of the dialog and the panel, and the command answers that the report is
+already in that state.
+
+`cooldown` limits how often one player may report, and `voxen.bypass.cooldown` skips it.
+`allow-self: false` blocks reporting yourself, `allow-offline: false` limits reports to players
+who are online right now, and `allow-duplicates: false` refuses a second report on a message
+that is already in the queue, or a second report on a player while the reporter's first one is
+still open.
+
+With `notify-staff: true` everyone holding `voxen.mod.alerts` is told about a new report, along
+with the console — the same node the warning and join alerts already use. With
+`notify-reporter: true` the reporter hears about it when their report is resolved or dismissed.
+
+`queue-limit` is how many reports the list loads at once, and `expire-days` deletes handled
+reports older than that on startup. Open reports are never deleted by age; `0` keeps everything
+forever.
+
+## Dialog screens
+
+With `interfaces.dialog: true`, `/report <player>` opens a screen with one button per configured
+reason plus a field for a free reason, and `/voxen reports` opens the queue with a button per
+report. Opening one shows the whole case over a row of buttons:
+
+| Button | What it does | Permission |
+| --- | --- | --- |
+| Claim, Resolve, Dismiss | move the case along | `voxen.report.manage` |
+| Warn | warns the reported player with the report's own reason | `voxen.mod.warn` |
+| Mute 10m / 1h / 1d | mutes them everywhere, reason included | `voxen.mod.mute` |
+| Delete message | deletes the reported message, not merely the newest one | `voxen.mod.delete` |
+| History | the audit trail of the case | `voxen.report.manage` |
+
+The mute buttons come from `mute-durations`, so the list is yours to set. Every button is
+filtered by permission and checks it again when clicked, so a dialog left open grants nothing,
+and every use is written to the audit trail.
+
+Deleting the reported message needs signed messages, which means `chat-delivery: player`, and
+the message has to still be within `chat-button.keep`. When it is not, the button says so
+instead of deleting the wrong line.
+
+<Aside type="caution">
+	Dialog screens need a 1.21.6+ client. Everything is reachable from chat as well, so older
+	clients only lose the buttons. Set `interfaces.dialog: false` to skip them entirely.
+</Aside>
+
+## The audit trail
+
+Every action on a report is recorded: who filed it, who claimed, resolved or dismissed it, who
+warned or muted, who deleted the message, and every custom command that was run. Each entry
+keeps the moderator, the action, a detail such as the mute duration or the command, and the
+time.
+
+The trail sits behind the History button in the dialog, at the bottom of the case in the web
+panel, and under `/voxen report <number>` in chat. The web panel also has an
+[audit page](/configuration/web/) listing the newest actions across every report, which is
+handy for a quick look at what the team did today. `audit-limit` caps how much is loaded at
+once.
+
+Deleting a report deletes its trail with it, and so does the `expire-days` cleanup. Everything
+else is kept.
+
+## Custom actions
+
+`actions` adds your own buttons to the report dialog and to the web page. Each entry takes a
+MiniMessage `label` and a `command`, optionally a `permission` that hides the button from staff
+without it, `console: true` to run the command from the console instead of as the clicking
+moderator, and `resolve: true` to also close the report.
+
+```yaml title="plugins/Voxen/modules/reports.yml"
+actions:
+  - label: "<red>Ban"
+    command: "ban <player> <reason>"
+    permission: "voxen.mod.ban"
+    console: true
+    resolve: true
+  - label: "Teleport"
+    command: "tp <player>"
+    permission: "voxen.mod.inspect"
+```
+
+`<player>`, `<uuid>`, `<reporter>`, `<reason>`, `<message>` and `<moderator>` are replaced
+before the command runs. An entry with `console: true` also needs a `permission`, or it is
+skipped with a warning on load.
+
+<Aside type="caution" title="A reason is player input">
+	`<reporter>`, `<reason>` and `<message>` are whatever a player typed. Voxen strips control
+	characters and collapses whitespace before they become command arguments, but they still end
+	up in the command line, so keep them out of anything where an extra word changes the meaning.
+</Aside>
+
+## The web page
+
+With `interfaces.web: true` the report queue also shows up in the
+[web panel](/configuration/web/) with tabs for the queue and for each status. Opening a case
+shows its fields, the reported message, the context around it, the audit trail and the same
+buttons. Panel users need `reports.view` to look, `reports.manage` to act and `reports.audit`
+for the separate audit page.
+
+Next to the tabs sits an **Auto refresh** switch. With it on, the queue reloads itself every
+few seconds, which is what you want on a second monitor during a busy evening; the interval
+comes from `auto-refresh` in `modules/web.yml` and `0` removes the switch. It is off until it
+is clicked, the setting rides along in the address so a bookmark keeps it, and opening a case
+drops it again so a page with buttons never reloads under your hands.
+
+Custom actions run from the console there, since a browser session is not a player. Turning
+`interfaces.web` off hides both pages after `/voxen reload`, without a restart.
+
+## Permissions
+
+| Permission | What it allows | Default |
+| --- | --- | --- |
+| `voxen.report` | filing reports, and seeing `[!]` | everyone |
+| `voxen.report.manage` | the queue, in chat, in the dialog and in the panel | OP |
+| `voxen.report.exempt` | cannot be reported | OP |
+| `voxen.mod.alerts` | an alert about every new report | OP |
+| `voxen.mod.warn`, `voxen.mod.mute`, `voxen.mod.delete` | the matching buttons on the report screen | OP |

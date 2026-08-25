@@ -19,10 +19,14 @@ are shown as plain text or removed, depending on `unauthorized-mode`.
 | `escape` | it stays visible as literal text, e.g. `<red>` |
 | `strip` | it is removed from the message |
 
-<Aside type="caution" title="Nexo and Oraxen force strip">
-	When a plugin that re-parses chat text is installed, `escape` is not safe: the escaped
-	tag survives as plain text and that plugin renders it anyway. Voxen detects Nexo and
-	Oraxen, switches to `strip` automatically and logs a notice on startup.
+Both modes hold up when a plugin reads chat text again after Voxen — Nexo, Oraxen and
+ItemsAdder all do. A tag such a plugin renders is handed to it in a form it will not touch,
+so `escape` cannot be undone into a working tag.
+
+<Aside type="caution" title="Only tags Voxen knows about are protected">
+	That protection covers the built-in tags and everything listed under `custom-tags`. A tag
+	Voxen has never heard of travels through the message untouched, and whichever plugin
+	renders it decides who may use it. Add an entry for every tag your other plugins render.
 
 	Messages sent to other servers always use `strip` semantics, because the sending server
 	cannot know what re-parses chat on the receiving side.
@@ -121,19 +125,29 @@ Under `tags:` in `modules/minimessage-tags.yml` every built-in tag can be disabl
 a different permission, aliases, and `blocked-params` — a list of regexes checked against
 the tag's arguments. `click` additionally takes per-action permissions under `actions:`.
 
-`custom-tags:` gates tags rendered by **other** plugins, for example Nexo glyphs:
+`custom-tags:` gates tags rendered by **other** plugins. Nexo and Oraxen glyphs and shifts
+ship configured:
 
 ```yaml title="plugins/Voxen/modules/minimessage-tags.yml"
 custom-tags:
   glyph:
     enabled: true
     permission: voxen.chat.tag.glyph
+    aliases:
+      - g
+  shift:
+    enabled: true
+    permission: voxen.chat.tag.shift
 ```
 
 `voxen.chat.tag.glyph` allows every argument, `voxen.chat.tag.glyph.smile` allows only
 `<glyph:smile>`. Voxen does not render these tags itself, it only decides whether they
-survive in the message. Prefer `strip` here, since an escaped tag may still be picked up
-by whichever plugin renders it.
+survive in the message. List every alias the other plugin accepts — `<g:smile>` is the
+same tag as `<glyph:smile>` and needs to be named here to be covered.
+
+A tag the other plugin already refused arrives marked as such, and Voxen treats that as a
+refusal too: it is removed or kept as plain text even for a player who holds the Voxen
+permission. The stricter of the two answers wins.
 
 ## Your own tags
 

@@ -1,0 +1,150 @@
+---
+title: Web panel
+description: The built-in staff panel from modules/web.yml, its accounts, permissions and how to expose it safely.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Voxen ships a small web panel for the staff. It is off by default, binds to localhost and
+serves the pages other modules register, today the
+[report queue](/configuration/reports/#the-web-page), the
+[ticket queue](/configuration/helpop/#the-staff-side) and the audit log of every moderator
+action. Other plugins can add their own pages through
+[the API](/api/overview/#add-a-page-to-the-web-panel); they use the same accounts and the
+same permission list.
+
+```yaml title="plugins/Voxen/modules/web.yml"
+enabled: false
+host: "127.0.0.1"
+port: 8085
+title: "Voxen"
+realm: "Voxen"
+threads: 2
+max-login-attempts: 10
+lockout: 15m
+auto-refresh: 5s
+users:
+  - name: "admin"
+    password: "change-me"
+    permissions: ["*"]
+```
+
+The panel needs no extra dependency and no external web server; it is the HTTP server that
+ships with Java. `host: "127.0.0.1"` is only reachable from the machine itself, `0.0.0.0`
+from everywhere. `threads` is how many requests it handles at the same time.
+
+`auto-refresh` is how often a page reloads itself while the switch on the
+[report queue](/configuration/reports/#the-web-page) is on; `0` removes the switch. No page
+reloads on its own until someone asks for it.
+
+`/voxen reload` restarts it, so a new port, new accounts and new wording apply without a
+restart of the server.
+
+## Accounts and permissions
+
+Panel accounts are not Minecraft accounts and their permissions are their own; a browser
+session never carries a player's LuckPerms nodes. List each account under `users`:
+
+```yaml title="plugins/Voxen/modules/web.yml"
+users:
+  - name: "admin"
+    password: "a-long-random-password"
+    permissions: ["*"]
+  - name: "moderator"
+    password: "another-long-password"
+    permissions: ["reports.view", "reports.manage", "reports.audit"]
+  - name: "trainee"
+    password: "a-third-long-password"
+    permissions: ["reports.view"]
+```
+
+| Permission | What it allows |
+| --- | --- |
+| `reports.view` | seeing the report queue and opening a single case |
+| `reports.manage` | claiming, resolving, dismissing and deleting reports, and the custom buttons |
+| `reports.audit` | the audit log of every moderator action |
+| `reports.*` | everything the report pages offer |
+| `tickets.view` | seeing the ticket queue and reading a conversation |
+| `tickets.manage` | answering a player and closing a ticket |
+| `*` | every page, including ones added by later versions |
+
+The audit node is separate on purpose: a trainee can be given `reports.view` and
+`reports.manage` without being handed a record of what everyone else on the team did.
+
+A page the account may not see is not in the sidebar, is not on the start page and
+answers with 403 when it is opened directly. Every action checks its permission again when it
+runs, so a page left open in a tab grants nothing after the permission is taken away.
+
+<Aside type="caution" title="Wildcards age with the plugin">
+	`*` also covers pages that do not exist yet. Give day-to-day accounts the two report nodes
+	and keep `*` for the account you own.
+</Aside>
+
+## Keeping it safe
+
+The panel refuses to start at all while any account still has the shipped `change-me`
+password, an empty one, a password shorter than eight characters, or while one name is
+defined twice. The reason is written to the console.
+
+What it does on its own:
+
+- **Login lockout.** After `max-login-attempts` wrong passwords one address is refused for
+  the whole `lockout` window, right password included, so the accounts cannot be guessed at
+  speed. Setting either to `0` turns it off, which only makes sense behind something that
+  already rate limits.
+- **Passwords are compared in constant time**, and an unknown account costs the same as a
+  known one, so neither the password nor the list of accounts leaks through timing.
+- **Every form carries a token** tied to the session, so another site cannot make your
+  browser resolve a report in the background. A form from before a reload is refused, not
+  silently accepted.
+- **Everything a player wrote is HTML-escaped**, so a report reason cannot smuggle markup
+  into a moderator's browser.
+- **Responses carry a strict `Content-Security-Policy`**, `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control:
+  no-store`, so the page loads nothing from outside, cannot be framed and is not left in a
+  shared cache.
+- **Requests are bounded.** Bodies past 64 KB are refused, redirects are rebuilt from parsed
+  parameters instead of echoing what came in, and the paths written to the log are stripped
+  of control characters.
+
+What it cannot do for you:
+
+<Aside type="danger" title="Plain HTTP">
+	The panel speaks HTTP, not HTTPS. On `127.0.0.1` that is fine. The moment it is reachable
+	from anywhere else, the password and every page travel unencrypted. Either keep the
+	default host and open an SSH tunnel:
+
+	```
+	ssh -L 8085:127.0.0.1:8085 user@your-server
+	```
+
+	or put a reverse proxy with a certificate in front of it and leave Voxen itself bound to
+	localhost. Do not open the port in the firewall.
+</Aside>
+
+Also worth doing: give every moderator their own account rather than sharing one, so the
+console log names who acted; grant `reports.manage` only to people who may run your custom
+action commands, since those run from the console; and remember that `modules/web.yml`
+contains passwords in plain text, so keep the plugin folder off shared backups and out of
+public repositories.
+
+## Wording
+
+Every string the panel shows can be renamed or translated under `labels`. Anything left out
+falls back to the English default, so only list what you want to change.
+
+```yaml title="plugins/Voxen/modules/web.yml"
+labels:
+  reports:
+    title: "Zgłoszenia"
+    heading: "Zgłoszenia graczy"
+    empty: "Nie ma nic do obsłużenia."
+    action:
+      claim: "Zajmij się"
+      resolve: "Rozpatrz"
+  audit:
+    title: "Dziennik"
+    heading: "Działania moderatorów"
+```
+
+The panel follows the browser's light or dark theme and needs no assets of its own.

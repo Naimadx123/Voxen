@@ -8,6 +8,7 @@ import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
+import zone.vao.voxen.config.EmotesConfig
 import zone.vao.voxen.config.TagsConfig
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.event.ChatMessageDeliveredEvent
@@ -45,6 +46,12 @@ class ChatService(
     @Volatile
     var remotePublisher: ((Channel, Player, Component, String) -> Unit)? = null
 
+    @Volatile
+    var messageButton: ((Outgoing, Player) -> Component?)? = null
+
+    @Volatile
+    var onMessage: ((Outgoing) -> Unit)? = null
+
     private val plain = PlainTextComponentSerializer.plainText()
     private val lastItemShare = ConcurrentHashMap<UUID, Long>()
 
@@ -60,6 +67,7 @@ class ChatService(
         val mentionedNames: Set<String>,
         val mentionsAllowed: Boolean,
         val networkFormatted: Component?,
+        val id: UUID = UUID.randomUUID(),
     )
 
     fun chat(player: Player, raw: String): Boolean {
@@ -93,14 +101,18 @@ class ChatService(
     }
 
     fun prepare(player: Player, channel: Channel, rawContent: String): Outgoing? {
-        // reading the sender (world, permissions, placeholders) only happens on the sender's own thread
         val snapshot = threads.awaitPlayer(player) { validate(player, channel, rawContent) } ?: return null
-        // word filtering is plain text work, so it stays off the region thread
         val filtered = filter(player, snapshot) ?: return null
         return threads.awaitPlayer(player) { build(player, channel, filtered.content, filtered.uncensored) }
     }
 
-    private class Snapshot(val content: String, val bypassLinks: Boolean, val bypassFilter: Boolean)
+    private class Snapshot(
+        val content: String,
+        val bypassLinks: Boolean,
+        val bypassFilter: Boolean,
+        val bypassGlyphs: Boolean,
+        val emotePermissions: Map<String, Boolean>,
+    )
 
     private class Filtered(val content: String, val uncensored: String?)
 
@@ -178,7 +190,25 @@ class ChatService(
         }
 
         val content = if (hooks.papi != null) applyPapi(player, rawContent) else rawContent
-        return Snapshot(content, player.hasPermission(BYPASS_LINKS), player.hasPermission(BYPASS_FILTER))
+        return Snapshot(
+            content,
+            player.hasPermission(BYPASS_LINKS),
+            player.hasPermission(BYPASS_FILTER),
+            player.hasPermission(GLYPHS),
+            emotePermissions(player),
+        )
+    }
+
+    private fun emotePermissions(player: Player): Map<String, Boolean> {
+        val emotes = config().emotes
+        if (!emotes.enabled || emotes.emotes.isEmpty()) return emptyMap()
+        return buildMap {
+            put(EmotesConfig.PERMISSION, player.hasPermission(EmotesConfig.PERMISSION))
+            for (name in emotes.emotes.keys) {
+                val node = "${EmotesConfig.PERMISSION}.$name"
+                put(node, player.hasPermission(node))
+            }
+        }
     }
 
     private fun filter(player: Player, snapshot: Snapshot): Filtered? {
@@ -193,6 +223,19 @@ class ChatService(
                 }
                 is WordFilter.Result.Censored -> {
                     uncensored = content
+                    content = result.content
+                }
+                WordFilter.Result.Clean -> Unit
+            }
+        }
+        if (!snapshot.bypassGlyphs) {
+            when (val result = wordFilter.checkGlyphs(content)) {
+                WordFilter.Result.Blocked -> {
+                    messages.send(player, "message-has-glyphs")
+                    return null
+                }
+                is WordFilter.Result.Censored -> {
+                    uncensored = uncensored ?: content
                     content = result.content
                 }
                 WordFilter.Result.Clean -> Unit
@@ -213,9 +256,10 @@ class ChatService(
         }
 
         val emotes = config().emotes
+        val granted: (String) -> Boolean = { node -> snapshot.emotePermissions[node] == true }
         return Filtered(
-            emotes.apply(content, player::hasPermission),
-            uncensored?.let { emotes.apply(it, player::hasPermission) },
+            emotes.apply(content, granted),
+            uncensored?.let { emotes.apply(it, granted) },
         )
     }
 
@@ -257,7 +301,7 @@ class ChatService(
 
         val console = formats.render(channel.consoleFormat ?: format, player, channel, message)
 
-        return Outgoing(
+        val out = Outgoing(
             player,
             channel,
             content,
@@ -270,12 +314,15 @@ class ChatService(
             mentionsAllowed,
             networkFormatted,
         )
+        onMessage?.invoke(out)
+        return out
     }
 
     fun viewFor(out: Outgoing, recipient: Player): Component {
         var delivered = if (out.unfiltered != null && seesUnfiltered(recipient)) out.unfiltered else out.formatted
         if (isMentioned(out, recipient)) delivered = mentions.highlight(delivered, recipient)
-        return delivered
+        val button = messageButton?.invoke(out, recipient) ?: return delivered
+        return Component.empty().append(button).append(delivered)
     }
 
     fun consoleView(out: Outgoing): Component = out.console
@@ -313,6 +360,7 @@ class ChatService(
                 content = out.content,
                 server = config().network.serverId,
                 createdAt = System.currentTimeMillis(),
+                id = out.id,
             )
             playerData.logChat(entry)
         }
@@ -447,6 +495,7 @@ class ChatService(
         const val BYPASS_SPAM = "voxen.bypass.spam"
         const val BYPASS_FILTER = "voxen.bypass.filter"
         const val BYPASS_LINKS = "voxen.bypass.links"
+        const val GLYPHS = "voxen.chat.glyphs"
         const val FILTER_TOGGLE = "voxen.filter.toggle"
         const val BYPASS_ITEM_COOLDOWN = "voxen.bypass.item-cooldown"
         const val MENTION_PERMISSION = "voxen.chat.mention"

@@ -1,0 +1,103 @@
+---
+title: Help requests and tickets
+description: The two ways /helpop can work, the ticket queue in the web panel and the screen where players read the answer.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`/helpop` is how a player reaches the staff. It works in one of two ways, and
+`modules/helpop.yml` decides which.
+
+```yaml title="plugins/Voxen/modules/helpop.yml"
+enabled: true
+mode: "broadcast"
+cooldown: 30s
+max-length: 256
+```
+
+| Mode | What happens |
+| --- | --- |
+| `broadcast` | the message goes to everyone holding `voxen.helpop.receive` and that is the end of it |
+| `tickets` | the message opens a ticket: staff answer it, the player reads the answer and writes back |
+
+`broadcast` is the default, so nothing changes on an existing server until you switch. In
+either mode `cooldown` limits how often one player may ask, and `voxen.bypass.cooldown` skips
+it.
+
+## Tickets
+
+```yaml title="plugins/Voxen/modules/helpop.yml"
+mode: "tickets"
+max-open: 3
+queue-limit: 50
+history-limit: 50
+keep-days: 30
+interfaces:
+  dialog: true
+  web: true
+notify-staff: true
+```
+
+`/helpop <short description>` opens the ticket, and that description is both the subject and
+the first message. `max-open` is how many tickets one player may have waiting at once, which
+keeps a single upset player from filling the queue; `0` removes the limit.
+
+A ticket is `open` while it waits for the staff, `answered` once someone from the team wrote
+back, and `closed` when the matter is settled. A player answering an `answered` ticket puts it
+back to `open`, so the queue always shows what still needs a person.
+
+`keep-days` deletes closed tickets, and their whole conversation, that long after the last
+message. Open tickets are never deleted by age, and `0` keeps everything forever.
+
+Tickets live in the database, so on a network they are shared: a player can open a ticket on
+survival and read the answer on the lobby.
+
+## The player's screen
+
+`/helpop` on its own opens the player's own tickets. With `interfaces.dialog: true` that is a
+dialog screen listing their conversations; opening one shows every message in order, and while
+the ticket is still open there is a field to write back. A closed ticket can still be read, but
+the field is gone — the player opens a new one with `/helpop` instead.
+
+<Aside type="note" title="Older clients keep up">
+	Dialog screens need a 1.21.6+ client. Without one, and with `interfaces.dialog: false`,
+	`/helpop` prints the same list and the same conversation in chat.
+</Aside>
+
+## The staff side
+
+With `interfaces.web: true` a **Tickets** page appears in the [web panel](/configuration/web/).
+It has tabs for what is waiting, for each status and for everything, and opening a ticket shows
+the fields, the whole conversation and a field to answer. Staff messages are highlighted so a
+conversation is easy to read at a glance.
+
+| Panel permission | What it allows |
+| --- | --- |
+| `tickets.view` | seeing the queue and reading a conversation |
+| `tickets.manage` | answering a player and closing a ticket |
+
+Answering from the panel reaches the player in game right away when they are online on the
+same server; otherwise they read it the next time they open `/helpop`.
+
+In game the same work is done with commands, which is what a server without the panel uses:
+
+| Command | What it does |
+| --- | --- |
+| `/voxen tickets [page]` | everything waiting for an answer |
+| `/voxen tickets open <number>` | the whole conversation |
+| `/voxen tickets open <number> reply <message>` | answer the player |
+| `/voxen tickets open <number> close` | close it |
+
+Numbers come from the list itself. All of it needs `voxen.helpop.manage`.
+
+With `notify-staff: true` everyone holding `voxen.helpop.receive` hears about a new ticket and
+about every answer a player writes, along with the console.
+
+## Permissions
+
+| Permission | What it allows | Default |
+| --- | --- | --- |
+| `voxen.helpop` | `/helpop`, and the player's own ticket screen | everyone |
+| `voxen.helpop.receive` | the alerts about new tickets and answers | OP |
+| `voxen.helpop.manage` | the queue, answering and closing | OP |
+| `voxen.bypass.cooldown` | skips the `/helpop` cooldown | OP |

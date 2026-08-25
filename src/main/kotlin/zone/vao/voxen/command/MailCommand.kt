@@ -20,7 +20,7 @@ object MailCommand {
                 Commands.literal("send")
                     .then(
                         Commands.argument("player", StringArgumentType.word())
-                            .suggests { _, builder -> CommandSuggestions.onlinePlayers(plugin, builder) }
+                            .suggests { ctx, builder -> CommandSuggestions.onlinePlayers(plugin, builder, ctx.source.sender) }
                             .then(
                                 Commands.argument("message", StringArgumentType.greedyString())
                                     .executes { ctx ->

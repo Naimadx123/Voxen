@@ -73,8 +73,23 @@ permissions:
   voxen.helpop:
     description: Allows asking staff for help with /helpop.
     default: true
+  voxen.chat.glyphs:
+    description: Allows custom font characters (Nexo, Oraxen and ItemsAdder glyphs) in chat.
+    default: op
   voxen.helpop.receive:
     description: Receives /helpop requests.
+  voxen.helpop.manage:
+    description: Answers and closes player tickets.
+    default: op
+    default: op
+  voxen.report:
+    description: Allows reporting players with /report.
+    default: true
+  voxen.report.exempt:
+    description: Protects a player from being reported.
+    default: op
+  voxen.report.manage:
+    description: Allows working through the report queue in chat, in the dialog and in the web panel.
     default: op
   voxen.socialspy:
     description: Allows toggling the private message spy.
@@ -191,3 +206,5 @@ permissions:
       voxen.chat.tag.score: true
       voxen.chat.tag.nbt: true
       voxen.chat.tag.reset: true
+      voxen.chat.tag.glyph: true
+      voxen.chat.tag.shift: true

@@ -44,6 +44,27 @@ class WordFilter(
         return apply(content, ranges, config.filterMode, config.censorReplacement)
     }
 
+    fun checkGlyphs(content: String): Result {
+        val config = moderation()
+        if (!config.glyphsEnabled) return Result.Clean
+        val stripped = StringBuilder(content.length)
+        var found = false
+        var index = 0
+        while (index < content.length) {
+            val point = content.codePointAt(index)
+            val width = Character.charCount(point)
+            if (private(point)) found = true else stripped.appendCodePoint(point)
+            index += width
+        }
+        if (!found) return Result.Clean
+        if (config.glyphMode == ModerationConfig.FilterMode.BLOCK) return Result.Blocked
+        val cleaned = stripped.toString().replace(SPACES, " ").trim()
+        return if (cleaned.isEmpty()) Result.Blocked else Result.Censored(cleaned)
+    }
+
+    private fun private(point: Int): Boolean =
+        point in 0xE000..0xF8FF || point in 0xF0000..0xFFFFD || point in 0x100000..0x10FFFD
+
     fun checkLinks(content: String): Result {
         val config = moderation()
         if (!config.linksEnabled) return Result.Clean
@@ -117,6 +138,8 @@ class WordFilter(
     }
 
     private companion object {
+        val SPACES = Regex("\\s{2,}")
+
         val LEET = mapOf('0' to 'o', '1' to 'i', '3' to 'e', '4' to 'a', '5' to 's', '7' to 't', '@' to 'a', '$' to 's')
         val SPECIAL = mapOf('ł' to 'l', 'ø' to 'o', 'đ' to 'd', 'æ' to 'a', 'ß' to 's')
         val URL = Regex("""(?:[a-z][a-z0-9+.-]*://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?(?:/\S*)?""", RegexOption.IGNORE_CASE)
