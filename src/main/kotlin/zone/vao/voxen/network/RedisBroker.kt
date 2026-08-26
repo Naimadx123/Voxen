@@ -3,7 +3,7 @@ package zone.vao.voxen.network
 import redis.clients.jedis.DefaultJedisClientConfig
 import redis.clients.jedis.HostAndPort
 import redis.clients.jedis.Jedis
-import redis.clients.jedis.JedisPooled
+import redis.clients.jedis.JedisPool
 import redis.clients.jedis.JedisPubSub
 import zone.vao.voxen.config.NetworkConfig
 import java.util.logging.Logger
@@ -28,7 +28,7 @@ class RedisBroker(
     @Volatile
     private var pubSub: JedisPubSub? = null
 
-    private var pool: JedisPooled? = null
+    private var pool: JedisPool? = null
     private var thread: Thread? = null
 
     private fun clientConfig(): DefaultJedisClientConfig {
@@ -43,7 +43,7 @@ class RedisBroker(
 
     override fun start(onMessage: (String) -> Unit) {
         val address = HostAndPort(config.host, config.port)
-        pool = JedisPooled(
+        pool = JedisPool(
             address,
             DefaultJedisClientConfig.builder()
                 .connectionTimeoutMillis(timeoutMillis.toInt())
@@ -89,7 +89,9 @@ class RedisBroker(
 
     override fun publish(payload: String, route: String?): Boolean {
         val current = pool ?: return false
-        current.publish(if (route == null) broadcast else Addresses.server(config.channel, route), payload)
+        current.resource.use {
+            it.publish(if (route == null) broadcast else Addresses.server(config.channel, route), payload)
+        }
         return true
     }
 

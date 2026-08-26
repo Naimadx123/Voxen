@@ -1,17 +1,17 @@
 plugins {
-    kotlin("jvm") version "2.4.20-Beta1"
-    id("com.gradleup.shadow") version "9.4.3"
-    id("xyz.jpenilla.run-paper") version "3.0.2"
+    kotlin("jvm") version "2.4.20-RC2"
+    id("com.gradleup.shadow") version "9.6.1"
+    id("xyz.jpenilla.run-paper") version "3.1.0"
 }
 
-val kotlinVersion = "2.4.20-Beta1"
-val hikariVersion = "6.3.0"
-val sqliteVersion = "3.50.1.0"
-val mysqlVersion = "9.3.0"
-val postgresVersion = "42.7.7"
-val jedisVersion = "5.2.0"
-val natsVersion = "2.20.5"
-val amqpVersion = "5.25.0"
+val kotlinVersion = "2.4.20-RC2"
+val hikariVersion = "7.1.0"
+val sqliteVersion = "3.53.4.0"
+val mysqlVersion = "26.7.0"
+val postgresVersion = "42.7.13"
+val jedisVersion = "8.0.0"
+val natsVersion = "2.26.2"
+val amqpVersion = "5.35.0"
 
 repositories {
     mavenCentral()
@@ -23,10 +23,10 @@ repositories {
 dependencies {
     implementation(project(":api"))
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
-    compileOnly("me.clip:placeholderapi:2.11.6")
-    compileOnly("io.github.miniplaceholders:miniplaceholders-api:2.2.3")
+    compileOnly("me.clip:placeholderapi:2.12.3")
+    compileOnly("io.github.miniplaceholders:miniplaceholders-api:2.3.0")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
-    compileOnly("net.luckperms:api:5.4")
+    compileOnly("net.luckperms:api:5.5")
     compileOnly("com.zaxxer:HikariCP:$hikariVersion")
     compileOnly("redis.clients:jedis:$jedisVersion")
     compileOnly("io.nats:jnats:$natsVersion")
@@ -35,7 +35,7 @@ dependencies {
     implementation("org.bstats:bstats-bukkit:3.2.1")
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testImplementation("com.zaxxer:HikariCP:$hikariVersion")
     testImplementation("org.xerial:sqlite-jdbc:$sqliteVersion")
     testImplementation("org.postgresql:postgresql:$postgresVersion")
