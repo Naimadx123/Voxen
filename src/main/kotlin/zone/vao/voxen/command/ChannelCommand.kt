@@ -57,7 +57,7 @@ object ChannelCommand {
 
     private fun channelArgument(plugin: Voxen) =
         Commands.argument("channel", StringArgumentType.word())
-            .suggests { _, builder -> CommandSuggestions.channels(plugin, builder) }
+            .suggests { ctx, builder -> CommandSuggestions.channels(plugin, builder, viewer = ctx.source.sender) }
 
     private fun list(plugin: Voxen, ctx: CommandContext<CommandSourceStack>): Int {
         val player = playerOrMessage(plugin, ctx) ?: return Command.SINGLE_SUCCESS
