@@ -3,6 +3,7 @@ package zone.vao.voxen.web
 import com.sun.net.httpserver.BasicAuthenticator
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import zone.vao.voxen.PanelResponse
 import zone.vao.voxen.config.WebConfig
 import java.net.InetSocketAddress
 import java.net.URLDecoder
@@ -127,12 +128,14 @@ class WebServer(
             respond(exchange, 403, notice("Unknown user."))
             return
         }
-        if (exchange.requestMethod !in METHODS) {
+        val method = exchange.requestMethod.uppercase()
+        if (method !in METHODS) {
             exchange.responseHeaders.add("Allow", METHODS.joinToString(", "))
             respond(exchange, 405, notice("That request method is not supported."))
             return
         }
-        val segment = exchange.requestURI.path.trim('/').substringBefore('/')
+        val path = exchange.requestURI.path.trim('/').split('/').filter { it.isNotEmpty() }.map(::decode)
+        val segment = path.firstOrNull().orEmpty()
         if (segment.isEmpty()) {
             respond(exchange, 200, index(user))
             return
@@ -149,29 +152,72 @@ class WebServer(
         val token = tokens.computeIfAbsent(user.name) {
             HexFormat.of().formatHex(ByteArray(TOKEN_BYTES).also(random::nextBytes))
         }
-        if (exchange.requestMethod.equals("POST", ignoreCase = true)) {
+        val posted = method == "POST"
+        var form = emptyMap<String, String>()
+        if (posted) {
             val declared = exchange.requestHeaders.getFirst("Content-Length")?.toLongOrNull() ?: 0L
             if (declared > MAX_BODY_BYTES) {
                 respond(exchange, 413, shell(user, module.id, notice("That form was too large.")))
                 return
             }
-            val form = parse(String(exchange.requestBody.readNBytes(MAX_BODY_BYTES), StandardCharsets.UTF_8))
+            form = parse(String(exchange.requestBody.readNBytes(MAX_BODY_BYTES), StandardCharsets.UTF_8))
             if (!MessageDigest.isEqual(token.toByteArray(), form["token"].orEmpty().toByteArray())) {
                 respond(exchange, 403, shell(user, module.id, notice("This form expired, reload the page.")))
                 return
             }
-            runCatching { module.submit(WebRequest(module.id, user, query, form, token)) }
+        }
+        val request = WebRequest(module.id, method, path.drop(1), user, query, form, token)
+        val answered = runCatching { module.handle(request) }.getOrElse {
+            logger.warning("Web panel page '${module.id}' failed to answer: ${it.message}")
+            respond(exchange, 500, shell(user, module.id, notice("This page could not be rendered, see the server log.")))
+            return
+        }
+        if (answered != null) {
+            deliver(exchange, user, module.id, answered)
+            return
+        }
+        if (posted) {
+            runCatching { module.submit(request) }
                 .onFailure { logger.warning("Web panel action on '${module.id}' failed: ${it.message}") }
             exchange.responseHeaders.add("Location", redirect(segment, query))
             respond(exchange, 303, "")
             return
         }
-        val body = runCatching { module.render(WebRequest(module.id, user, query, emptyMap(), token)) }.getOrElse {
+        val body = runCatching { module.render(request) }.getOrElse {
             logger.warning("Web panel page '${module.id}' failed to render: ${it.message}")
             notice("This page could not be rendered, see the server log.")
         }
-        respond(exchange, 200, shell(user, module.id, body, query["refresh"] == "on"))
+        respond(
+            exchange,
+            200,
+            shell(user, module.id, body.ifBlank { notice("This page has nothing to show.") }, query["refresh"] == "on"),
+        )
     }
+
+    private fun deliver(exchange: HttpExchange, user: WebConfig.User, id: String, response: PanelResponse) {
+        val target = response.location
+        if (target != null) {
+            exchange.responseHeaders.add("Location", target)
+            respond(exchange, response.status, "")
+            return
+        }
+        if (response.framed) {
+            respond(exchange, response.status, shell(user, id, String(response.body, StandardCharsets.UTF_8)))
+            return
+        }
+        val headers = exchange.responseHeaders
+        headers.add("Content-Type", response.contentType)
+        headers.add("Content-Security-Policy", "default-src 'none'; sandbox")
+        headers.add("X-Content-Type-Options", "nosniff")
+        headers.add("X-Frame-Options", "DENY")
+        headers.add("Referrer-Policy", "no-referrer")
+        headers.add("Cache-Control", "no-store")
+        response.fileName?.let { headers.add("Content-Disposition", "attachment; filename=\"$it\"") }
+        send(exchange, response.status, response.body)
+    }
+
+    private fun decode(segment: String): String =
+        runCatching { URLDecoder.decode(segment, StandardCharsets.UTF_8) }.getOrDefault(segment)
 
     private fun index(user: WebConfig.User): String {
         val visible = modules.values.filter { it.enabled() && user.allows(it.permission) }
@@ -219,7 +265,6 @@ class WebServer(
         "<div class=\"card\"><p class=\"empty\">${Html.escape(message)}</p></div>"
 
     private fun respond(exchange: HttpExchange, status: Int, html: String) {
-        val bytes = html.toByteArray(StandardCharsets.UTF_8)
         exchange.responseHeaders.add("Content-Type", "text/html; charset=utf-8")
         exchange.responseHeaders.add(
             "Content-Security-Policy",
@@ -229,6 +274,10 @@ class WebServer(
         exchange.responseHeaders.add("X-Frame-Options", "DENY")
         exchange.responseHeaders.add("Referrer-Policy", "no-referrer")
         exchange.responseHeaders.add("Cache-Control", "no-store")
+        send(exchange, status, html.toByteArray(StandardCharsets.UTF_8))
+    }
+
+    private fun send(exchange: HttpExchange, status: Int, bytes: ByteArray) {
         runCatching {
             exchange.sendResponseHeaders(status, if (bytes.isEmpty()) -1L else bytes.size.toLong())
             if (bytes.isNotEmpty()) exchange.responseBody.use { it.write(bytes) }

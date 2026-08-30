@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.entity.Player
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.function.Supplier
 
 /**
  * The Voxen API as an injectable service.
@@ -59,7 +60,7 @@ interface VoxenService {
     fun ticket(id: UUID): CompletableFuture<TicketCase?>
     fun replyToTicket(id: UUID, message: String, moderator: String): CompletableFuture<Boolean>
     fun closeTicket(id: UUID, moderator: String): CompletableFuture<Boolean>
-    fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean
+    fun registerPanelPage(id: String, title: Supplier<String>, permission: String, page: PanelPage): Boolean
     fun unregisterPanelPage(id: String): Boolean
     fun serverId(): String
     fun networkConnected(): Boolean

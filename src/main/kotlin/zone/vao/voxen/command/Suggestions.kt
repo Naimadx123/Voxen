@@ -57,9 +57,17 @@ object CommandSuggestions {
         return builder.buildFuture()
     }
 
-    fun channels(plugin: Voxen, builder: SuggestionsBuilder, extra: List<String> = emptyList()): CompletableFuture<Suggestions> {
+    fun channels(
+        plugin: Voxen,
+        builder: SuggestionsBuilder,
+        extra: List<String> = emptyList(),
+        viewer: CommandSender? = null,
+    ): CompletableFuture<Suggestions> {
         val input = builder.remaining.lowercase()
-        (plugin.channelService.channels().keys + extra)
+        val open = plugin.channelService.channels().values
+            .filter { it.enabled && (viewer == null || it.canRead(viewer)) }
+            .map { it.id }
+        (open + extra)
             .filter { it.startsWith(input) }
             .forEach(builder::suggest)
         return builder.buildFuture()

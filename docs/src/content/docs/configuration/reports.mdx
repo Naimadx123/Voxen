@@ -9,8 +9,10 @@ Players hand a rule breaker to the staff with `/report` or with a click on the m
 Reports live in the database, so on a network every server sees the same queue and no broker
 traffic is needed.
 
+The module is off by default and `/report` only appears once you turn it on and restart.
+
 ```yaml title="plugins/Voxen/modules/reports.yml"
-enabled: true
+enabled: false
 interfaces:
   dialog: true
   web: true

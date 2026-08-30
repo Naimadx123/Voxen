@@ -1,5 +1,6 @@
 # How players reach the staff with /helpop.
-enabled: true
+# Off by default; turn it on and /helpop appears after a restart.
+enabled: false
 
 # Two ways of working:
 #   broadcast - the old one. The message goes to everyone holding voxen.helpop.receive and

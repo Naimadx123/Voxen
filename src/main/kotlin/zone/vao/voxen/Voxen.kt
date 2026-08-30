@@ -21,6 +21,7 @@ import zone.vao.voxen.hook.HookManager
 import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
 import zone.vao.voxen.mail.MailService
+import zone.vao.voxen.mention.MentionCompletions
 import zone.vao.voxen.mention.MentionService
 import zone.vao.voxen.moderation.AiModerationService
 import zone.vao.voxen.moderation.ModeratorDialogs
@@ -61,6 +62,7 @@ import zone.vao.voxen.util.Vanish
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Supplier
 
 @Suppress("UnstableApiUsage")
 class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
@@ -103,6 +105,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var webServer: WebServer
         private set
     lateinit var aiModerationService: AiModerationService
+        private set
+    lateinit var mentionCompletions: MentionCompletions
         private set
     lateinit var wordFilter: WordFilter
         private set
@@ -168,6 +172,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         val spamGuard = SpamGuard({ configManager.config.moderation })
         wordFilter = WordFilter { configManager.config.moderation }
         val mentionService = MentionService({ configManager.config.mentions }, playerDataService)
+        mentionCompletions = MentionCompletions(server) { configManager.config.mentions }
+        server.pluginManager.registerEvents(mentionCompletions, this)
         chatService = ChatService(
             server,
             { configManager.config },
@@ -387,6 +393,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         webServer.start()
         presenceService.clear()
         startPresenceHeartbeat()
+        mentionCompletions.refresh()
         refreshClientCommands()
     }
 
@@ -653,16 +660,23 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         return future
     }
 
-    override fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean {
+    override fun registerPanelPage(
+        id: String,
+        title: Supplier<String>,
+        permission: String,
+        page: PanelPage,
+    ): Boolean {
         val lower = id.lowercase()
         if (!lower.matches(Regex("[a-z0-9_-]+")) || permission.isBlank()) return false
         val added = webServer.register(
             WebModule(
                 id = lower,
-                title = { title },
+                title = { title.get() },
                 permission = permission,
+                enabled = { page.enabled() },
                 render = { request -> page.render(request) },
                 submit = { request -> page.submit(request) },
+                handle = { request -> page.handle(request) },
             )
         )
         if (added) panelPages.add(lower)
@@ -803,7 +817,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             register(commands.chatToggle, "Toggle chat visibility") { ToggleCommands.buildChatToggle(this, it) }
             register(commands.language, "Choose your Voxen language") { ToggleCommands.buildLanguage(this, it) }
             register(commands.filter, "Toggle the chat filter for yourself") { ToggleCommands.buildFilterToggle(this, it) }
-            register(commands.helpop, "Ask staff for help") { HelpopCommand.build(this, it) }
+            if (configManager.config.helpop.enabled) {
+                register(commands.helpop, "Ask staff for help") { HelpopCommand.build(this, it) }
+            }
             if (configManager.config.reports.enabled) {
                 register(commands.report, "Report a player to the staff") { ReportCommand.build(this, it) }
             }

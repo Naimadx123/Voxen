@@ -76,27 +76,31 @@ switches in `modules/moderation.yml`, see [Moderation](/configuration/moderation
 ## Parties
 
 ```yaml title="plugins/Voxen/modules/party.yml"
-enabled: true
+enabled: false
 max-members: 8
 invite-expiry: 60s
 ```
 
-`enabled: false` turns the system off and removes `/party` after a restart, which is what
-you want when another plugin already handles parties.
+Off by default, because most servers already get their groups from a party, faction or guild
+plugin. `enabled: true` brings back `/party` after a restart.
 
-Party chat goes through the `party` channel, or the `#` quick prefix from anywhere.
+Party chat goes through the `party` channel, or the `#` quick prefix from anywhere. That
+channel ships disabled too, so turn `channels/party.yml` on in the same pass.
 Membership is stored in the database, so with MySQL a party survives a server hop.
 
 ## Offline mail
 
 ```yaml title="plugins/Voxen/modules/mail.yml"
-enabled: true
+enabled: false
 max-per-player: 30
 expire-days: 30
 notify-on-join: true
 allow-when-online: false
 cooldown: 30s
 ```
+
+Off by default, because Essentials and most kitchen sink plugins already have mail.
+`enabled: true` brings back `/mail` after a restart.
 
 `/mail send <player> <text>` leaves a message for someone who is not online. Mail lives in
 the database, so on a network every server sees the same mailbox and no broker traffic is

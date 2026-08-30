@@ -5,6 +5,7 @@ import org.bukkit.entity.Player
 import org.jetbrains.annotations.ApiStatus
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.function.Supplier
 
 /**
  * Static entry point to the Voxen API.
@@ -442,6 +443,14 @@ object VoxenApi {
      */
     @JvmStatic
     fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean =
+        service().registerPanelPage(id, { title }, permission, page)
+
+    /**
+     * Same, with a title read again on every request. Use it to take the title
+     * from your own config so a reload renames the sidebar entry.
+     */
+    @JvmStatic
+    fun registerPanelPage(id: String, title: Supplier<String>, permission: String, page: PanelPage): Boolean =
         service().registerPanelPage(id, title, permission, page)
 
     /** Removes a page registered with [registerPanelPage]. Returns false for unknown or built-in pages. */

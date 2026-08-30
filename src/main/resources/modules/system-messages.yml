@@ -14,6 +14,11 @@ respect-vanish: true
 #   cross-server  - also send it to the other servers on the network
 #   discord       - forward it to DiscordSRV or EssentialsDiscord, if either is installed
 #
+# There are two ways to have no message. 'enabled: false' hands the event back to the server,
+# which then prints its own line as it always did. An empty format with 'enabled: true' keeps
+# the event in Voxen's hands and writes nothing, so the event passes in complete silence and
+# the vanilla line does not come back either.
+#
 # Formats accept the same placeholders as chat formats: <player> (the nickname when one is
 # set), <username>, <display_name>, <prefix>, <suffix>, <group>, <world>, <server>, plus
 # PlaceholderAPI and MiniPlaceholders. Each block adds its own on top.
@@ -25,7 +30,8 @@ join:
   cross-server: true
   discord: true
 
-# The very first time a player logs in. Falls back to 'join' while this is off.
+# The very first time a player logs in. With 'enabled: false' a first login is announced
+# with the 'join' message instead; with an empty format it is announced with nothing.
 first-join:
   enabled: true
   format: "<dark_gray>+ <gold><player> <yellow>is here for the first time. Welcome!"

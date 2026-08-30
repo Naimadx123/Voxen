@@ -9,11 +9,13 @@ import { Aside } from '@astrojs/starlight/components';
 `modules/helpop.yml` decides which.
 
 ```yaml title="plugins/Voxen/modules/helpop.yml"
-enabled: true
+enabled: false
 mode: "broadcast"
 cooldown: 30s
 max-length: 256
 ```
+
+The module is off by default and `/helpop` only appears once you turn it on and restart.
 
 | Mode | What happens |
 | --- | --- |

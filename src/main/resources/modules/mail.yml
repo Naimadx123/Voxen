@@ -1,6 +1,8 @@
 # Offline mail. Lets players leave a message for someone who is not online.
 # Mail lives in the database, so on a network every server sees the same mailbox.
-enabled: true
+# Off by default, because most servers already have mail from Essentials or a similar
+# plugin. Turn it on and /mail appears after a restart.
+enabled: false
 # How many messages fit in one mailbox. Sending to a full mailbox is refused.
 max-per-player: 30
 # Delete mail older than this many days. 0 keeps it forever. Runs on startup.
