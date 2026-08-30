@@ -62,6 +62,7 @@ import zone.vao.voxen.util.Vanish
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Supplier
 
 @Suppress("UnstableApiUsage")
 class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
@@ -659,16 +660,23 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         return future
     }
 
-    override fun registerPanelPage(id: String, title: String, permission: String, page: PanelPage): Boolean {
+    override fun registerPanelPage(
+        id: String,
+        title: Supplier<String>,
+        permission: String,
+        page: PanelPage,
+    ): Boolean {
         val lower = id.lowercase()
         if (!lower.matches(Regex("[a-z0-9_-]+")) || permission.isBlank()) return false
         val added = webServer.register(
             WebModule(
                 id = lower,
-                title = { title },
+                title = { title.get() },
                 permission = permission,
+                enabled = { page.enabled() },
                 render = { request -> page.render(request) },
                 submit = { request -> page.submit(request) },
+                handle = { request -> page.handle(request) },
             )
         )
         if (added) panelPages.add(lower)

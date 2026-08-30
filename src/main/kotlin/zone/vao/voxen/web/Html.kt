@@ -88,6 +88,10 @@ object Html {
         .tag.dismissed { border-color: #f85149; color: #f85149; }
         .tag.answered { border-color: #3fb950; color: #3fb950; }
         .tag.closed { border-color: var(--line); color: var(--muted); }
+        .tag.info { border-color: var(--accent); color: var(--accent); }
+        .tag.good { border-color: #3fb950; color: #3fb950; }
+        .tag.warn { border-color: #e0a800; color: #e0a800; }
+        .tag.bad { border-color: #f85149; color: #f85149; }
         .quote { margin: 0; padding: 18px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
         tr.marked td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
         .muted { color: var(--muted); font-size: 13px; }

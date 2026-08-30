@@ -407,33 +407,109 @@ public void onReportUpdate(ReportUpdateEvent event) {
 VoxenApi.registerPanelPage("shop", "Shop", "shop.view", new PanelPage() {
     @Override
     public String render(PanelRequest request) {
-        return "<h1>Shop</h1><div class=\"card\"><p class=\"quote\">"
-                + PanelHtml.escape(latestSale())
-                + "</p></div>";
+        return PanelHtml.heading("Shop")
+                + PanelHtml.table(
+                        List.of("Item", "Seller", "State"),
+                        sales().stream().map(sale -> List.of(
+                                PanelHtml.Cell.of(sale.item()),
+                                PanelHtml.Cell.of(sale.seller()),
+                                PanelHtml.Cell.html(PanelHtml.tag("paid", PanelHtml.Style.GOOD))
+                        )).toList());
     }
 });
 ```
 
 The page appears in the panel sidebar as `Shop` for every account whose `permissions` in
 `modules/web.yml` cover `shop.view`, and answers with 403 for the rest. Return the body of
-the page only; Voxen wraps it in the panel frame, so the classes the bundled pages use
-(`card`, `tabs`, `tag`, `quote`, `muted`) style your markup as well.
+the page only, Voxen wraps it in the panel frame.
 
-`PanelHtml.escape` is the one thing not to skip. Everything a player can influence goes
-through it, otherwise a nickname is enough to inject markup into the panel.
+### Build the markup with PanelHtml
 
-To take a form back, override `submit` and read the fields with `request.param`. The panel
-rejects any POST without its CSRF token, so put it in a hidden field:
+`PanelHtml` emits the same markup as the bundled pages, so a page written with it follows the
+panel theme and keeps following it when the theme changes. Reaching for the raw CSS class
+names still works, but they are internal and can move.
+
+| Builder | What it gives you |
+| --- | --- |
+| `heading`, `section` | the page title and the smaller grey separators |
+| `card`, `notice`, `muted` | the rounded surface, a centred message, small grey text |
+| `table` | a table in a card, taking `Cell` values |
+| `tabs` | the row of filter links above the content |
+| `tag` | a coloured pill: `NEUTRAL`, `INFO`, `GOOD`, `WARN`, `BAD` |
+| `form`, `button`, `field` | a form that carries the CSRF token on its own |
+| `link`, `escape` | a link, and the escaper behind all of the above |
+
+`Cell.of` escapes the text it is given, `Cell.html` takes markup you built yourself. Prefer
+`Cell.of` and reach for `Cell.html` only to nest another builder, otherwise a nickname is
+enough to inject markup into the panel.
+
+Forms built with `PanelHtml.form` already carry the token the panel demands, so they are never
+rejected as expired. Read the fields back in `submit` with `request.param`:
 
 ```java
-String form = "<form method=\"post\" action=\"" + request.link(Map.of()) + "\">"
-        + "<input type=\"hidden\" name=\"token\" value=\"" + PanelHtml.escape(request.getToken()) + "\">"
-        + "<button name=\"action\" value=\"restock\">Restock</button></form>";
+@Override
+public String render(PanelRequest request) {
+    return PanelHtml.form(request,
+            PanelHtml.field("item", "Item name", "")
+            + PanelHtml.button("action", "restock", "Restock"));
+}
+
+@Override
+public void submit(PanelRequest request) {
+    if ("restock".equals(request.param("action"))) restock(request.param("item"));
+}
+```
+
+### Answer the request yourself
+
+`render` and `submit` cover an HTML page in the panel frame. Override `handle` for anything
+else and return a `PanelResponse`. Returning `null` falls back to `render` and `submit`, which
+is what happens when you do not override it at all.
+
+```java
+@Override
+public PanelResponse handle(PanelRequest request) {
+    List<String> path = request.getPath();
+    if (path.isEmpty()) return null;
+    return switch (path.get(0)) {
+        case "item" -> PanelResponse.json(itemAsJson(path.get(1)));
+        case "export" -> PanelResponse.download("sales.csv", "text/csv", csv());
+        case "old" -> PanelResponse.redirect(request.linkTo("shop", List.of(), Map.of()));
+        default -> PanelResponse.status(404, "No such item.");
+    };
+}
+```
+
+| Response | What it does |
+| --- | --- |
+| `page` | HTML wrapped in the panel frame, same as `render` |
+| `status` | a short message in the frame under an HTTP status |
+| `json`, `text` | a body served as it is, outside the frame |
+| `raw` | any other content type, outside the frame |
+| `download` | a file the browser saves instead of showing |
+| `redirect` | sends the browser to another panel path |
+
+`request.getPath()` holds the segments after the page id, so `/shop/item/42` gives
+`["item", "42"]`. `request.getMethod()` tells `GET` from `POST`, and a `POST` reaching
+`handle` has already passed the CSRF check.
+
+Markup content types are refused and redirects have to stay inside the panel. Both would let a
+page run scripts in the panel's own origin or bounce a logged in moderator somewhere else, and
+the panel has no other defence against that.
+
+### Titles and switching a page off
+
+Pass a `Supplier<String>` instead of a plain title and the sidebar entry follows your config
+on every reload. Override `enabled` to hide a page while the feature behind it is off; it
+disappears from the sidebar and answers with 404 without being unregistered.
+
+```java
+VoxenApi.registerPanelPage("shop", () -> config.getString("panel.title"), "shop.view", page);
 ```
 
 <Aside type="caution" title="Panel pages run off the main thread">
-	`render` and `submit` are called on a panel thread. Read your own data there, but hop to
-	the scheduler before touching anything from the Bukkit API.
+	`render`, `submit` and `handle` are called on a panel thread. Read your own data there, but
+	hop to the scheduler before touching anything from the Bukkit API.
 </Aside>
 
 Pages are not written to disk. Register them in `onEnable` and drop them with
