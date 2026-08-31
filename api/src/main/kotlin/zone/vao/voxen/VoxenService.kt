@@ -31,6 +31,11 @@ interface VoxenService {
     fun nickname(player: Player): String?
     fun setNickname(player: Player, nickname: String?): Boolean
     fun party(member: UUID): PartyInfo?
+    fun sendMail(from: UUID, fromName: String, to: UUID, message: String): CompletableFuture<Boolean>
+    fun mailbox(target: UUID, unreadOnly: Boolean): CompletableFuture<List<MailInfo>>
+    fun markMailRead(target: UUID): CompletableFuture<Boolean>
+    fun deleteMail(target: UUID, id: UUID): CompletableFuture<Boolean>
+    fun clearMail(target: UUID): CompletableFuture<Int>
     fun filterWords(text: String): FilterResult
     fun filterLinks(text: String): FilterResult
     fun isClean(text: String): Boolean

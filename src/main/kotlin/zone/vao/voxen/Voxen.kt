@@ -49,6 +49,7 @@ import zone.vao.voxen.web.WebModule
 import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
+import zone.vao.voxen.storage.MailEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.PlayerStorage
 import zone.vao.voxen.storage.ReportEntry
@@ -538,6 +539,64 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             .map { NetworkPlayer(it.uuid, it.name, it.server, it.seenAt) }
         return (local + remote).distinctBy { it.uuid }
     }
+
+    override fun sendMail(from: UUID, fromName: String, to: UUID, message: String): CompletableFuture<Boolean> {
+        val settings = configManager.config.mail
+        if (!settings.enabled) return CompletableFuture.completedFuture(false)
+        val entry = MailEntry(
+            id = UUID.randomUUID(),
+            recipient = to,
+            senderUuid = from,
+            senderName = fromName,
+            content = message,
+            server = configManager.config.network.serverId,
+            createdAt = System.currentTimeMillis(),
+        )
+        return onStorage { storage -> storage.saveMailIfRoom(entry, settings.maxPerPlayer) }
+            .thenApply { stored ->
+                if (stored) notifyMail(to)
+                stored
+            }
+    }
+
+    private fun notifyMail(recipient: UUID) {
+        val online = server.getPlayer(recipient) ?: return
+        threads.forPlayer(online) {
+            configManager.config.messages.send(
+                online,
+                "mail-notify",
+                Placeholder.unparsed("amount", "1"),
+            )
+        }
+    }
+
+    override fun mailbox(target: UUID, unreadOnly: Boolean): CompletableFuture<List<MailInfo>> =
+        onStorage { storage ->
+            storage.mailFor(target, unreadOnly).map { entry ->
+                MailInfo(
+                    id = entry.id,
+                    recipient = entry.recipient,
+                    sender = entry.senderUuid,
+                    senderName = entry.senderName,
+                    content = entry.content,
+                    server = entry.server,
+                    createdAt = entry.createdAt,
+                    readAt = entry.readAt,
+                )
+            }
+        }
+
+    override fun markMailRead(target: UUID): CompletableFuture<Boolean> = onStorage { storage ->
+        val unread = storage.mailCount(target, unreadOnly = true)
+        if (unread > 0) storage.markMailRead(target)
+        unread > 0
+    }
+
+    override fun deleteMail(target: UUID, id: UUID): CompletableFuture<Boolean> =
+        onStorage { storage -> storage.deleteMail(target, id) }
+
+    override fun clearMail(target: UUID): CompletableFuture<Int> =
+        onStorage { storage -> storage.clearMail(target) }
 
     override fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean =
         chatService.decorators.register(id, decorator)

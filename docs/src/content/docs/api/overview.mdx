@@ -175,6 +175,44 @@ PartyInfo party = VoxenApi.party(uuid);
 	deciding who may do it. Config length limits and the word filter still apply.
 </Aside>
 
+### Leave mail for somebody who is not around
+
+A private message needs both players online. Mail waits instead, so an addon can tell
+somebody their auction sold while they are offline or on another server. They read it with
+`/mail` and get the usual notification on their next login.
+
+```java
+UUID shop = UUID.nameUUIDFromBytes("MyShop".getBytes(UTF_8));
+
+VoxenApi.sendMail(shop, "MyShop", seller, "Your diamond pickaxe sold for 400g.")
+        .thenAccept(stored -> {
+            if (!stored) getLogger().info("mailbox full, or mail is switched off");
+        });
+```
+
+The sender is yours to pick, so mail can come from your plugin under its own name rather
+than from a player.
+
+| Method | What it does |
+| --- | --- |
+| `sendMail(from, fromName, to, message)` | leaves mail, false when the mailbox is full |
+| `mailbox(target)` | the whole mailbox, newest first |
+| `unreadMail(target)` | only what has not been opened |
+| `markMailRead(target)` | marks everything read, as opening `/mail` does |
+| `deleteMail(target, id)` | removes one piece by its `MailInfo.id` |
+| `clearMail(target)` | empties the mailbox, answers with how many went |
+
+Every one of these reaches the database, so they answer through a `CompletableFuture`.
+
+This is the programmatic path, not the `/mail` command. The cooldown, the word filter, the
+mute check and `allow-when-online` are all skipped, and so is the recipient's ignore list. If
+you are relaying one player to another and want ignores honoured, check
+`VoxenApi.isIgnoring(to, from)` first.
+
+Two limits do still apply: `mail.max-per-player` from `modules/mail.yml`, so a full mailbox
+answers false, and the module switch itself, because mail nobody can open is not worth
+storing.
+
 ### Reuse the filter and the renderer
 
 Voxen's chat filter and tag renderer work on any text, not only on chat, so a sign, a book,

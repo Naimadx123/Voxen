@@ -167,6 +167,51 @@ object VoxenApi {
     fun party(member: UUID): PartyInfo? = service().party(member)
 
     /**
+     * Leaves a message in somebody's mailbox, waiting for them whether they
+     * are online, on another server or offline for a week. They read it with
+     * `/mail`, and get the usual notification on their next login.
+     *
+     * [from] and [fromName] are shown as the sender, so an addon can write
+     * under its own name rather than a player's. The recipient does not have
+     * to exist yet.
+     *
+     * This is the programmatic path, not the `/mail` command: the cooldown,
+     * the word filter, the mute check and `allow-when-online` are all skipped,
+     * and so is the recipient's ignore list. Check that yourself with
+     * `isIgnoring(to, from)` when you are relaying one player to another.
+     *
+     * `mail.max-per-player` is still honoured, so a full mailbox completes
+     * with false. So does a send while `modules/mail.yml` is off, because
+     * nobody could read it.
+     */
+    @JvmStatic
+    fun sendMail(from: UUID, fromName: String, to: UUID, message: String): CompletableFuture<Boolean> =
+        service().sendMail(from, fromName, to, message)
+
+    /** Reads somebody's whole mailbox, newest first. Snapshot, see [MailInfo]. */
+    @JvmStatic
+    fun mailbox(target: UUID): CompletableFuture<List<MailInfo>> = service().mailbox(target, false)
+
+    /** Reads only the mail somebody has not opened yet, newest first. */
+    @JvmStatic
+    fun unreadMail(target: UUID): CompletableFuture<List<MailInfo>> = service().mailbox(target, true)
+
+    /**
+     * Marks every unread piece of mail as read, exactly as opening `/mail`
+     * does. Completes with false when the mailbox was already clear.
+     */
+    @JvmStatic
+    fun markMailRead(target: UUID): CompletableFuture<Boolean> = service().markMailRead(target)
+
+    /** Deletes one piece of mail by its [MailInfo.id]. Completes with false when it is already gone. */
+    @JvmStatic
+    fun deleteMail(target: UUID, id: UUID): CompletableFuture<Boolean> = service().deleteMail(target, id)
+
+    /** Empties a mailbox and completes with how many pieces went. */
+    @JvmStatic
+    fun clearMail(target: UUID): CompletableFuture<Int> = service().clearMail(target)
+
+    /**
      * Runs Voxen's word filter over any text, so a sign, a book or an auction
      * name can be held to the same rules as chat. Reads
      * `modules/moderation.yml`, and answers CLEAN while the filter is off.
