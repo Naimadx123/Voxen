@@ -31,6 +31,7 @@ import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
 import zone.vao.voxen.moderation.WordFilter
+import zone.vao.voxen.network.AddonNetwork
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.party.PartyService
@@ -91,6 +92,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var privateMessageService: PrivateMessageService
         private set
     lateinit var brokerService: BrokerService
+    lateinit var addonNetwork: AddonNetwork
         private set
     lateinit var presenceService: PresenceService
         private set
@@ -206,6 +208,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             { configManager.config.network },
             configManager.config.network.queueSize,
         )
+        addonNetwork = AddonNetwork(brokerService, { configManager.config.network.serverId }, logger)
+        brokerService.onAddonMessage = { message -> threads.main { addonNetwork.deliver(message) } }
         chatService.remotePublisher = { channel, player, component, content ->
             brokerService.publish(
                 BrokerMessage(
@@ -531,6 +535,16 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         val remote = presenceService.entries()
             .map { NetworkPlayer(it.uuid, it.name, it.server, it.seenAt) }
         return (local + remote).distinctBy { it.uuid }
+    }
+
+    override fun sendNetworkMessage(channel: String, payload: String, server: String?): Boolean =
+        addonNetwork.send(channel, payload, server)
+
+    override fun registerNetworkListener(channel: String, listener: NetworkListener): Boolean =
+        addonNetwork.register(channel, listener)
+
+    override fun unregisterNetworkListener(channel: String) {
+        addonNetwork.unregister(channel)
     }
 
     override fun registerRecipients(channelId: String, provider: RecipientProvider): Boolean =

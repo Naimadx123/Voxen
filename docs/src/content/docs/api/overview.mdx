@@ -323,6 +323,46 @@ Remote entries come from [presence tracking](/configuration/modules/#presence), 
 `modules/presence.yml` has to be on. Without a network both methods still work and simply
 describe this server alone.
 
+### Send your own data across the network
+
+Voxen already keeps a signed, deduplicated link between your servers over Redis, NATS or
+RabbitMQ. Addons can put their own payloads on it instead of standing up a second one.
+
+```java
+VoxenApi.registerNetworkListener("myshop.sales", (channel, payload, from) -> {
+    Sale sale = gson.fromJson(payload, Sale.class);
+    getServer().broadcast(Component.text(sale.item() + " sold on " + from));
+});
+
+VoxenApi.sendNetworkMessage("myshop.sales", gson.toJson(sale));          // every server
+VoxenApi.sendNetworkMessage("myshop.sales", gson.toJson(sale), "lobby"); // just one
+```
+
+Pick a channel name prefixed with your plugin, so two addons cannot land on the same one.
+Names are `[a-z0-9_.-]` up to 64 characters, payloads are any text up to 64 KiB. One listener
+per channel; a second registration for the same name returns false and leaves the first one
+alone.
+
+| Method | What it does |
+| --- | --- |
+| `sendNetworkMessage(channel, payload)` | sends to every other server |
+| `sendNetworkMessage(channel, payload, server)` | sends to one network id |
+| `registerNetworkListener(channel, listener)` | starts listening, false if the name is taken |
+| `unregisterNetworkListener(channel)` | stops listening |
+
+Sending returns false when the network is off or unreachable, or when the channel or payload
+is refused. True only means Voxen took it, not that it landed: the send is queued and never
+blocks the caller.
+
+The listener runs on the server thread, so Bukkit calls are safe from it. Voxen checks the
+signature and drops replays and duplicates first, and a server never hears its own messages,
+so you do not need to filter yourself out.
+
+<Aside type="caution" title="Unregister on disable">
+	A listener left behind after your plugin disables keeps pointing at your old classes.
+	Drop it in `onDisable`.
+</Aside>
+
 ### One report with everything around it
 
 ```java

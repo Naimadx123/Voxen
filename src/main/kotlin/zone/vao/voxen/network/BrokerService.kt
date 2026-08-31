@@ -31,6 +31,9 @@ class BrokerService(
     var onSystemMessage: ((BrokerMessage) -> Unit)? = null
 
     @Volatile
+    var onAddonMessage: ((BrokerMessage) -> Unit)? = null
+
+    @Volatile
     private var lastMessageAt = 0L
 
     private val gson = Gson()
@@ -134,6 +137,10 @@ class BrokerService(
             onModerationMessage?.invoke(message)
             return
         }
+        if (message.type == TYPE_ADDON) {
+            if (!message.channel.isNullOrEmpty() && message.content != null) onAddonMessage?.invoke(message)
+            return
+        }
         if (message.channel.isNullOrEmpty() || message.component.isNullOrEmpty()) return
         onChatMessage?.invoke(message)
     }
@@ -191,6 +198,7 @@ class BrokerService(
         const val TYPE_PRESENCE_QUIT = "presence_quit"
         const val TYPE_PRESENCE_SYNC = "presence_sync"
         const val TYPE_SYSTEM = "system"
+        const val TYPE_ADDON = "addon"
         private val PRESENCE_TYPES = setOf(TYPE_PRESENCE_JOIN, TYPE_PRESENCE_QUIT, TYPE_PRESENCE_SYNC)
     }
 }

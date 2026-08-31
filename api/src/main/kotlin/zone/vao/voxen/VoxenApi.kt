@@ -487,6 +487,51 @@ object VoxenApi {
     @JvmStatic
     fun networkPlayers(): Collection<NetworkPlayer> = service().networkPlayers()
 
+    /**
+     * Sends your own payload to the other servers on the Voxen network, over
+     * whichever transport `integrations.yml` configures. Voxen signs it,
+     * stamps it against replays and retries the connection for you, so an
+     * addon does not need its own Redis.
+     *
+     * [channel] is yours to choose and must be `[a-z0-9_.-]`, up to 64
+     * characters. Prefix it with your plugin name so two addons cannot
+     * collide, for example `myshop.sales`. [payload] is any text you like,
+     * up to 64 KiB; JSON is the obvious choice.
+     *
+     * Pass a network id as [server] to reach one server, or leave it out to
+     * reach all of them. The sending server never hears its own message.
+     *
+     * Returns false when the network is off or unreachable, and when the
+     * channel or payload is refused. True means Voxen accepted it for
+     * delivery, not that it arrived; sending is asynchronous and never
+     * blocks the caller.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun sendNetworkMessage(channel: String, payload: String, server: String? = null): Boolean =
+        service().sendNetworkMessage(channel, payload, server)
+
+    /**
+     * Listens for [sendNetworkMessage] payloads on [channel]. The listener
+     * runs on the server thread, so Bukkit calls are safe.
+     *
+     * One listener per channel; registering a second one for the same
+     * channel returns false and keeps the first. Returns false for a channel
+     * name that does not match the rules in [sendNetworkMessage].
+     *
+     * Unregister in your plugin's `onDisable`, otherwise a reload leaves a
+     * listener pointing at your old classes.
+     */
+    @JvmStatic
+    fun registerNetworkListener(channel: String, listener: NetworkListener): Boolean =
+        service().registerNetworkListener(channel, listener)
+
+    /** Removes a listener registered with [registerNetworkListener]. Unknown channels are ignored. */
+    @JvmStatic
+    fun unregisterNetworkListener(channel: String) {
+        service().unregisterNetworkListener(channel)
+    }
+
     /** Reloads the Voxen configuration, same as `/voxen reload`. */
     @JvmStatic
     fun reload() {

@@ -66,5 +66,8 @@ interface VoxenService {
     fun networkConnected(): Boolean
     fun serverOf(name: String): String?
     fun networkPlayers(): Collection<NetworkPlayer>
+    fun sendNetworkMessage(channel: String, payload: String, server: String?): Boolean
+    fun registerNetworkListener(channel: String, listener: NetworkListener): Boolean
+    fun unregisterNetworkListener(channel: String)
     fun reload()
 }
