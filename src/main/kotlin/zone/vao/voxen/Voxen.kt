@@ -19,6 +19,8 @@ import zone.vao.voxen.command.*
 import zone.vao.voxen.config.ConfigManager
 import zone.vao.voxen.config.Messages
 import zone.vao.voxen.config.NetworkConfig
+import zone.vao.voxen.event.MailSendEvent
+import zone.vao.voxen.event.NicknameChangeEvent
 import zone.vao.voxen.hook.HookManager
 import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
@@ -141,7 +143,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         playerDataService.attach(createStorage())
         purgeChatLog()
 
-        ignoreService = IgnoreService(playerDataService)
+        ignoreService = IgnoreService(server, playerDataService)
         server.pluginManager.registerEvents(ignoreService, this)
         ignoreService.loadOnline(server.onlinePlayers.map { it.uniqueId })
 
@@ -486,8 +488,15 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             if (visible.length < config.minLength || visible.length > config.maxLength) return false
             if (config.filter && wordFilter.check(visible) != WordFilter.Result.Clean) return false
         }
+        return applyNickname(player, nickname)
+    }
+
+    fun applyNickname(player: Player, nickname: String?): Boolean {
         val data = playerDataService.get(player.uniqueId)
-        data.nickname = nickname
+        val event = NicknameChangeEvent(player, data.nickname, nickname)
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return false
+        data.nickname = event.nickname
         playerDataService.save(data)
         return true
     }
@@ -543,12 +552,15 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     override fun sendMail(from: UUID, fromName: String, to: UUID, message: String): CompletableFuture<Boolean> {
         val settings = configManager.config.mail
         if (!settings.enabled) return CompletableFuture.completedFuture(false)
+        val announced = MailSendEvent(from, fromName, to, message)
+        server.pluginManager.callEvent(announced)
+        if (announced.isCancelled) return CompletableFuture.completedFuture(false)
         val entry = MailEntry(
             id = UUID.randomUUID(),
             recipient = to,
             senderUuid = from,
             senderName = fromName,
-            content = message,
+            content = announced.content,
             server = configManager.config.network.serverId,
             createdAt = System.currentTimeMillis(),
         )

@@ -113,10 +113,8 @@ object NickCommand {
             messages.send(sender, "nickname-disabled")
             return Command.SINGLE_SUCCESS
         }
-        val data = plugin.playerDataService.get(target.uniqueId)
         if (input.equals("reset", true) || input.equals("off", true)) {
-            data.nickname = null
-            plugin.playerDataService.save(data)
+            if (!plugin.applyNickname(target, null)) return Command.SINGLE_SUCCESS
             if (sender !== target) {
                 messages.send(sender, "nickname-reset-other", Placeholder.unparsed("player", target.name))
             }
@@ -137,8 +135,7 @@ object NickCommand {
             messages.send(sender, "nickname-blocked")
             return Command.SINGLE_SUCCESS
         }
-        data.nickname = input
-        plugin.playerDataService.save(data)
+        if (!plugin.applyNickname(target, input)) return Command.SINGLE_SUCCESS
         val rendered = nicknamePlaceholder(plugin, target, input)
         if (sender !== target) {
             messages.send(sender, "nickname-set-other", Placeholder.unparsed("player", target.name), rendered)

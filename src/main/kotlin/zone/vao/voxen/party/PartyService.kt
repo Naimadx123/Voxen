@@ -2,7 +2,11 @@ package zone.vao.voxen.party
 
 import org.bukkit.Server
 import org.bukkit.entity.Player
+import zone.vao.voxen.PartyInfo
 import zone.vao.voxen.config.PartyConfig
+import zone.vao.voxen.event.PartyDisbandEvent
+import zone.vao.voxen.event.PartyJoinEvent
+import zone.vao.voxen.event.PartyLeaveEvent
 import zone.vao.voxen.storage.PlayerDataService
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -63,6 +67,7 @@ class PartyService(
     fun disband(leader: Player): Outcome {
         val record = partyOf(leader.uniqueId) ?: return Outcome.NotInParty
         if (record.leader != leader.uniqueId) return Outcome.NotLeader
+        server.pluginManager.callEvent(PartyDisbandEvent(snapshot(record)))
         parties.remove(record.id)
         for (member in record.members) byMember.remove(member)
         invites.entries.removeIf { it.value.partyId == record.id }
@@ -95,6 +100,9 @@ class PartyService(
         if (partyOf(target.uniqueId) != null) return Outcome.AlreadyInParty
         val record = parties[invite.partyId] ?: return Outcome.NoInvite
         if (record.members.size >= partyConfig().maxMembers) return Outcome.PartyFull
+        val event = PartyJoinEvent(target, snapshot(record))
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return Outcome.NoInvite
         val updated = record.copy(members = record.members + target.uniqueId)
         parties[record.id] = updated
         byMember[target.uniqueId] = record.id
@@ -112,7 +120,7 @@ class PartyService(
     fun leave(member: Player): Outcome {
         val record = partyOf(member.uniqueId) ?: return Outcome.NotInParty
         if (record.leader == member.uniqueId) return disband(member)
-        removeMember(record, member.uniqueId)
+        removeMember(record, member.uniqueId, PartyLeaveEvent.Reason.LEFT)
         return Outcome.Ok
     }
 
@@ -120,7 +128,7 @@ class PartyService(
         val record = partyOf(leader.uniqueId) ?: return Outcome.NotInParty
         if (record.leader != leader.uniqueId) return Outcome.NotLeader
         if (target == leader.uniqueId || target !in record.members) return Outcome.NotInParty
-        removeMember(record, target)
+        removeMember(record, target, PartyLeaveEvent.Reason.KICKED)
         return Outcome.Ok
     }
 
@@ -143,10 +151,14 @@ class PartyService(
         invites.remove(uuid)
     }
 
-    private fun removeMember(record: PartyRecord, member: UUID) {
+    private fun removeMember(record: PartyRecord, member: UUID, reason: PartyLeaveEvent.Reason) {
         val updated = record.copy(members = record.members - member)
         parties[record.id] = updated
         byMember.remove(member)
         playerData.async { it.removePartyMember(record.id, member) }
+        server.pluginManager.callEvent(PartyLeaveEvent(member, snapshot(updated), reason))
     }
+
+    private fun snapshot(record: PartyRecord): PartyInfo =
+        PartyInfo(id = record.id, name = record.name, leader = record.leader, members = record.members)
 }
