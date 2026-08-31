@@ -14,7 +14,7 @@ fun git(vararg args: String): String? = runCatching {
 }.getOrNull()
 
 val gitCommit: String? = git("rev-parse", "HEAD")
-val gitDirty: Boolean = git("status", "--porcelain") != null
+val gitDirty: Boolean = git("-c", "core.fileMode=false", "status", "--porcelain") != null
 
 if (version.toString().endsWith("-SNAPSHOT") && gitCommit != null) {
     val stamp = gitCommit.take(8) + if (gitDirty) "-dirty" else ""
