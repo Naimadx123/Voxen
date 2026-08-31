@@ -4,6 +4,23 @@ plugins {
     id("xyz.jpenilla.run-paper") version "3.1.0"
 }
 
+fun git(vararg args: String): String? = runCatching {
+    val output = providers.exec {
+        commandLine("git", *args)
+        isIgnoreExitValue = true
+    }
+    if (output.result.get().exitValue != 0) return@runCatching null
+    output.standardOutput.asText.get().trim().ifEmpty { null }
+}.getOrNull()
+
+val gitCommit: String? = git("rev-parse", "HEAD")
+val gitDirty: Boolean = git("status", "--porcelain") != null
+
+if (version.toString().endsWith("-SNAPSHOT") && gitCommit != null) {
+    val stamp = gitCommit.take(8) + if (gitDirty) "-dirty" else ""
+    version = "${version.toString().removeSuffix("-SNAPSHOT")}-$stamp-SNAPSHOT"
+}
+
 val kotlinVersion = "2.4.20-RC2"
 val hikariVersion = "7.1.0"
 val sqliteVersion = "3.53.4.0"
@@ -65,8 +82,19 @@ val testAdventure5 by tasks.registering(Test::class) {
 }
 
 tasks {
+    jar {
+        enabled = false
+    }
+
     shadowJar {
         archiveFileName.set("Voxen-v${project.version}.jar")
+        manifest {
+            attributes(
+                "Implementation-Version" to project.version.toString(),
+                "Git-Commit" to (gitCommit ?: "unknown"),
+                "Git-Dirty" to gitDirty.toString(),
+            )
+        }
         minimize {
             exclude(project(":api"))
         }

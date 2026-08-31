@@ -38,7 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Voxen-v${{ steps.version.outputs.version }}
-          path: build/libs/Voxen-v${{ steps.version.outputs.version }}.jar
+          path: build/libs/Voxen-v*.jar
           if-no-files-found: error
 
       - name: Create release
