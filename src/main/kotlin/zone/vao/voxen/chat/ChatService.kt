@@ -40,6 +40,7 @@ class ChatService(
     private val playerData: PlayerDataService,
     private val hooks: HookManager,
     private val threads: Threads,
+    val decorators: ChatDecorators,
 ) {
 
     @Volatile
@@ -359,6 +360,7 @@ class ChatService(
     fun viewFor(out: Outgoing, recipient: Player): Component {
         var delivered = if (out.unfiltered != null && seesUnfiltered(recipient)) out.unfiltered else out.formatted
         if (isMentioned(out, recipient)) delivered = mentions.highlight(delivered, recipient)
+        delivered = decorators.apply(out.player, recipient, out.channel.id, out.id, delivered)
         val button = messageButton?.invoke(out, recipient) ?: return delivered
         return Component.empty().append(button).append(delivered)
     }

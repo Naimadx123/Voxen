@@ -240,6 +240,29 @@ object VoxenApi {
     }
 
     /**
+     * Rewrites every chat line before it reaches a viewer, so you can hang a
+     * badge, a marker or a button off somebody else's message. Voxen already
+     * builds each line per viewer, so this costs nothing extra to hook.
+     *
+     * [id] is yours and must be `[a-z0-9_.-]`, up to 64 characters; prefix it
+     * with your plugin name. Registering a second decorator under the same id
+     * returns false and keeps the first. Decorators run in registration
+     * order, each one receiving what the last returned.
+     *
+     * Read [ChatDecorator] before you write one: it runs once per viewer per
+     * message on the chat thread, which rules out most of the Bukkit API.
+     */
+    @JvmStatic
+    fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean =
+        service().registerChatDecorator(id, decorator)
+
+    /** Removes a decorator registered with [registerChatDecorator]. Unknown ids are ignored. */
+    @JvmStatic
+    fun unregisterChatDecorator(id: String) {
+        service().unregisterChatDecorator(id)
+    }
+
+    /**
      * Registers a channel owned by your plugin. It behaves like a configured
      * channel: players can join it, talk in it and it shows up in [channels].
      *

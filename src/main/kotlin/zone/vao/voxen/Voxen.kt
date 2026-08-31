@@ -11,6 +11,7 @@ import org.bstats.bukkit.Metrics
 import org.bukkit.entity.Player
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
+import zone.vao.voxen.chat.ChatDecorators
 import zone.vao.voxen.chat.ChatListener
 import zone.vao.voxen.chat.ChatService
 import zone.vao.voxen.chat.FormatService
@@ -190,6 +191,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             playerDataService,
             hookManager,
             threads,
+            ChatDecorators(logger),
         )
         privateMessageService = PrivateMessageService(
             server,
@@ -535,6 +537,13 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         val remote = presenceService.entries()
             .map { NetworkPlayer(it.uuid, it.name, it.server, it.seenAt) }
         return (local + remote).distinctBy { it.uuid }
+    }
+
+    override fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean =
+        chatService.decorators.register(id, decorator)
+
+    override fun unregisterChatDecorator(id: String) {
+        chatService.decorators.unregister(id)
     }
 
     override fun sendNetworkMessage(channel: String, payload: String, server: String?): Boolean =

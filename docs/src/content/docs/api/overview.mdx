@@ -217,6 +217,36 @@ VoxenApi.registerPlaceholder("level", p ->
 `<level>` is now usable in any chat format. Return `null` to render nothing. Unregister on
 disable.
 
+### Decorate somebody else's message
+
+A placeholder puts the same thing in every copy of a line. A decorator runs once for each
+viewer, so it can show a different thing to each of them.
+
+```java
+VoxenApi.registerChatDecorator("friends.marker", (sender, viewer, channel, id, message) -> {
+    if (!friends.areFriends(viewer, sender)) return null;
+    return Component.text("★ ", NamedTextColor.GOLD).append(message);
+});
+```
+
+`message` is the line as that viewer would have seen it, mention highlighting included.
+Return the replacement, or `null` to leave it alone. Voxen already builds every line per
+viewer for its own report and moderation buttons, so hooking in here costs nothing extra.
+
+Ids are `[a-z0-9_.-]` up to 64 characters; prefix yours with your plugin name. One decorator
+per id, and they run in registration order with each one receiving what the last returned. A
+decorator that throws is logged and skipped, and the ones after it still run.
+
+<Aside type="caution" title="This is the hottest callback in the API">
+	It runs once per viewer per message, on the chat thread rather than the server thread.
+	Permission checks are fine; reading the world, the inventory or anything else from the
+	Bukkit API is not. On a busy global channel this is multiplied by every player who can
+	read it, so keep it quick and cache on your side.
+</Aside>
+
+Only messages sent on this server go through decorators. A line arriving from another server
+over the network has no local sender and is passed through untouched.
+
 ### Register your own channel
 
 ```java
