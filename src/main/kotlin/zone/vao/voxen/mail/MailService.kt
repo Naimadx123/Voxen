@@ -6,6 +6,7 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.event.MailSendEvent
@@ -214,6 +215,11 @@ class MailService(
                 else messages.send(player, "mail-cleared", Placeholder.unparsed("amount", removed.toString()))
             }
         }
+    }
+
+    @EventHandler
+    fun onQuit(event: PlayerQuitEvent) {
+        lastSent.remove(event.player.uniqueId)
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

@@ -68,6 +68,7 @@ import zone.vao.voxen.util.Vanish
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Supplier
 
 @Suppress("UnstableApiUsage")
@@ -140,6 +141,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             configManager.config.storage.chatLogBatch,
         )
         server.pluginManager.registerEvents(playerDataService, this)
+        playerDataService.onActivity = { maybePurge() }
         playerDataService.attach(createStorage())
         purgeChatLog()
 
@@ -837,6 +839,18 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             1L,
             (presence.heartbeatMillis / 50L).coerceAtLeast(20L),
         )
+    }
+
+    private val lastPurge = AtomicLong(System.currentTimeMillis())
+
+    private fun maybePurge() {
+        val now = System.currentTimeMillis()
+        val last = lastPurge.get()
+        if (now - last < 86_400_000L || !lastPurge.compareAndSet(last, now)) return
+        purgeChatLog()
+        purgeMail()
+        purgeReports()
+        purgeWarnings()
     }
 
     private fun purgeChatLog() {

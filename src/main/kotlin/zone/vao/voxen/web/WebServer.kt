@@ -338,6 +338,10 @@ class WebServer(
 
     private fun note(address: String, settings: WebConfig) {
         if (settings.maxLoginAttempts <= 0 || settings.lockoutMillis <= 0L) return
+        if (failures.size >= MAX_TRACKED_ADDRESSES) {
+            val stale = System.currentTimeMillis() - settings.lockoutMillis
+            failures.values.removeIf { synchronized(it) { it.since <= stale } }
+        }
         val entry = failures.computeIfAbsent(address) { Failures(0, System.currentTimeMillis()) }
         val reached = synchronized(entry) {
             val now = System.currentTimeMillis()
@@ -356,6 +360,7 @@ class WebServer(
     private fun safe(value: String): String = value.filter { it.code in 32..126 }.take(200)
 
     companion object {
+        private const val MAX_TRACKED_ADDRESSES = 10_000
         const val DEFAULT_PASSWORD = "change-me"
 
         private const val MAX_BODY_BYTES = 64 * 1024
