@@ -7,13 +7,13 @@ data class EmotesConfig(
 ) {
     fun apply(content: String, hasPermission: (String) -> Boolean): String {
         if (!enabled || emotes.isEmpty() || !content.contains(':')) return content
-        val allowsAll = !requirePermission || hasPermission(PERMISSION)
+        val allowsAll = lazy(LazyThreadSafetyMode.NONE) { !requirePermission || hasPermission(PERMISSION) }
         return PATTERN.replace(content) { match ->
             val name = match.groupValues[1].lowercase()
             val emote = emotes[name]
             when {
                 emote == null -> match.value
-                allowsAll || hasPermission("$PERMISSION.$name") -> emote
+                allowsAll.value || hasPermission("$PERMISSION.$name") -> emote
                 else -> match.value
             }
         }

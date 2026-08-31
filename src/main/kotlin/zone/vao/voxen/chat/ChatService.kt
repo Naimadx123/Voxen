@@ -8,7 +8,6 @@ import org.bukkit.Server
 import org.bukkit.entity.Player
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
-import zone.vao.voxen.config.EmotesConfig
 import zone.vao.voxen.config.TagsConfig
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.event.ChatMessageDeliveredEvent
@@ -77,21 +76,18 @@ class ChatService(
     }
 
     fun prepareChat(player: Player, raw: String): Outgoing? {
-        val picked = threads.awaitPlayer(player) {
-            val quick = channels.quickChannel(player, raw)
-            if (quick != null) {
-                quick
-            } else {
-                val active = channels.activeChannel(player)
-                if (active == null) {
-                    config().messages.send(player, "no-channel")
-                    null
-                } else {
-                    active to raw
-                }
-            }
-        } ?: return null
-        return prepare(player, picked.first, picked.second)
+        val prepared = threads.awaitPlayer(player) { pick(player, raw) } ?: return null
+        return render(player, prepared)
+    }
+
+    private fun pick(player: Player, raw: String): Prepared? {
+        val quick = channels.quickChannel(player, raw)
+        val channel = quick?.first ?: channels.activeChannel(player) ?: run {
+            config().messages.send(player, "no-channel")
+            return null
+        }
+        val snapshot = validate(player, channel, quick?.second ?: raw) ?: return null
+        return Prepared(channel, snapshot)
     }
 
     fun send(player: Player, channel: Channel, rawContent: String): Boolean {
@@ -102,16 +98,24 @@ class ChatService(
 
     fun prepare(player: Player, channel: Channel, rawContent: String): Outgoing? {
         val snapshot = threads.awaitPlayer(player) { validate(player, channel, rawContent) } ?: return null
-        val filtered = filter(player, snapshot) ?: return null
-        return threads.awaitPlayer(player) { build(player, channel, filtered.content, filtered.uncensored) }
+        return render(player, Prepared(channel, snapshot))
     }
+
+    private fun render(player: Player, prepared: Prepared): Outgoing? {
+        val filtered = filter(player, prepared.snapshot) ?: return null
+        val collected = threads.awaitPlayer(player) {
+            collect(player, prepared.channel, filtered.content, filtered.uncensored)
+        } ?: return null
+        return compose(collected)
+    }
+
+    private class Prepared(val channel: Channel, val snapshot: Snapshot)
 
     private class Snapshot(
         val content: String,
         val bypassLinks: Boolean,
         val bypassFilter: Boolean,
         val bypassGlyphs: Boolean,
-        val emotePermissions: Map<String, Boolean>,
     )
 
     private class Filtered(val content: String, val uncensored: String?)
@@ -195,20 +199,7 @@ class ChatService(
             player.hasPermission(BYPASS_LINKS),
             player.hasPermission(BYPASS_FILTER),
             player.hasPermission(GLYPHS),
-            emotePermissions(player),
         )
-    }
-
-    private fun emotePermissions(player: Player): Map<String, Boolean> {
-        val emotes = config().emotes
-        if (!emotes.enabled || emotes.emotes.isEmpty()) return emptyMap()
-        return buildMap {
-            put(EmotesConfig.PERMISSION, player.hasPermission(EmotesConfig.PERMISSION))
-            for (name in emotes.emotes.keys) {
-                val node = "${EmotesConfig.PERMISSION}.$name"
-                put(node, player.hasPermission(node))
-            }
-        }
     }
 
     private fun filter(player: Player, snapshot: Snapshot): Filtered? {
@@ -255,17 +246,28 @@ class ChatService(
             }
         }
 
-        val emotes = config().emotes
-        val granted: (String) -> Boolean = { node -> snapshot.emotePermissions[node] == true }
-        return Filtered(
-            emotes.apply(content, granted),
-            uncensored?.let { emotes.apply(it, granted) },
-        )
+        return Filtered(content, uncensored)
     }
 
-    private fun build(player: Player, channel: Channel, filtered: String, censored: String?): Outgoing? {
-        var content = filtered
-        var uncensored = censored
+    private class Collected(
+        val player: Player,
+        val channel: Channel,
+        val content: String,
+        val uncensored: String?,
+        val recipients: List<Player>,
+        val extraResolvers: List<TagResolver>,
+        val format: String,
+        val consoleFormat: String,
+        val bindings: FormatService.Bindings,
+        val mentionedNames: Set<String>,
+        val mentionsAllowed: Boolean,
+        val stripForNetwork: Boolean,
+    )
+
+    private fun collect(player: Player, channel: Channel, filtered: String, censored: String?): Collected? {
+        val emotes = config().emotes
+        var content = emotes.apply(filtered, player::hasPermission)
+        var uncensored = censored?.let { emotes.apply(it, player::hasPermission) }
         val recipients = channels.recipients(player, channel)
         val event = ChatMessageSendEvent(player, channel.id, content, recipients)
         server.pluginManager.callEvent(event)
@@ -280,43 +282,79 @@ class ChatService(
             listOfNotNull(hooks.miniPlaceholders?.gated(player) { name ->
                 player.hasPermission(MINI_PERMISSION) || player.hasPermission("$MINI_PERMISSION.$name")
             })
-        val message = renderer.render(content, player::hasPermission, extraResolvers, isPermissionSet = player::isPermissionSet)
+
         val format = formats.formatFor(channel, player)
-        val formatted = formats.render(format, player, channel, message)
-        val unfiltered = uncensored
-            ?.takeIf { finalRecipients.any(::seesUnfiltered) }
-            ?.let { formats.render(format, player, channel, renderer.render(it, player::hasPermission, extraResolvers, isPermissionSet = player::isPermissionSet)) }
-
+        val consoleFormat = channel.consoleFormat ?: format
         val mentionedNames = if (config().mentions.enabled) mentions.mentionedNames(content) else emptySet()
-        val mentionsAllowed = mentionedNames.isNotEmpty() &&
-            player.hasPermission(MENTION_PERMISSION) &&
-            mentions.tryUse(player)
 
-        val networkFormatted = if (channel.crossServer && config().tags.mode == TagsConfig.UnauthorizedMode.ESCAPE) {
-            val stripped = renderer.render(content, player::hasPermission, extraResolvers, TagsConfig.UnauthorizedMode.STRIP, player::isPermissionSet)
-            formats.render(format, player, channel, stripped)
+        return Collected(
+            player = player,
+            channel = channel,
+            content = content,
+            uncensored = uncensored?.takeIf { finalRecipients.any(::seesUnfiltered) },
+            recipients = finalRecipients,
+            extraResolvers = extraResolvers,
+            format = format,
+            consoleFormat = consoleFormat,
+            bindings = formats.bind(player, listOf(format, consoleFormat)),
+            mentionedNames = mentionedNames,
+            mentionsAllowed = mentionedNames.isNotEmpty() &&
+                player.hasPermission(MENTION_PERMISSION) &&
+                mentions.tryUse(player),
+            stripForNetwork = channel.crossServer &&
+                config().tags.mode == TagsConfig.UnauthorizedMode.ESCAPE,
+        )
+    }
+
+    private fun compose(collected: Collected): Outgoing {
+        val player = collected.player
+        val channel = collected.channel
+        val bindings = collected.bindings
+        val message = renderContent(collected, collected.content, null)
+        val formatted = formats.render(bindings, collected.format, channel, message)
+        val unfiltered = collected.uncensored?.let {
+            formats.render(bindings, collected.format, channel, renderContent(collected, it, null))
+        }
+        val networkFormatted = if (collected.stripForNetwork) {
+            formats.render(
+                bindings,
+                collected.format,
+                channel,
+                renderContent(collected, collected.content, TagsConfig.UnauthorizedMode.STRIP),
+            )
         } else {
             null
         }
-
-        val console = formats.render(channel.consoleFormat ?: format, player, channel, message)
+        val console = formats.render(bindings, collected.consoleFormat, channel, message)
 
         val out = Outgoing(
             player,
             channel,
-            content,
+            collected.content,
             message,
             formatted,
             unfiltered,
             console,
-            finalRecipients,
-            mentionedNames,
-            mentionsAllowed,
+            collected.recipients,
+            collected.mentionedNames,
+            collected.mentionsAllowed,
             networkFormatted,
         )
         onMessage?.invoke(out)
         return out
     }
+
+    private fun renderContent(
+        collected: Collected,
+        raw: String,
+        mode: TagsConfig.UnauthorizedMode?,
+    ): Component = renderer.render(
+        raw,
+        collected.player::hasPermission,
+        collected.extraResolvers,
+        mode,
+        collected.player::isPermissionSet,
+    )
 
     fun viewFor(out: Outgoing, recipient: Player): Component {
         var delivered = if (out.unfiltered != null && seesUnfiltered(recipient)) out.unfiltered else out.formatted
@@ -446,8 +484,8 @@ class ChatService(
         return if (
             itemShare.enabled &&
             channel.itemTags &&
-            player.hasPermission(ItemTags.PERMISSION) &&
             ItemTags.containsItemTag(content) &&
+            player.hasPermission(ItemTags.PERMISSION) &&
             tryItemShare(player, itemShare.cooldownMillis)
         ) {
             val emptyLabel = config().messages.line(player, "item-empty")

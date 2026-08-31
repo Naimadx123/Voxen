@@ -26,14 +26,30 @@ class FormatService(
 
     private val metaCache = ConcurrentHashMap<UUID, Meta>()
 
-    private class Meta(val prefix: String, val suffix: String, val group: String, val at: Long)
+    private class Meta(
+        val prefix: String,
+        val suffix: String,
+        val group: String,
+        val at: Long,
+        val prefixComponent: Component,
+        val suffixComponent: Component,
+    )
 
     private fun meta(player: Player): Meta {
         val now = System.currentTimeMillis()
         val known = metaCache[player.uniqueId]
         if (known != null && now - known.at < META_TTL_MILLIS) return known
         if (metaCache.size > 512) metaCache.values.removeIf { now - it.at >= META_TTL_MILLIS }
-        val fresh = Meta(hooks.meta.prefix(player), hooks.meta.suffix(player), hooks.meta.group(player), now)
+        val prefix = hooks.meta.prefix(player)
+        val suffix = hooks.meta.suffix(player)
+        val fresh = Meta(
+            prefix,
+            suffix,
+            hooks.meta.group(player),
+            now,
+            metaComponent(prefix),
+            metaComponent(suffix),
+        )
         metaCache[player.uniqueId] = fresh
         return fresh
     }
@@ -61,17 +77,42 @@ class FormatService(
         return channel.format
     }
 
-    fun render(format: String, player: Player, channel: Channel, message: Component): Component {
+    class Bindings internal constructor(
+        internal val base: List<TagResolver>,
+        internal val expanded: Map<String, String>,
+    )
+
+    fun bind(player: Player, formats: List<String>): Bindings {
         val meta = meta(player)
-        return build(format, player, meta, resolvers(player, channel, message, meta))
+        return Bindings(base(player, meta), formats.distinct().associateWith { expand(it, player, meta) })
     }
+
+    fun render(bindings: Bindings, format: String, channel: Channel, message: Component): Component {
+        val expanded = bindings.expanded[format] ?: return Component.empty()
+        val resolvers = TagResolver.resolver(
+            bindings.base + listOf(
+                Placeholder.component("message", message),
+                Placeholder.parsed("channel", channel.displayName),
+                Placeholder.unparsed("channel_id", channel.id),
+            )
+        )
+        return Components.tidy(mm.deserialize(expanded, resolvers))
+    }
+
+    fun render(format: String, player: Player, channel: Channel, message: Component): Component =
+        render(bind(player, listOf(format)), format, channel, message)
 
     fun renderSystem(format: String, player: Player, vararg extra: TagResolver): Component {
         val meta = meta(player)
-        return build(format, player, meta, TagResolver.resolver(base(player, meta) + extra.toList()))
+        return Components.tidy(
+            mm.deserialize(
+                expand(format, player, meta),
+                TagResolver.resolver(base(player, meta) + extra.toList()),
+            )
+        )
     }
 
-    private fun build(format: String, player: Player, meta: Meta, resolvers: TagResolver): Component {
+    private fun expand(format: String, player: Player, meta: Meta): String {
         val trimmed = Components.stripEmptyPlaceholders(format) { token ->
             when (token) {
                 "<prefix>" -> if (meta.prefix.isBlank()) "" else token
@@ -79,8 +120,7 @@ class FormatService(
                 else -> hooks.applyPlaceholders(player, token)
             }
         }
-        val expanded = hooks.applyPlaceholders(player, trimmed)
-        return Components.tidy(mm.deserialize(expanded, resolvers))
+        return hooks.applyPlaceholders(player, trimmed)
     }
 
     fun renderConsole(channel: Channel, player: Player, message: Component): Component =
@@ -113,15 +153,6 @@ class FormatService(
         }
     }
 
-    private fun resolvers(player: Player, channel: Channel, message: Component, meta: Meta): TagResolver =
-        TagResolver.resolver(
-            base(player, meta) + listOf(
-                Placeholder.component("message", message),
-                Placeholder.parsed("channel", channel.displayName),
-                Placeholder.unparsed("channel_id", channel.id),
-            )
-        )
-
     private fun base(player: Player, meta: Meta): List<TagResolver> {
         val list = mutableListOf<TagResolver>(
             Placeholder.component("player", nickname(player) ?: Component.text(player.name)),
@@ -129,8 +160,8 @@ class FormatService(
             Placeholder.component("display_name", player.displayName()),
             Placeholder.unparsed("world", player.world.name),
             Placeholder.unparsed("server", config().serverName),
-            Placeholder.component("prefix", metaComponent(meta.prefix)),
-            Placeholder.component("suffix", metaComponent(meta.suffix)),
+            Placeholder.component("prefix", meta.prefixComponent),
+            Placeholder.component("suffix", meta.suffixComponent),
             Placeholder.unparsed("group", meta.group),
         )
         for ((name, placeholder) in customPlaceholders) {

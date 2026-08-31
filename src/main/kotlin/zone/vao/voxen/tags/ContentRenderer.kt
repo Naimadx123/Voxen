@@ -84,8 +84,10 @@ class ContentRenderer(
     fun plain(content: String): String =
         MiniMessage.miniMessage().stripTags(content)
 
-    fun visible(content: String): String =
-        LEGACY_CODES.replace(plain(VISUAL_TAGS.replace(content, "*")), "").trim()
+    fun visible(content: String): String {
+        if (content.none { it == '<' || it == '&' || it == '§' }) return content.trim()
+        return LEGACY_CODES.replace(plain(VISUAL_TAGS.replace(content, "*")), "").trim()
+    }
 
     private fun permitted(
         config: TagsConfig,

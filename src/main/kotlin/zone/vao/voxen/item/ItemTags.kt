@@ -1,12 +1,12 @@
 package zone.vao.voxen.item
 
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.TextComponent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.Tag
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.minimessage.tag.standard.StandardTags
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 
@@ -40,10 +40,12 @@ object ItemTags {
     }
 
     fun parseName(name: Component): Component {
-        val text = (name as? TextComponent)?.takeIf { it.children().isEmpty() }?.content() ?: return name
+        val text = PLAIN.serialize(name)
         if (!text.contains('<')) return name
-        return runCatching { NAME_TAGS.deserialize(text) }.getOrNull()?.style(name.style()) ?: name
+        return runCatching { NAME_TAGS.deserialize(text) }.getOrNull()?.applyFallbackStyle(name.style()) ?: name
     }
+
+    private val PLAIN = PlainTextComponentSerializer.plainText()
 
     private val NAME_TAGS = MiniMessage.builder()
         .tags(

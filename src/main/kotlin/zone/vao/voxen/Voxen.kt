@@ -17,6 +17,7 @@ import zone.vao.voxen.chat.FormatService
 import zone.vao.voxen.command.*
 import zone.vao.voxen.config.ConfigManager
 import zone.vao.voxen.config.Messages
+import zone.vao.voxen.config.NetworkConfig
 import zone.vao.voxen.hook.HookManager
 import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
@@ -722,11 +723,14 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         }
     }
 
+    private fun networked(): Boolean =
+        configManager.config.network.transport != NetworkConfig.Transport.NONE
+
     private fun startPresenceHeartbeat() {
         presenceTask?.cancel()
         presenceTask = null
         val presence = configManager.config.presence
-        if (!presence.enabled) return
+        if (!presence.enabled || !networked()) return
         presenceTask = server.globalRegionScheduler.runAtFixedRate(
             this,
             {
