@@ -19,7 +19,7 @@ max-length:
   affect-pm: true
 
 anti-repeat:
-  enabled: true
+  enabled: false
   affect-pm: false
   window-seconds: 30
   similarity:
@@ -28,13 +28,13 @@ anti-repeat:
     history: 3
 
 anti-flood:
-  enabled: true
+  enabled: false
   affect-pm: true
   max-run: 8
   max-word-length: 30
 
 filter:
-  enabled: true
+  enabled: false
   affect-pm: true
   mode: censor
   censor-char: "*"
@@ -57,7 +57,7 @@ links:
     - youtu.be
 
 slowmode:
-  enabled: true
+  enabled: false
 
 history:
   enabled: false
@@ -67,6 +67,9 @@ history:
 
 chat-clear-lines: 100
 ```
+
+Every check ships off. A fresh server does not filter, rate limit or slow anything until you
+flip the `enabled` under the check you want, and `/voxen reload` picks it up.
 
 ## Private messages
 

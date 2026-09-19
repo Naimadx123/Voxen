@@ -9,7 +9,9 @@ Each file in `channels/` defines one channel. The file name without `.yml` is th
 id, so `channels/trade.yml` gives you a channel called `trade`. To add one, copy an
 existing file and change what you need.
 
-The defaults are `global`, `local`, `world`, `staff`, `party` and `server`.
+Six files ship: `global`, `local`, `world`, `staff`, `party` and `server`. Only `global`
+starts enabled. The rest are there so you can flip `enabled: true` on the ones you want
+instead of writing them from scratch.
 
 <Aside type="note">
 	`channels/` is the one folder Voxen never touches on update. New plugin versions do not

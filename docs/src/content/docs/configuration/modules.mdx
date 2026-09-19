@@ -14,7 +14,7 @@ The remaining files in `modules/`. Moderation has
 ## Mentions
 
 ```yaml title="plugins/Voxen/modules/mentions.yml"
-enabled: true
+enabled: true  # ships off
 highlight: "<yellow>@<player></yellow>"
 cooldown: 5s
 sound:
@@ -38,7 +38,7 @@ checked on the sending server, the toggle on the receiving one.
 ## Private messages
 
 ```yaml title="plugins/Voxen/modules/private-messages.yml"
-enabled: true
+enabled: true  # ships off
 sender-format: "<gray>[<gold>You</gold> → <gold><target></gold>]</gray> <white><message></white>"
 receiver-format: "<gray>[<gold><player></gold> → <gold>You</gold>]</gray> <white><message></white>"
 spy-format: "<dark_gray>[Spy] <gray><player> → <target>:</gray> <message>"
@@ -118,11 +118,11 @@ server or anywhere on the network.
 
 ```yaml title="plugins/Voxen/modules/moderator-tools.yml"
 enabled: true
-dialogs: true
-manage-button: true
+dialogs: false
+manage-button: false
 dialog-buttons: []
 warnings:
-  enabled: true
+  enabled: false
   expire: 30d
   notify-target: true
   rules:
@@ -136,13 +136,17 @@ warnings:
         - "voxen mute <player> 1d Too many warnings"
         - "kick <player> Too many warnings (<count>)"
 notes:
-  enabled: true
-join-alerts: true
+  enabled: false
+join-alerts: false
 message-delete:
   enabled: true
   keep: 200
   button: true
 ```
+
+Out of the box only `message-delete` is on, so staff get the `[x]` in front of every message
+and nothing else. Each of the other tools has its own switch above; `dialogs` needs a
+1.21.6+ client and `join-alerts` needs warnings or mutes to have anything to say.
 
 `/voxen inspect <player>` sums a player up in one screen: their server, active channel, mutes,
 warning count and note count. `/voxen warn <player> <reason>` stores a warning, tells staff with
@@ -214,7 +218,7 @@ clients lose nothing but the buttons. Set `dialogs: false` to skip them entirely
 ## Presence
 
 ```yaml title="plugins/Voxen/modules/presence.yml"
-enabled: true
+enabled: true  # ships off
 heartbeat: 15s
 ttl: 60s
 suggest-remote-players: true
@@ -228,7 +232,7 @@ It is also what tells a server switch apart from a real disconnect in
 ## Emotes
 
 ```yaml title="plugins/Voxen/modules/emotes.yml"
-enabled: true
+enabled: true  # ships off
 require-permission: true
 emotes:
   heart: "❤"

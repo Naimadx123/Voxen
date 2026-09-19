@@ -11,7 +11,7 @@ max-length:
 
 # Blocks sending the exact same message twice within the window.
 anti-repeat:
-  enabled: true
+  enabled: false
   # Whether repeats in private messages count too. Off by default, "ok" twice in
   # a conversation is normal.
   affect-pm: false
@@ -29,7 +29,7 @@ anti-repeat:
 # max-word-length: longest allowed word; anything containing '.', ':' or '/' is left
 # to the link filter instead. 0 turns a check off.
 anti-flood:
-  enabled: true
+  enabled: false
   # Whether private messages are checked for noise too.
   affect-pm: true
   max-run: 8
@@ -37,7 +37,7 @@ anti-flood:
 
 # Blocked words and regex patterns. mode: block (reject the message) or censor (mask matches).
 filter:
-  enabled: true
+  enabled: false
   # Whether blocked words are also caught in private messages.
   affect-pm: true
   mode: censor
@@ -85,7 +85,7 @@ links:
 # Lets staff raise a channel's cooldown on the fly with /voxen slowmode <channel> <time>.
 # The setting is not saved, so a restart clears it.
 slowmode:
-  enabled: true
+  enabled: false
 
 # Stores sent messages so staff can read them back with /voxen history <player>.
 history:

@@ -1,6 +1,6 @@
 display-name: "<light_purple>Network</light_purple>"
 type: server
-enabled: true
+enabled: false
 default: false
 cross-server: true
 aliases: [servchat]

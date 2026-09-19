@@ -921,8 +921,10 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 registrar.register(build(primary), description, aliases)
             }
 
-            register(commands.message, "Send a private message") { MessageCommand.buildMessage(this, it) }
-            register(commands.reply, "Reply to the last private message") { MessageCommand.buildReply(this, it) }
+            if (configManager.config.privateMessages.enabled) {
+                register(commands.message, "Send a private message") { MessageCommand.buildMessage(this, it) }
+                register(commands.reply, "Reply to the last private message") { MessageCommand.buildReply(this, it) }
+            }
             register(commands.channel, "Manage your chat channels") { ChannelCommand.build(this, it) }
             register(commands.ignore, "Ignore or unignore a player") { IgnoreCommand.buildIgnore(this, it) }
             register(commands.ignoreList, "List ignored players") { IgnoreCommand.buildIgnoreList(this, it) }

@@ -42,9 +42,9 @@ with `/voxen reload`.
 ./gradlew build
 ```
 
-The build produces two jars in `build/libs/`. The one to install is the shaded plugin jar
-with the `v` prefix, `Voxen-v<version>.jar`. The other jar is not shaded and should not be
-used on a server.
+The build produces one jar in `build/libs/`, `Voxen-v<version>.jar`. A snapshot build
+carries the short commit hash in the name, `Voxen-v1.3-a1b2c3d4-SNAPSHOT.jar`, with `-dirty`
+added when the working tree had uncommitted changes. Stable versions are named as they are.
 
 `./gradlew runServer` starts a local Paper server with the plugin for a quick test.
 

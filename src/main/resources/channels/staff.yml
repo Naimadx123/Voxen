@@ -1,6 +1,6 @@
 display-name: "<red>Staff</red>"
 type: staff
-enabled: true
+enabled: false
 default: true
 quick-prefix: "@"
 aliases: [sc, staffchat]

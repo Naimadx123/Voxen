@@ -1,5 +1,5 @@
 # Turns shortcodes like :heart: into real characters.
-enabled: true
+enabled: false
 
 # When true a player needs voxen.chat.emote.<name> for a single emote,
 # or voxen.chat.emote for all of them. Set to false to let everyone use them.

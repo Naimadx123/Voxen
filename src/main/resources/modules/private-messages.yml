@@ -1,4 +1,4 @@
-enabled: true
+enabled: false
 
 sender-format: "<gray>[<gold>You</gold> → <gold><target></gold>]</gray> <white><message></white>"
 receiver-format: "<gray>[<gold><player></gold> → <gold>You</gold>]</gray> <white><message></white>"
