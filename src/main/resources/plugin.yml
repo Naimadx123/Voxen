@@ -78,9 +78,9 @@ permissions:
     default: op
   voxen.helpop.receive:
     description: Receives /helpop requests.
+    default: op
   voxen.helpop.manage:
     description: Answers and closes player tickets.
-    default: op
     default: op
   voxen.report:
     description: Allows reporting players with /report.
