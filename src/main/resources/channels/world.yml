@@ -1,6 +1,6 @@
 display-name: "<aqua>World</aqua>"
 type: world
-enabled: true
+enabled: false
 default: true
 aliases: [wc, worldchat]
 cooldown: ""

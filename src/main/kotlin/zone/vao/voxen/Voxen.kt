@@ -11,12 +11,16 @@ import org.bstats.bukkit.Metrics
 import org.bukkit.entity.Player
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
+import zone.vao.voxen.chat.ChatDecorators
 import zone.vao.voxen.chat.ChatListener
 import zone.vao.voxen.chat.ChatService
 import zone.vao.voxen.chat.FormatService
 import zone.vao.voxen.command.*
 import zone.vao.voxen.config.ConfigManager
 import zone.vao.voxen.config.Messages
+import zone.vao.voxen.config.NetworkConfig
+import zone.vao.voxen.event.MailSendEvent
+import zone.vao.voxen.event.NicknameChangeEvent
 import zone.vao.voxen.hook.HookManager
 import zone.vao.voxen.hook.VoxenTags
 import zone.vao.voxen.ignore.IgnoreService
@@ -30,6 +34,7 @@ import zone.vao.voxen.moderation.MuteEntry
 import zone.vao.voxen.moderation.MuteService
 import zone.vao.voxen.moderation.SpamGuard
 import zone.vao.voxen.moderation.WordFilter
+import zone.vao.voxen.network.AddonNetwork
 import zone.vao.voxen.network.BrokerMessage
 import zone.vao.voxen.network.BrokerService
 import zone.vao.voxen.party.PartyService
@@ -46,6 +51,7 @@ import zone.vao.voxen.web.WebModule
 import zone.vao.voxen.web.WebServer
 import zone.vao.voxen.presence.PresenceService
 import zone.vao.voxen.pm.PrivateMessageService
+import zone.vao.voxen.storage.MailEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.storage.PlayerStorage
 import zone.vao.voxen.storage.ReportEntry
@@ -62,6 +68,7 @@ import zone.vao.voxen.util.Vanish
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Supplier
 
 @Suppress("UnstableApiUsage")
@@ -90,6 +97,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     lateinit var privateMessageService: PrivateMessageService
         private set
     lateinit var brokerService: BrokerService
+    lateinit var addonNetwork: AddonNetwork
         private set
     lateinit var presenceService: PresenceService
         private set
@@ -133,10 +141,11 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             configManager.config.storage.chatLogBatch,
         )
         server.pluginManager.registerEvents(playerDataService, this)
+        playerDataService.onActivity = { maybePurge() }
         playerDataService.attach(createStorage())
         purgeChatLog()
 
-        ignoreService = IgnoreService(playerDataService)
+        ignoreService = IgnoreService(server, playerDataService)
         server.pluginManager.registerEvents(ignoreService, this)
         ignoreService.loadOnline(server.onlinePlayers.map { it.uniqueId })
 
@@ -187,6 +196,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             playerDataService,
             hookManager,
             threads,
+            ChatDecorators(logger),
         )
         privateMessageService = PrivateMessageService(
             server,
@@ -205,6 +215,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             { configManager.config.network },
             configManager.config.network.queueSize,
         )
+        addonNetwork = AddonNetwork(brokerService, { configManager.config.network.serverId }, logger)
+        brokerService.onAddonMessage = { message -> threads.main { addonNetwork.deliver(message) } }
         chatService.remotePublisher = { channel, player, component, content ->
             brokerService.publish(
                 BrokerMessage(
@@ -478,8 +490,15 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             if (visible.length < config.minLength || visible.length > config.maxLength) return false
             if (config.filter && wordFilter.check(visible) != WordFilter.Result.Clean) return false
         }
+        return applyNickname(player, nickname)
+    }
+
+    fun applyNickname(player: Player, nickname: String?): Boolean {
         val data = playerDataService.get(player.uniqueId)
-        data.nickname = nickname
+        val event = NicknameChangeEvent(player, data.nickname, nickname)
+        server.pluginManager.callEvent(event)
+        if (event.isCancelled) return false
+        data.nickname = event.nickname
         playerDataService.save(data)
         return true
     }
@@ -530,6 +549,84 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         val remote = presenceService.entries()
             .map { NetworkPlayer(it.uuid, it.name, it.server, it.seenAt) }
         return (local + remote).distinctBy { it.uuid }
+    }
+
+    override fun sendMail(from: UUID, fromName: String, to: UUID, message: String): CompletableFuture<Boolean> {
+        val settings = configManager.config.mail
+        if (!settings.enabled) return CompletableFuture.completedFuture(false)
+        val announced = MailSendEvent(from, fromName, to, message)
+        server.pluginManager.callEvent(announced)
+        if (announced.isCancelled) return CompletableFuture.completedFuture(false)
+        val entry = MailEntry(
+            id = UUID.randomUUID(),
+            recipient = to,
+            senderUuid = from,
+            senderName = fromName,
+            content = announced.content,
+            server = configManager.config.network.serverId,
+            createdAt = System.currentTimeMillis(),
+        )
+        return onStorage { storage -> storage.saveMailIfRoom(entry, settings.maxPerPlayer) }
+            .thenApply { stored ->
+                if (stored) notifyMail(to)
+                stored
+            }
+    }
+
+    private fun notifyMail(recipient: UUID) {
+        val online = server.getPlayer(recipient) ?: return
+        threads.forPlayer(online) {
+            configManager.config.messages.send(
+                online,
+                "mail-notify",
+                Placeholder.unparsed("amount", "1"),
+            )
+        }
+    }
+
+    override fun mailbox(target: UUID, unreadOnly: Boolean): CompletableFuture<List<MailInfo>> =
+        onStorage { storage ->
+            storage.mailFor(target, unreadOnly).map { entry ->
+                MailInfo(
+                    id = entry.id,
+                    recipient = entry.recipient,
+                    sender = entry.senderUuid,
+                    senderName = entry.senderName,
+                    content = entry.content,
+                    server = entry.server,
+                    createdAt = entry.createdAt,
+                    readAt = entry.readAt,
+                )
+            }
+        }
+
+    override fun markMailRead(target: UUID): CompletableFuture<Boolean> = onStorage { storage ->
+        val unread = storage.mailCount(target, unreadOnly = true)
+        if (unread > 0) storage.markMailRead(target)
+        unread > 0
+    }
+
+    override fun deleteMail(target: UUID, id: UUID): CompletableFuture<Boolean> =
+        onStorage { storage -> storage.deleteMail(target, id) }
+
+    override fun clearMail(target: UUID): CompletableFuture<Int> =
+        onStorage { storage -> storage.clearMail(target) }
+
+    override fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean =
+        chatService.decorators.register(id, decorator)
+
+    override fun unregisterChatDecorator(id: String) {
+        chatService.decorators.unregister(id)
+    }
+
+    override fun sendNetworkMessage(channel: String, payload: String, server: String?): Boolean =
+        addonNetwork.send(channel, payload, server)
+
+    override fun registerNetworkListener(channel: String, listener: NetworkListener): Boolean =
+        addonNetwork.register(channel, listener)
+
+    override fun unregisterNetworkListener(channel: String) {
+        addonNetwork.unregister(channel)
     }
 
     override fun registerRecipients(channelId: String, provider: RecipientProvider): Boolean =
@@ -722,11 +819,14 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         }
     }
 
+    private fun networked(): Boolean =
+        configManager.config.network.transport != NetworkConfig.Transport.NONE
+
     private fun startPresenceHeartbeat() {
         presenceTask?.cancel()
         presenceTask = null
         val presence = configManager.config.presence
-        if (!presence.enabled) return
+        if (!presence.enabled || !networked()) return
         presenceTask = server.globalRegionScheduler.runAtFixedRate(
             this,
             {
@@ -739,6 +839,18 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             1L,
             (presence.heartbeatMillis / 50L).coerceAtLeast(20L),
         )
+    }
+
+    private val lastPurge = AtomicLong(System.currentTimeMillis())
+
+    private fun maybePurge() {
+        val now = System.currentTimeMillis()
+        val last = lastPurge.get()
+        if (now - last < 86_400_000L || !lastPurge.compareAndSet(last, now)) return
+        purgeChatLog()
+        purgeMail()
+        purgeReports()
+        purgeWarnings()
     }
 
     private fun purgeChatLog() {
@@ -809,8 +921,10 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 registrar.register(build(primary), description, aliases)
             }
 
-            register(commands.message, "Send a private message") { MessageCommand.buildMessage(this, it) }
-            register(commands.reply, "Reply to the last private message") { MessageCommand.buildReply(this, it) }
+            if (configManager.config.privateMessages.enabled) {
+                register(commands.message, "Send a private message") { MessageCommand.buildMessage(this, it) }
+                register(commands.reply, "Reply to the last private message") { MessageCommand.buildReply(this, it) }
+            }
             register(commands.channel, "Manage your chat channels") { ChannelCommand.build(this, it) }
             register(commands.ignore, "Ignore or unignore a player") { IgnoreCommand.buildIgnore(this, it) }
             register(commands.ignoreList, "List ignored players") { IgnoreCommand.buildIgnoreList(this, it) }

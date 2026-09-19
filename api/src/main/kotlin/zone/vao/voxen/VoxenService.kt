@@ -31,6 +31,11 @@ interface VoxenService {
     fun nickname(player: Player): String?
     fun setNickname(player: Player, nickname: String?): Boolean
     fun party(member: UUID): PartyInfo?
+    fun sendMail(from: UUID, fromName: String, to: UUID, message: String): CompletableFuture<Boolean>
+    fun mailbox(target: UUID, unreadOnly: Boolean): CompletableFuture<List<MailInfo>>
+    fun markMailRead(target: UUID): CompletableFuture<Boolean>
+    fun deleteMail(target: UUID, id: UUID): CompletableFuture<Boolean>
+    fun clearMail(target: UUID): CompletableFuture<Int>
     fun filterWords(text: String): FilterResult
     fun filterLinks(text: String): FilterResult
     fun isClean(text: String): Boolean
@@ -40,6 +45,8 @@ interface VoxenService {
     fun unregisterModeratorResolver(prefix: String)
     fun registerPlaceholder(name: String, placeholder: FormatPlaceholder): Boolean
     fun unregisterPlaceholder(name: String)
+    fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean
+    fun unregisterChatDecorator(id: String)
     fun registerChannel(id: String, displayName: String, format: String, recipients: RecipientProvider?): Boolean
     fun registerChannel(channel: ChannelRegistration): Boolean
     fun unregisterChannel(id: String): Boolean
@@ -66,5 +73,8 @@ interface VoxenService {
     fun networkConnected(): Boolean
     fun serverOf(name: String): String?
     fun networkPlayers(): Collection<NetworkPlayer>
+    fun sendNetworkMessage(channel: String, payload: String, server: String?): Boolean
+    fun registerNetworkListener(channel: String, listener: NetworkListener): Boolean
+    fun unregisterNetworkListener(channel: String)
     fun reload()
 }

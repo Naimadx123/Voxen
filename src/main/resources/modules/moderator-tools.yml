@@ -4,11 +4,11 @@ enabled: true
 # Opens a Minecraft dialog screen for /voxen inspect and for /voxen warn without a reason.
 # Needs a 1.21.6+ client. The chat summary is always sent as well, so older clients
 # lose nothing.
-dialogs: true
+dialogs: false
 
 # Shows a wrench in front of every message for staff with voxen.mod.inspect, before the
 # channel's own formatting. Clicking it runs /voxen inspect on the author.
-manage-button: true
+manage-button: false
 
 # Extra buttons on the /voxen inspect dialog. Every entry needs a 'label' (MiniMessage)
 # and a 'command'; 'permission' hides the button from staff without it and 'console: true'
@@ -25,7 +25,7 @@ dialog-buttons: []
 #    command: "tp <player>"
 
 warnings:
-  enabled: true
+  enabled: false
   # How long a warning counts. Older ones stop counting and are deleted on startup.
   # Takes 30d, 12h, 1w and the like; 'never' keeps them forever.
   expire: 30d
@@ -48,10 +48,10 @@ warnings:
 
 # Staff-only notes on a player, invisible to them.
 notes:
-  enabled: true
+  enabled: false
 
 # Tells staff with voxen.mod.alerts when a player with active mutes or warnings joins.
-join-alerts: true
+join-alerts: false
 
 # /voxen delete <player> [amount] removes that player's newest messages from every chat.
 # The inspect dialog gets a slider for the amount, capped at 'keep' or 100, whichever is lower.

@@ -99,6 +99,9 @@ class PlayerDataService(
         storage = null
     }
 
+    @Volatile
+    var onActivity: (() -> Unit)? = null
+
     @EventHandler(priority = EventPriority.MONITOR)
     fun onPreLogin(event: AsyncPlayerPreLoginEvent) {
         if (event.loginResult != AsyncPlayerPreLoginEvent.Result.ALLOWED) return
@@ -108,6 +111,7 @@ class PlayerDataService(
             data.lastName = event.name
             save(data)
         }
+        onActivity?.invoke()
     }
 
     @EventHandler

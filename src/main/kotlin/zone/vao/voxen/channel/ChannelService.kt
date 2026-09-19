@@ -23,8 +23,38 @@ class ChannelService(
 
     private val apiChannels = java.util.concurrent.ConcurrentHashMap<String, Channel>()
     private val recipientProviders = java.util.concurrent.ConcurrentHashMap<String, RecipientProvider>()
+    private val apiVersion = java.util.concurrent.atomic.AtomicInteger()
 
-    fun channels(): Map<String, Channel> = config().channels + apiChannels
+    @Volatile
+    private var cachedView: View? = null
+
+    private class View(
+        val base: Map<String, Channel>,
+        val version: Int,
+        val all: Map<String, Channel>,
+        val quick: List<Channel>,
+        val defaults: List<Channel>,
+    )
+
+    private fun view(): View {
+        val base = config().channels
+        val version = apiVersion.get()
+        cachedView?.let { if (it.base === base && it.version == version) return it }
+        val all = if (apiChannels.isEmpty()) base else base + apiChannels
+        val open = all.values.filter { it.enabled && it.type != ChannelType.PARTY }
+        val fresh = View(
+            base,
+            version,
+            all,
+            all.values.filter { it.enabled && it.quickPrefix != null }
+                .sortedByDescending { it.quickPrefix!!.length },
+            open.filter { it.defaultActive } + open.filter { it.defaultChannel },
+        )
+        cachedView = fresh
+        return fresh
+    }
+
+    fun channels(): Map<String, Channel> = view().all
 
     fun channel(id: String): Channel? {
         val lower = id.lowercase()
@@ -64,12 +94,15 @@ class ChannelService(
             discordFormat = null,
             sound = SoundConfig(null),
         )
+        apiVersion.incrementAndGet()
         return true
     }
 
     fun unregisterApiChannel(id: String): Boolean {
         recipientProviders.remove(id.lowercase())
-        return apiChannels.remove(id.lowercase()) != null
+        val removed = apiChannels.remove(id.lowercase()) != null
+        if (removed) apiVersion.incrementAndGet()
+        return removed
     }
 
     fun registerRecipients(channelId: String, provider: RecipientProvider): Boolean {
@@ -91,9 +124,7 @@ class ChannelService(
         return defaultActive(player)
     }
 
-    fun defaultActive(player: Player): Channel? =
-        channels().values.firstOrNull { it.enabled && it.defaultActive && it.type != ChannelType.PARTY && it.canRead(player) }
-            ?: channels().values.firstOrNull { it.enabled && it.defaultChannel && it.type != ChannelType.PARTY && it.canRead(player) }
+    fun defaultActive(player: Player): Channel? = view().defaults.firstOrNull { it.canRead(player) }
 
     fun setActive(player: Player, channel: Channel): Boolean {
         if (!channel.enabled || !channel.canJoin(player)) return false
@@ -170,10 +201,7 @@ class ChannelService(
 
     fun quickChannel(player: Player, message: String): Pair<Channel, String>? {
         if (!config().quickChatEnabled) return null
-        val candidates = channels().values
-            .filter { it.enabled && it.quickPrefix != null }
-            .sortedByDescending { it.quickPrefix!!.length }
-        for (channel in candidates) {
+        for (channel in view().quick) {
             val prefix = channel.quickPrefix!!
             if (message.length > prefix.length && message.startsWith(prefix) && channel.canWrite(player)) {
                 val content = message.substring(prefix.length).trim()

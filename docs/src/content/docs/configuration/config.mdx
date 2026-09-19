@@ -11,11 +11,11 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 | --- | --- | --- |
 | `server-name` | `server` | value of the `<server>` placeholder |
 | `default-language` | `en_US` | console language and fallback for players |
-| `quick-chat` | `true` | allows quick prefixes like `!hello` |
-| `chat-delivery` | `system` | how chat reaches players, see below |
-| `item-share.enabled` | `true` | the `<item>`, `<helmet>`, `<chestplate>`, `<leggings>`, `<boots>` tags |
+| `quick-chat` | `false` | allows quick prefixes like `!hello` |
+| `chat-delivery` | `player` | how chat reaches players, see below |
+| `item-share.enabled` | `false` | the `<item>`, `<helmet>`, `<chestplate>`, `<leggings>`, `<boots>` tags |
 | `item-share.cooldown` | `10s` | delay between item shares per player, empty disables it |
-| `nicknames.enabled` | `true` | `/nick`, `/realname` and nickname display |
+| `nicknames.enabled` | `false` | `/nick`, `/realname` and nickname display |
 | `nicknames.min-length` | `3` | minimum visible length, formatting tags excluded |
 | `nicknames.max-length` | `24` | maximum visible length |
 | `nicknames.filter` | `true` | rejects nicknames containing blocked words |
@@ -28,22 +28,29 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 This is the one setting worth understanding before you go live.
 
 <Tabs>
-	<TabItem label="system (default)">
+	<TabItem label="player (default)">
+		Messages stay signed player chat, rendered through Paper's chat renderer.
+
+		- Vanilla chat reporting and the client's secure chat features keep working.
+		- The staff `[x]` delete button works, because clients can only remove signed
+		  messages.
+		- The signature covers the **originally typed text**. Word filter censoring and
+		  quick prefixes only change what is displayed, so a chat report contains what the
+		  player actually typed, not what everyone saw.
+
+		This is the default because it keeps everything vanilla does, and message deletion
+		depends on it.
+	</TabItem>
+	<TabItem label="system">
 		Voxen cancels the chat event and sends its own messages.
 
 		- Per-viewer features work fully: censoring per player, ignore lists, `/chattoggle`,
 		  per-language text.
-		- Messages are not signed, so **vanilla chat reporting is disabled**.
+		- Messages are not signed, so **vanilla chat reporting is disabled** and the delete
+		  button disappears, since there is nothing a client could delete.
 
-		This is what you want unless you specifically need chat reports.
-	</TabItem>
-	<TabItem label="player">
-		Messages stay signed player chat, rendered through Paper's chat renderer.
-
-		- Vanilla chat reporting and the client's secure chat features keep working.
-		- The signature covers the **originally typed text**. Word filter censoring and
-		  quick prefixes only change what is displayed, so a chat report contains what the
-		  player actually typed, not what everyone saw.
+		Pick this when per-viewer censoring matters more to you than chat reports and
+		deletion.
 	</TabItem>
 </Tabs>
 
@@ -71,7 +78,7 @@ commands:
 
 ```yaml
 nicknames:
-  enabled: true
+  enabled: false
   min-length: 3
   max-length: 24
   filter: true

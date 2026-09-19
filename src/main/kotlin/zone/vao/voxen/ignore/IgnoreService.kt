@@ -1,15 +1,18 @@
 package zone.vao.voxen.ignore
 
+import org.bukkit.Server
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import zone.vao.voxen.event.PlayerIgnoreEvent
 import zone.vao.voxen.storage.PlayerDataService
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class IgnoreService(
+    private val server: Server,
     private val playerData: PlayerDataService,
 ) : Listener {
 
@@ -22,15 +25,25 @@ class IgnoreService(
 
     fun ignore(source: UUID, target: UUID): Boolean {
         if (source == target) return false
+        if (isIgnoring(source, target)) return false
+        if (!announce(source, target, true)) return false
         val added = ignores.getOrPut(source) { ConcurrentHashMap.newKeySet() }.add(target)
         if (added) playerData.async { it.addIgnore(source, target) }
         return added
     }
 
     fun unignore(source: UUID, target: UUID): Boolean {
+        if (!isIgnoring(source, target)) return false
+        if (!announce(source, target, false)) return false
         val removed = ignores[source]?.remove(target) == true
         if (removed) playerData.async { it.removeIgnore(source, target) }
         return removed
+    }
+
+    private fun announce(source: UUID, target: UUID, ignoring: Boolean): Boolean {
+        val event = PlayerIgnoreEvent(source, target, ignoring)
+        server.pluginManager.callEvent(event)
+        return !event.isCancelled
     }
 
     fun loadOnline(onlineIds: Collection<UUID>) {

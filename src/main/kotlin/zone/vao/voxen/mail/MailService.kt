@@ -6,8 +6,10 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.VoxenConfig
+import zone.vao.voxen.event.MailSendEvent
 import zone.vao.voxen.pm.PrivateMessageService
 import zone.vao.voxen.storage.MailEntry
 import zone.vao.voxen.storage.PlayerDataService
@@ -95,12 +97,19 @@ class MailService(
             return
         }
 
+        val announced = MailSendEvent(sender.uniqueId, sender.name, targetUuid, text)
+        server.pluginManager.callEvent(announced)
+        if (announced.isCancelled) {
+            releaseCooldown()
+            return
+        }
+
         val entry = MailEntry(
             id = UUID.randomUUID(),
             recipient = targetUuid,
             senderUuid = sender.uniqueId,
             senderName = sender.name,
-            content = text,
+            content = announced.content,
             server = config().network.serverId,
             createdAt = System.currentTimeMillis(),
         )
@@ -206,6 +215,11 @@ class MailService(
                 else messages.send(player, "mail-cleared", Placeholder.unparsed("amount", removed.toString()))
             }
         }
+    }
+
+    @EventHandler
+    fun onQuit(event: PlayerQuitEvent) {
+        lastSent.remove(event.player.uniqueId)
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

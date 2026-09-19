@@ -167,6 +167,51 @@ object VoxenApi {
     fun party(member: UUID): PartyInfo? = service().party(member)
 
     /**
+     * Leaves a message in somebody's mailbox, waiting for them whether they
+     * are online, on another server or offline for a week. They read it with
+     * `/mail`, and get the usual notification on their next login.
+     *
+     * [from] and [fromName] are shown as the sender, so an addon can write
+     * under its own name rather than a player's. The recipient does not have
+     * to exist yet.
+     *
+     * This is the programmatic path, not the `/mail` command: the cooldown,
+     * the word filter, the mute check and `allow-when-online` are all skipped,
+     * and so is the recipient's ignore list. Check that yourself with
+     * `isIgnoring(to, from)` when you are relaying one player to another.
+     *
+     * `mail.max-per-player` is still honoured, so a full mailbox completes
+     * with false. So does a send while `modules/mail.yml` is off, because
+     * nobody could read it.
+     */
+    @JvmStatic
+    fun sendMail(from: UUID, fromName: String, to: UUID, message: String): CompletableFuture<Boolean> =
+        service().sendMail(from, fromName, to, message)
+
+    /** Reads somebody's whole mailbox, newest first. Snapshot, see [MailInfo]. */
+    @JvmStatic
+    fun mailbox(target: UUID): CompletableFuture<List<MailInfo>> = service().mailbox(target, false)
+
+    /** Reads only the mail somebody has not opened yet, newest first. */
+    @JvmStatic
+    fun unreadMail(target: UUID): CompletableFuture<List<MailInfo>> = service().mailbox(target, true)
+
+    /**
+     * Marks every unread piece of mail as read, exactly as opening `/mail`
+     * does. Completes with false when the mailbox was already clear.
+     */
+    @JvmStatic
+    fun markMailRead(target: UUID): CompletableFuture<Boolean> = service().markMailRead(target)
+
+    /** Deletes one piece of mail by its [MailInfo.id]. Completes with false when it is already gone. */
+    @JvmStatic
+    fun deleteMail(target: UUID, id: UUID): CompletableFuture<Boolean> = service().deleteMail(target, id)
+
+    /** Empties a mailbox and completes with how many pieces went. */
+    @JvmStatic
+    fun clearMail(target: UUID): CompletableFuture<Int> = service().clearMail(target)
+
+    /**
      * Runs Voxen's word filter over any text, so a sign, a book or an auction
      * name can be held to the same rules as chat. Reads
      * `modules/moderation.yml`, and answers CLEAN while the filter is off.
@@ -237,6 +282,29 @@ object VoxenApi {
     @JvmStatic
     fun unregisterPlaceholder(name: String) {
         service().unregisterPlaceholder(name)
+    }
+
+    /**
+     * Rewrites every chat line before it reaches a viewer, so you can hang a
+     * badge, a marker or a button off somebody else's message. Voxen already
+     * builds each line per viewer, so this costs nothing extra to hook.
+     *
+     * [id] is yours and must be `[a-z0-9_.-]`, up to 64 characters; prefix it
+     * with your plugin name. Registering a second decorator under the same id
+     * returns false and keeps the first. Decorators run in registration
+     * order, each one receiving what the last returned.
+     *
+     * Read [ChatDecorator] before you write one: it runs once per viewer per
+     * message on the chat thread, which rules out most of the Bukkit API.
+     */
+    @JvmStatic
+    fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean =
+        service().registerChatDecorator(id, decorator)
+
+    /** Removes a decorator registered with [registerChatDecorator]. Unknown ids are ignored. */
+    @JvmStatic
+    fun unregisterChatDecorator(id: String) {
+        service().unregisterChatDecorator(id)
     }
 
     /**
@@ -486,6 +554,51 @@ object VoxenApi {
      */
     @JvmStatic
     fun networkPlayers(): Collection<NetworkPlayer> = service().networkPlayers()
+
+    /**
+     * Sends your own payload to the other servers on the Voxen network, over
+     * whichever transport `integrations.yml` configures. Voxen signs it,
+     * stamps it against replays and retries the connection for you, so an
+     * addon does not need its own Redis.
+     *
+     * [channel] is yours to choose and must be `[a-z0-9_.-]`, up to 64
+     * characters. Prefix it with your plugin name so two addons cannot
+     * collide, for example `myshop.sales`. [payload] is any text you like,
+     * up to 64 KiB; JSON is the obvious choice.
+     *
+     * Pass a network id as [server] to reach one server, or leave it out to
+     * reach all of them. The sending server never hears its own message.
+     *
+     * Returns false when the network is off or unreachable, and when the
+     * channel or payload is refused. True means Voxen accepted it for
+     * delivery, not that it arrived; sending is asynchronous and never
+     * blocks the caller.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun sendNetworkMessage(channel: String, payload: String, server: String? = null): Boolean =
+        service().sendNetworkMessage(channel, payload, server)
+
+    /**
+     * Listens for [sendNetworkMessage] payloads on [channel]. The listener
+     * runs on the server thread, so Bukkit calls are safe.
+     *
+     * One listener per channel; registering a second one for the same
+     * channel returns false and keeps the first. Returns false for a channel
+     * name that does not match the rules in [sendNetworkMessage].
+     *
+     * Unregister in your plugin's `onDisable`, otherwise a reload leaves a
+     * listener pointing at your old classes.
+     */
+    @JvmStatic
+    fun registerNetworkListener(channel: String, listener: NetworkListener): Boolean =
+        service().registerNetworkListener(channel, listener)
+
+    /** Removes a listener registered with [registerNetworkListener]. Unknown channels are ignored. */
+    @JvmStatic
+    fun unregisterNetworkListener(channel: String) {
+        service().unregisterNetworkListener(channel)
+    }
 
     /** Reloads the Voxen configuration, same as `/voxen reload`. */
     @JvmStatic

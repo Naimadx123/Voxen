@@ -342,3 +342,72 @@ disconnect.
 	which is what tells a switch from a real disconnect. Switch detection also needs
 	`modules/presence.yml` on; without it every arrival is a plain join.
 </Aside>
+
+## NicknameChangeEvent
+
+Fires before a nickname changes, whatever asked for it: the nick command, a moderator
+renaming somebody else or the API. Cancellable, and `nickname` is mutable, which is how you
+force a format rather than refusing outright.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `player` | `Player` | whose nickname is changing |
+| `from` | `String?` | null when they had none |
+| `nickname` | `String?` | mutable, null means it is being cleared |
+
+Length limits and the word filter have already passed by the time this fires, so anything you
+write into `nickname` is stored as given. Voxen says nothing to the player when a handler
+cancels, so tell them yourself.
+
+## PlayerIgnoreEvent
+
+Fires before one player starts or stops ignoring another. Cancelling leaves the list alone.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `source` | `UUID` | whose list is changing |
+| `target` | `UUID` | who is going on or off it |
+| `ignoring` | `boolean` | true when adding, false when removing |
+
+One event covers both directions, because a handler almost always wants to see both. Both
+sides are ids rather than players, since either can be offline. It does not fire when the list
+would not actually change.
+
+## PartyJoinEvent, PartyLeaveEvent and PartyDisbandEvent
+
+Three events covering party membership, so a plugin can follow parties without polling
+`VoxenApi.party`.
+
+| Event | Fires | Cancellable | Carries |
+| --- | --- | --- | --- |
+| `PartyJoinEvent` | before an invite is accepted | yes | `player`, `party` |
+| `PartyLeaveEvent` | after somebody leaves or is kicked | no | `member`, `party`, `reason` |
+| `PartyDisbandEvent` | while a party is being taken apart | no | `party` |
+
+`party` is always a `PartyInfo` snapshot. On join it is the party before the new member, on
+leave it is the party after they went, and on disband it still lists everybody who is about to
+lose it.
+
+`reason` is `LEFT` or `KICKED`. A disband fires one `PartyDisbandEvent` rather than a
+`PartyLeaveEvent` per member, so handle both if you track membership. Creating a party fires
+nothing, because the leader is a member from the moment it exists.
+
+## MailSendEvent
+
+Fires before a piece of mail is stored, from the mail command and from `VoxenApi.sendMail`
+alike. Cancelling drops it silently and the recipient never learns it existed.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `sender` | `UUID` | who it is from |
+| `senderName` | `String` | the name shown in the mailbox |
+| `recipient` | `UUID` | who it is for |
+| `content` | `String` | mutable |
+
+`content` has already been through the word filter on the command path. The mailbox limit is
+checked after this fires, so a full mailbox still refuses a piece a handler let through.
+
+<Aside type="caution" title="Not always on the server thread">
+	The API path runs off the server thread, so this event does too. Check
+	`isAsynchronous()` before you touch the Bukkit API from a handler.
+</Aside>

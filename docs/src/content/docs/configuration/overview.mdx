@@ -28,25 +28,43 @@ touch more than one at a time.
 
 ## What is on out of the box
 
-A fresh install runs the chat and nothing else. Channels, formats, tags, the word and link
-filters, mutes, `/msg`, mentions, emotes and the staff tooling are all live from the first
-start, because that is what you installed a chat plugin for.
+A fresh install is a chat formatter and almost nothing else. Four things are live from the
+first start:
 
-Everything that is a system of its own starts off:
+- the `global` channel with its `format`, and the MiniMessage tag permissions that decide
+  what players may type into it
+- `chat-delivery: player`, so messages stay signed and vanilla chat reporting keeps working
+- the `[x]` delete button in front of every message for staff with `voxen.mod.delete`
+- the update checker, which logs once on startup when a newer release is out
 
-| Module | Turn it on with |
-| --- | --- |
-| `modules/reports.yml` | `enabled: true`, then `/report` appears after a restart |
-| `modules/helpop.yml` | `enabled: true`, then `/helpop` appears after a restart |
-| `modules/mail.yml` | `enabled: true`, then `/mail` appears after a restart |
-| `modules/party.yml` | `enabled: true` plus `channels/party.yml` |
-| `modules/system-messages.yml` | `enabled: true`, then Voxen writes join and quit lines |
-| `modules/web.yml` | `enabled: true` and an account |
-| `modules/ai-moderation.yml` | `enabled: true` and an API key |
+Everything else starts off, including the parts a chat plugin is usually expected to bring.
+Turn on what you want:
 
-Most servers already have mail and parties from another plugin, and a server with no staff to
-work a queue does not need reports or tickets. Leaving them off keeps the commands, the
-database tables and the config surface out of your way until you ask for them.
+| Feature | Where | Turn it on with |
+| --- | --- | --- |
+| quick prefixes like `!hello` | `config.yml` | `quick-chat: true` |
+| `<item>` and armour tags | `config.yml` | `item-share.enabled: true` |
+| `/nick` | `config.yml` | `nicknames.enabled: true` |
+| `/msg`, `/r`, social spy | `modules/private-messages.yml` | `enabled: true` |
+| `@name` mentions | `modules/mentions.yml` | `enabled: true` |
+| `:heart:` emotes | `modules/emotes.yml` | `enabled: true` |
+| word filter, link filter, anti-flood, anti-repeat, slowmode | `modules/moderation.yml` | `enabled: true` under each one |
+| `/voxen inspect`, warnings, notes, join alerts, the wrench button | `modules/moderator-tools.yml` | the switch under each one |
+| `staff`, `world` and `server` channels | `channels/*.yml` | `enabled: true` |
+| `local` and `party` channels | `channels/*.yml` | `enabled: true` |
+| `modules/reports.yml` | | `enabled: true`, then `/report` appears after a restart |
+| `modules/helpop.yml` | | `enabled: true`, then `/helpop` appears after a restart |
+| `modules/mail.yml` | | `enabled: true`, then `/mail` appears after a restart |
+| `modules/party.yml` | | `enabled: true` plus `channels/party.yml` |
+| `modules/system-messages.yml` | | `enabled: true`, then Voxen writes join and quit lines |
+| `modules/web.yml` | | `enabled: true` and an account |
+| `modules/ai-moderation.yml` | | `enabled: true` and an endpoint |
+
+The reasoning is the same for every row: most servers already have some of this from another
+plugin, and nobody should have to discover a feature by finding it fighting something they
+installed on purpose. Leaving it all off keeps the commands, the database tables and the
+config surface out of your way until you ask for them. Every switch takes effect with
+`/voxen reload`, except the ones that register a command, which need a restart.
 
 <Aside type="note" title="Updating never flips a switch">
 	`enabled` is only written when the file is created. An update adds new keys to the files
