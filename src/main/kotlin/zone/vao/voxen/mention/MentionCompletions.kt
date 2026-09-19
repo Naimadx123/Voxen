@@ -29,6 +29,7 @@ class MentionCompletions(
 
     @EventHandler(priority = EventPriority.MONITOR)
     fun onQuit(event: PlayerQuitEvent) {
+        if (!mentions().enabled) return
         val tag = listOf(tag(event.player))
         for (player in server.onlinePlayers) {
             if (player.uniqueId != event.player.uniqueId) player.removeCustomChatCompletions(tag)
