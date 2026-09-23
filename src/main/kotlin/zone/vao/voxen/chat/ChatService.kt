@@ -161,19 +161,23 @@ class ChatService(
             return null
         }
 
-        val maxLength = config().moderation.maxLength
+        val moderation = config().moderation
+        val maxLength = moderation.maxLength
         if (maxLength > 0 && rawContent.length > maxLength) {
             messages.send(player, "message-too-long", Placeholder.unparsed("max", maxLength.toString()))
             return null
         }
 
+        val channelCooldown = maxOf(channel.cooldownMillis, slowmodeFor(channel))
+        val cooldownOff = moderation.cooldownMillis <= 0 && channelCooldown <= 0
+        val spamOff = !moderation.repeatEnabled && !moderation.floodEnabled
         when (val result = spamGuard.check(
             uuid = player.uniqueId,
             channelId = channel.id,
-            channelCooldownMillis = maxOf(channel.cooldownMillis, slowmodeFor(channel)),
+            channelCooldownMillis = channelCooldown,
             content = rawContent,
-            bypassCooldown = player.hasPermission(BYPASS_COOLDOWN),
-            bypassRepeat = player.hasPermission(BYPASS_SPAM),
+            bypassCooldown = cooldownOff || player.hasPermission(BYPASS_COOLDOWN),
+            bypassRepeat = spamOff || player.hasPermission(BYPASS_SPAM),
         )) {
             is SpamGuard.Result.Cooldown -> {
                 messages.send(player, "chat-cooldown", Placeholder.unparsed("remaining", Durations.humanize(result.remainingMillis)))
@@ -197,9 +201,9 @@ class ChatService(
         val content = if (hooks.papi != null) applyPapi(player, rawContent) else rawContent
         return Snapshot(
             content,
-            player.hasPermission(BYPASS_LINKS),
-            player.hasPermission(BYPASS_FILTER),
-            player.hasPermission(GLYPHS),
+            !moderation.linksEnabled || player.hasPermission(BYPASS_LINKS),
+            !moderation.filterEnabled || player.hasPermission(BYPASS_FILTER),
+            !moderation.glyphsEnabled || player.hasPermission(GLYPHS),
         )
     }
 
@@ -270,12 +274,17 @@ class ChatService(
         var content = emotes.apply(filtered, player::hasPermission)
         var uncensored = censored?.let { emotes.apply(it, player::hasPermission) }
         val recipients = channels.recipients(player, channel)
-        val event = ChatMessageSendEvent(player, channel.id, content, recipients)
-        server.pluginManager.callEvent(event)
-        if (event.isCancelled) return null
-        if (event.content != content) uncensored = null
-        content = event.content
-        val finalRecipients = event.recipients.filter { it.isOnline }
+        val finalRecipients: List<Player>
+        if (ChatMessageSendEvent.getHandlerList().registeredListeners.isEmpty()) {
+            finalRecipients = recipients.filter { it.isOnline }
+        } else {
+            val event = ChatMessageSendEvent(player, channel.id, content, recipients)
+            server.pluginManager.callEvent(event)
+            if (event.isCancelled) return null
+            if (event.content != content) uncensored = null
+            content = event.content
+            finalRecipients = event.recipients.filter { it.isOnline }
+        }
 
         val extraResolvers = itemResolvers(player, channel, content) +
             replacementResolvers(player, content) +
@@ -382,9 +391,11 @@ class ChatService(
             if (out.channel.emptyWarning && out.recipients.none { it.uniqueId != out.player.uniqueId }) {
                 config().messages.send(out.player, "channel-empty", Placeholder.parsed("channel", out.channel.displayName))
             }
-            server.pluginManager.callEvent(
-                ChatMessageDeliveredEvent(out.player, out.channel.id, out.content, out.formatted, out.recipients),
-            )
+            if (ChatMessageDeliveredEvent.getHandlerList().registeredListeners.isNotEmpty()) {
+                server.pluginManager.callEvent(
+                    ChatMessageDeliveredEvent(out.player, out.channel.id, out.content, out.formatted, out.recipients),
+                )
+            }
             if (out.channel.discord) {
                 val custom = out.channel.discordFormat
                     ?.let { plain.serialize(formats.render(it, out.player, out.channel, out.message)) }

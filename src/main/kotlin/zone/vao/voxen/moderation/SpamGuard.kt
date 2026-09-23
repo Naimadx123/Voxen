@@ -36,6 +36,9 @@ class SpamGuard(
         bypassFlood: Boolean = bypassRepeat,
     ): Result {
         val config = moderation()
+        if (config.cooldownMillis <= 0 && channelCooldownMillis <= 0 && !config.repeatEnabled && !config.floodEnabled) {
+            return Result.Ok
+        }
         val now = clock()
         val state = states[uuid]
 
