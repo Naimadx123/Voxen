@@ -47,8 +47,8 @@ class FormatService(
             suffix,
             hooks.meta.group(player),
             now,
-            metaComponent(prefix),
-            metaComponent(suffix),
+            metaComponent(prefix, player),
+            metaComponent(suffix, player),
         )
         metaCache[player.uniqueId] = fresh
         return fresh
@@ -144,13 +144,13 @@ class FormatService(
         )
     }
 
-    fun metaComponent(raw: String): Component {
+    private fun metaComponent(raw: String, player: Player): Component {
         if (raw.isBlank()) return Component.empty()
-        return if (raw.contains('<')) {
-            runCatching { mm.deserialize(raw) }.getOrElse { legacy.deserialize(raw.replace('§', '&')) }
-        } else {
-            legacy.deserialize(raw.replace('§', '&'))
-        }
+        val expanded = hooks.applyPlaceholders(player, raw)
+        if (!expanded.contains('<')) return legacy.deserialize(expanded.replace('§', '&'))
+        val resolvers = hooks.miniPlaceholders?.resolvers(player) ?: TagResolver.empty()
+        return runCatching { mm.deserialize(expanded, resolvers) }
+            .getOrElse { legacy.deserialize(expanded.replace('§', '&')) }
     }
 
     private fun base(player: Player, meta: Meta): List<TagResolver> {
