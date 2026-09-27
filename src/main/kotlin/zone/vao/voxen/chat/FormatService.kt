@@ -1,7 +1,6 @@
 package zone.vao.voxen.chat
 
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
@@ -11,6 +10,7 @@ import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.hook.HookManager
 import zone.vao.voxen.util.Components
+import zone.vao.voxen.util.MessageFormats
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -20,7 +20,7 @@ class FormatService(
     private val nickname: (Player) -> Component? = { null },
 ) {
 
-    private val mm = MiniMessage.miniMessage()
+    private val mm = MessageFormats.miniMessage
     private val legacy = LegacyComponentSerializer.legacyAmpersand()
     private val customPlaceholders = ConcurrentHashMap<String, FormatPlaceholder>()
 

@@ -2,16 +2,16 @@ package zone.vao.voxen.config
 
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import org.bukkit.entity.Player
+import zone.vao.voxen.util.MessageFormats
 
 class Messages(
     private val defaultLanguage: String,
     private val locales: Map<String, LocaleBundle>,
     private val languageOverride: (Player) -> String?,
 ) {
-    private val mm = MiniMessage.miniMessage()
+    private val mm = MessageFormats.miniMessage
 
     data class LocaleBundle(
         val prefix: String,

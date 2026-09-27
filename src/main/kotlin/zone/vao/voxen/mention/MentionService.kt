@@ -2,11 +2,11 @@ package zone.vao.voxen.mention
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.TextReplacementConfig
-import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
 import org.bukkit.entity.Player
 import zone.vao.voxen.config.MentionsConfig
 import zone.vao.voxen.storage.PlayerDataService
+import zone.vao.voxen.util.MessageFormats
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
@@ -16,7 +16,7 @@ class MentionService(
     private val playerData: PlayerDataService,
 ) {
 
-    private val mm = MiniMessage.miniMessage()
+    private val mm = MessageFormats.miniMessage
     private val lastMention = ConcurrentHashMap<UUID, Long>()
 
     fun mentionedNames(content: String): Set<String> =
