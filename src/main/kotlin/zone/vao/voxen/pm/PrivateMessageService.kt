@@ -18,6 +18,7 @@ import zone.vao.voxen.storage.ChatLogEntry
 import zone.vao.voxen.storage.PlayerDataService
 import zone.vao.voxen.tags.ContentRenderer
 import zone.vao.voxen.util.Durations
+import zone.vao.voxen.util.MessageFormats
 import zone.vao.voxen.util.Threads
 import java.util.UUID
 
@@ -43,6 +44,7 @@ class PrivateMessageService(
     var routeLookup: ((String) -> String?)? = null
 
     private val mm = MiniMessage.miniMessage()
+    private val formats = MessageFormats.miniMessage
     private val pending = PendingMessages()
 
     private fun setConversation(playerUuid: UUID, otherUuid: UUID, otherName: String) {
@@ -86,8 +88,8 @@ class PrivateMessageService(
             Placeholder.unparsed("player", sender.name),
             Placeholder.unparsed("target", target.name),
         )
-        sender.sendMessage(mm.deserialize(settings.senderFormat, *resolvers))
-        val received = mm.deserialize(settings.receiverFormat, *resolvers)
+        sender.sendMessage(formats.deserialize(settings.senderFormat, *resolvers))
+        val received = formats.deserialize(settings.receiverFormat, *resolvers)
         val sound = settings.sound.sound
         threads.forPlayer(target) {
             target.sendMessage(received)
@@ -329,7 +331,7 @@ class PrivateMessageService(
             Placeholder.unparsed("player", senderName),
             Placeholder.unparsed("target", target.name),
         )
-        val received = mm.deserialize(settings.receiverFormat, *resolvers)
+        val received = formats.deserialize(settings.receiverFormat, *resolvers)
         val sound = settings.sound.sound
         threads.forPlayer(target) {
             target.sendMessage(received)
@@ -364,7 +366,7 @@ class PrivateMessageService(
             Placeholder.unparsed("player", sender.name),
             Placeholder.unparsed("target", targetName),
         )
-        sender.sendMessage(mm.deserialize(settings.senderFormat, *resolvers))
+        sender.sendMessage(formats.deserialize(settings.senderFormat, *resolvers))
         runCatching { UUID.fromString(ackMessage.targetUuid) }.getOrNull()?.let {
             setConversation(sender.uniqueId, it, targetName)
         }
@@ -430,7 +432,7 @@ class PrivateMessageService(
             list += spy
         }
         val spies = found ?: return
-        val spyMessage = mm.deserialize(settings.spyFormat, *resolvers)
+        val spyMessage = formats.deserialize(settings.spyFormat, *resolvers)
         for (spy in spies) threads.forPlayer(spy) { spy.sendMessage(spyMessage) }
         onSpied()
     }
