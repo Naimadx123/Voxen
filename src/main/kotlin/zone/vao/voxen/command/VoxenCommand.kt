@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.context.CommandContext
+import com.mojang.brigadier.tree.CommandNode
 import com.mojang.brigadier.tree.LiteralCommandNode
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
@@ -324,6 +325,13 @@ object VoxenCommand {
                     }
             )
             .build()
+
+    fun buildAlias(alias: String, command: CommandNode<CommandSourceStack>): LiteralCommandNode<CommandSourceStack> {
+        val builder = Commands.literal(alias).requires(command.requirement)
+        command.command?.let { builder.executes(it) }
+        for (child in command.children) builder.then(child)
+        return builder.build()
+    }
 
     private fun ticketsNode(plugin: Voxen): LiteralArgumentBuilder<CommandSourceStack> {
         val index = Commands.argument("index", IntegerArgumentType.integer(1))

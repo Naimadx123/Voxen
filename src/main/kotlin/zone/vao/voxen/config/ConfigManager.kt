@@ -884,6 +884,9 @@ class ConfigManager(
         mail = names(section, "mail", listOf("mail")),
         helpop = names(section, "helpop", listOf("helpop")),
         report = names(section, "report", listOf("report")),
+        voxen = section?.getConfigurationSection("voxen")?.let { aliases ->
+            aliases.getKeys(false).associateWith { names(aliases, it, emptyList()) }
+        }.orEmpty(),
     )
 
     private fun names(section: ConfigurationSection?, key: String, defaults: List<String>): List<String> {

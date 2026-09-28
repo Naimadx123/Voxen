@@ -909,7 +909,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val registrar = event.registrar()
             val reserved = mutableSetOf("voxen")
-            registrar.register(VoxenCommand.build(this), "Voxen chat administration", listOf())
+            val voxen = VoxenCommand.build(this)
+            registrar.register(voxen, "Voxen chat administration", listOf())
 
             fun register(names: List<String>, description: String, build: (String) -> LiteralCommandNode<CommandSourceStack>) {
                 val primary = names.firstOrNull()?.lowercase() ?: return
@@ -960,6 +961,12 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                         "Talk in the '${channel.id}' channel",
                     )
                 }
+            }
+
+            for ((name, aliases) in commands.voxen) {
+                if (name == "reload") continue
+                val command = voxen.getChild(name) ?: continue
+                register(aliases, "Alias for /voxen $name") { VoxenCommand.buildAlias(it, command) }
             }
         }
     }
