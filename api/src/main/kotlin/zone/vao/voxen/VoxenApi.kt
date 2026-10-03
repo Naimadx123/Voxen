@@ -148,6 +148,23 @@ object VoxenApi {
     fun sendPrivateMessage(sender: Player, target: Player, content: String): Boolean =
         service().sendPrivateMessage(sender, target, content)
 
+    /**
+     * Returns the player's selected Voxen language, or the client's locale
+     * when the player uses `auto` or has not selected one. Codes retain the
+     * selected value or Locale spelling, such as `pl_PL` and `en_US`.
+     *
+     * This is the player's preference, not the language bundle Voxen falls
+     * back to when it lacks a translation. A client language is returned even
+     * without a matching Voxen language file. An empty client locale falls
+     * back to `default-language` from config.yml.
+     *
+     * Runs on the player's owning thread; calls from other threads wait for
+     * the scheduler hop. Read it on that thread and cache it for hot callbacks
+     * such as chat decorators.
+     */
+    @JvmStatic
+    fun language(player: Player): String = service().language(player)
+
     /** Returns the player's raw nickname (may contain MiniMessage tags), or null when unset. */
     @JvmStatic
     fun nickname(player: Player): String? = service().nickname(player)

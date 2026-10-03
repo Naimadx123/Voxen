@@ -28,6 +28,7 @@ interface VoxenService {
     fun isMuted(uuid: UUID, channelId: String): Boolean
     fun isIgnoring(source: UUID, target: UUID): Boolean
     fun sendPrivateMessage(sender: Player, target: Player, content: String): Boolean
+    fun language(player: Player): String
     fun nickname(player: Player): String?
     fun setNickname(player: Player, nickname: String?): Boolean
     fun party(member: UUID): PartyInfo?

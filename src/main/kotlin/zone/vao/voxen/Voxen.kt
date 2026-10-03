@@ -482,6 +482,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
     override fun sendPrivateMessage(sender: Player, target: Player, content: String): Boolean =
         threads.awaitPlayer(sender) { privateMessageService.send(sender, target, content) } ?: false
 
+    override fun language(player: Player): String =
+        threads.awaitPlayer(player) { messages().language(player) } ?: configManager.config.defaultLanguage
+
     override fun nickname(player: Player): String? = playerDataService.get(player.uniqueId).nickname
 
     override fun setNickname(player: Player, nickname: String?): Boolean {

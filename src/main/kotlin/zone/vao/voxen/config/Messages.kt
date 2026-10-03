@@ -23,6 +23,10 @@ class Messages(
     fun hasLanguage(language: String): Boolean =
         locales.keys.any { it.equals(language, ignoreCase = true) }
 
+    fun language(player: Player): String =
+        languageOverride(player)?.takeIf { it.isNotBlank() }
+            ?: player.locale().toString().ifBlank { defaultLanguage }
+
     fun component(audience: Audience, key: String, vararg resolvers: TagResolver): Component {
         val bundle = bundleFor(audience)
         return mm.deserialize(bundle.prefix + template(bundle, key), *resolvers)
@@ -44,8 +48,7 @@ class Messages(
 
     private fun bundleFor(audience: Audience): LocaleBundle {
         if (audience !is Player) return fallback()
-        val chosen = languageOverride(audience) ?: audience.locale().toString()
-        return lookup(chosen) ?: fallback()
+        return lookup(language(audience)) ?: fallback()
     }
 
     private fun lookup(language: String): LocaleBundle? {

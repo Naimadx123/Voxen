@@ -175,6 +175,25 @@ PartyInfo party = VoxenApi.party(uuid);
 	deciding who may do it. Config length limits and the word filter still apply.
 </Aside>
 
+### Read a player's language
+
+```java
+String language = VoxenApi.language(player);
+```
+
+Returns the language selected with Voxen's language command. When the player selected
+`auto` or has never chosen a language, it returns their Minecraft client's locale instead.
+If the client locale is empty, it returns `default-language` from `config.yml`.
+
+This exposes the player's preference even when Voxen has no message file for that locale;
+it does not replace it with an available language bundle. For example, a French client can
+return `fr_FR` even if this server only has English and Polish messages. Selected codes
+retain their spelling; client codes use `Locale.toString()`, such as `pl_PL`.
+
+The same method is available on `VoxenService`. It reads the client locale on the player's
+owning thread. A call from another thread waits for the scheduler hop, so translation
+addons should read it on the player's scheduler and cache it for chat decorators.
+
 ### Leave mail for somebody who is not around
 
 A private message needs both players online. Mail waits instead, so an addon can tell
