@@ -217,15 +217,17 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         )
         addonNetwork = AddonNetwork(brokerService, { configManager.config.network.serverId }, logger)
         brokerService.onAddonMessage = { message -> threads.main { addonNetwork.deliver(message) } }
-        chatService.remotePublisher = { channel, player, component, content ->
+        chatService.remotePublisher = { out, component, content ->
+            val player = out.player
             brokerService.publish(
                 BrokerMessage(
-                    id = UUID.randomUUID().toString(),
+                    id = out.id.toString(),
                     server = configManager.config.network.serverId,
-                    channel = channel.id,
+                    channel = out.channel.id,
                     sender = player.name,
                     component = componentCodec.serialize(component),
                     content = content.ifEmpty { null },
+                    chatContent = out.networkText,
                     mm = miniMessageCodec.serialize(component),
                     senderUuid = player.uniqueId.toString(),
                     flags = buildList {
@@ -291,19 +293,19 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         }
         brokerService.onChatMessage = { message ->
             val channel = message.channel?.let { channelService.channel(it) }
+            val body = message.chatContent ?: message.content
             val component = when {
-                channel?.externalFormat != null && message.sender != null && message.content != null ->
-                    formatService.renderExternal(channel, message.sender, message.server.orEmpty(), message.content)
+                channel?.externalFormat != null && message.sender != null && body != null ->
+                    formatService.renderExternal(channel, message.sender, message.server.orEmpty(), body)
 
                 else -> message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
                     ?: runCatching { componentCodec.deserialize(message.component!!) }.getOrNull()
             }
             if (component != null && message.channel != null) {
                 chatService.deliverRemote(
-                    message.channel,
+                    message.chatContext(),
                     component,
                     message.content,
-                    senderUuid = runCatching { UUID.fromString(message.senderUuid) }.getOrNull(),
                     bypassIgnore = "ignore" in message.flags.orEmpty().split(','),
                     bypassChatToggle = "chattoggle" in message.flags.orEmpty().split(','),
                 )
@@ -613,6 +615,9 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
         onStorage { storage -> storage.clearMail(target) }
 
     override fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean =
+        chatService.decorators.register(id, decorator)
+
+    override fun registerChatDecorator(id: String, decorator: ChatMessageDecorator): Boolean =
         chatService.decorators.register(id, decorator)
 
     override fun unregisterChatDecorator(id: String) {

@@ -301,6 +301,17 @@ object VoxenApi {
     fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean =
         service().registerChatDecorator(id, decorator)
 
+    /**
+     * Registers a per-viewer decorator for local and incoming network chat.
+     * [ChatMessageContext] supplies the message body separately from its format,
+     * the shared message id, and author metadata even without a local Player.
+     * Shares ids and registration order with the [ChatDecorator] overload.
+     * See [ChatMessageDecorator] for threading and legacy-network limitations.
+     */
+    @JvmStatic
+    fun registerChatDecorator(id: String, decorator: ChatMessageDecorator): Boolean =
+        service().registerChatDecorator(id, decorator)
+
     /** Removes a decorator registered with [registerChatDecorator]. Unknown ids are ignored. */
     @JvmStatic
     fun unregisterChatDecorator(id: String) {

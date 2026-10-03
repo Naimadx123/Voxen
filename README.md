@@ -85,9 +85,12 @@ Maven:
 </dependencies>
 ```
 
-`VoxenApi.isAvailable()` tells you when the service is up. Custom recipient providers, format
-placeholders, the two chat events and the full `VoxenService` surface are documented under the
-API section of the docs site.
+`VoxenApi.isAvailable()` tells you when the service is up. Addons can decorate each player's
+copy of local and incoming cross-server chat with `ChatMessageDecorator`, whose context
+includes the plain message body, shared message UUID and author/server metadata. The original
+`ChatDecorator` callback remains available for local chat, and `ChatMessageDeliveredEvent`
+exposes the same message UUID. Custom recipient providers, format placeholders, chat events
+and the full `VoxenService` surface are documented under the API section of the docs site.
 
 ## License
 

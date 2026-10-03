@@ -6,6 +6,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Server
 import org.bukkit.entity.Player
+import zone.vao.voxen.ChatMessageContext
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
 import zone.vao.voxen.config.TagsConfig
@@ -44,7 +45,7 @@ class ChatService(
 ) {
 
     @Volatile
-    var remotePublisher: ((Channel, Player, Component, String) -> Unit)? = null
+    var remotePublisher: ((Outgoing, Component, String) -> Unit)? = null
 
     @Volatile
     var messageButton: ((Outgoing, Player) -> Component?)? = null
@@ -67,6 +68,9 @@ class ChatService(
         val mentionedNames: Set<String>,
         val mentionsAllowed: Boolean,
         val networkFormatted: Component?,
+        val text: String,
+        val unfilteredText: String?,
+        val networkText: String,
         val id: UUID = UUID.randomUUID(),
     )
 
@@ -322,18 +326,15 @@ class ChatService(
         val bindings = collected.bindings
         val message = renderContent(collected, collected.content, null)
         val formatted = formats.render(bindings, collected.format, channel, message)
-        val unfiltered = collected.uncensored?.let {
-            formats.render(bindings, collected.format, channel, renderContent(collected, it, null))
+        val unfilteredMessage = collected.uncensored?.let { renderContent(collected, it, null) }
+        val unfiltered = unfilteredMessage?.let {
+            formats.render(bindings, collected.format, channel, it)
         }
-        val networkFormatted = if (collected.stripForNetwork) {
-            formats.render(
-                bindings,
-                collected.format,
-                channel,
-                renderContent(collected, collected.content, TagsConfig.UnauthorizedMode.STRIP),
-            )
-        } else {
-            null
+        val networkMessage = if (collected.stripForNetwork) {
+            renderContent(collected, collected.content, TagsConfig.UnauthorizedMode.STRIP)
+        } else null
+        val networkFormatted = networkMessage?.let {
+            formats.render(bindings, collected.format, channel, it)
         }
         val console = formats.render(bindings, collected.consoleFormat, channel, message)
 
@@ -349,6 +350,9 @@ class ChatService(
             collected.mentionedNames,
             collected.mentionsAllowed,
             networkFormatted,
+            plain.serialize(message),
+            unfilteredMessage?.let(plain::serialize),
+            plain.serialize(networkMessage ?: message),
         )
         onMessage?.invoke(out)
         return out
@@ -367,9 +371,19 @@ class ChatService(
     )
 
     fun viewFor(out: Outgoing, recipient: Player): Component {
-        var delivered = if (out.unfiltered != null && seesUnfiltered(recipient)) out.unfiltered else out.formatted
+        val unfiltered = out.unfiltered != null && seesUnfiltered(recipient)
+        var delivered = if (unfiltered) out.unfiltered else out.formatted
         if (isMentioned(out, recipient)) delivered = mentions.highlight(delivered, recipient)
-        delivered = decorators.apply(out.player, recipient, out.channel.id, out.id, delivered)
+        val context = ChatMessageContext(
+            messageId = out.id,
+            senderId = out.player.uniqueId,
+            senderName = out.player.name,
+            serverId = config().network.serverId,
+            channelId = out.channel.id,
+            content = if (unfiltered) out.unfilteredText else out.text,
+            isRemote = false,
+        )
+        delivered = decorators.apply(context, out.player, recipient, delivered)
         val button = messageButton?.invoke(out, recipient) ?: return delivered
         return Component.empty().append(button).append(delivered)
     }
@@ -393,7 +407,7 @@ class ChatService(
             }
             if (ChatMessageDeliveredEvent.getHandlerList().registeredListeners.isNotEmpty()) {
                 server.pluginManager.callEvent(
-                    ChatMessageDeliveredEvent(out.player, out.channel.id, out.content, out.formatted, out.recipients),
+                    ChatMessageDeliveredEvent(out.player, out.channel.id, out.content, out.formatted, out.recipients, out.id),
                 )
             }
             if (out.channel.discord) {
@@ -418,7 +432,7 @@ class ChatService(
 
         if (out.channel.crossServer) {
             val mentionContent = if (out.mentionsAllowed) plain.serialize(out.message) else ""
-            remotePublisher?.invoke(out.channel, out.player, out.networkFormatted ?: out.formatted, mentionContent)
+            remotePublisher?.invoke(out, out.networkFormatted ?: out.formatted, mentionContent)
         }
     }
 
@@ -443,21 +457,21 @@ class ChatService(
     }
 
     fun deliverRemote(
-        channelId: String,
+        context: ChatMessageContext,
         message: Component,
-        content: String? = null,
-        senderUuid: UUID? = null,
+        mentionContent: String? = null,
         bypassIgnore: Boolean = false,
         bypassChatToggle: Boolean = false,
     ) {
-        val channel = channels.channel(channelId) ?: return
+        val channel = channels.channel(context.channelId) ?: return
         if (!channel.enabled || !channel.crossServer) return
-        val mentioned = if (!content.isNullOrEmpty() && config().mentions.enabled) mentions.mentionedNames(content) else emptySet()
+        val mentioned = if (!mentionContent.isNullOrEmpty() && config().mentions.enabled) mentions.mentionedNames(mentionContent) else emptySet()
         threads.main {
-            for (reader in channels.readers(channel, senderUuid, bypassIgnore, bypassChatToggle)) {
+            for (reader in channels.readers(channel, context.senderId, bypassIgnore, bypassChatToggle)) {
                 var delivered = message
                 val notify = reader.name.lowercase() in mentioned && mentions.accepts(reader)
                 if (notify) delivered = mentions.highlight(delivered, reader)
+                delivered = decorators.apply(context, null, reader, delivered)
                 threads.forPlayer(reader) {
                     reader.sendMessage(delivered)
                     if (notify) mentions.notify(reader)

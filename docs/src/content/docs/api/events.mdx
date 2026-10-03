@@ -39,7 +39,8 @@ and statistics.
 | --- | --- | --- |
 | `player` | `Player` | the sender |
 | `channelId` | `String` | channel it went to |
-| `content` | `String` | the plain text |
+| `messageId` | `UUID` | matches the decorator context, chat log and outgoing network message |
+| `content` | `String` | message text after filtering and send-event changes, before rendering tags |
 | `message` | `Component` | the fully rendered message |
 | `recipients` | `Set<Player>` | who actually received it |
 
@@ -65,8 +66,10 @@ public void onDelivered(ChatMessageDeliveredEvent event) {
 <Aside type="note">
 	Both events fire only on the server the message was typed on, and `recipients` only ever
 	contains local players. Messages arriving from elsewhere on the network are already
-	rendered and do not go through the pipeline again, so a network-wide listener sees each
-	message exactly once.
+	rendered and do not fire these events again, so a network-wide listener sees each
+	message exactly once. To add buttons to incoming network chat, use the
+	three-argument `ChatMessageDecorator` overload of `registerChatDecorator`; its context
+	includes the body, message id and remote author metadata.
 </Aside>
 
 ## ChannelSwitchEvent

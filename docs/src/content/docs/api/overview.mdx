@@ -282,8 +282,51 @@ decorator that throws is logged and skipped, and the ones after it still run.
 	read it, so keep it quick and cache on your side.
 </Aside>
 
-Only messages sent on this server go through decorators. A line arriving from another server
-over the network has no local sender and is passed through untouched.
+The five-argument `ChatDecorator` callback above only receives local messages, because it
+requires a local sender `Player`. The three-argument `ChatMessageDecorator` overload receives
+both local messages and chat arriving from another server:
+
+```java
+VoxenApi.registerChatDecorator("translator.button", (context, viewer, message) -> {
+    if (context.getContent() == null) return null;
+    // Store the body and record this viewer as an allowed reader in your bounded cache.
+    // Do not contact the translation service inside the decorator.
+    return message.append(Component.text(" [Translate]")
+        .hoverEvent(Component.text("Translate into your preferred language"))
+        .clickEvent(ClickEvent.runCommand("/vtranslate " + context.getMessageId())));
+});
+```
+
+`context` is a `ChatMessageContext`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `messageId` | `UUID` | shared by every viewer and current servers across the network |
+| `senderId` | `UUID?` | author UUID, possibly absent in older network messages |
+| `senderName` | `String?` | author name, possibly absent in older network messages |
+| `serverId` | `String?` | source network server id, possibly absent in older network messages |
+| `channelId` | `String` | channel carrying the message |
+| `content` | `String?` | rendered body as plain text, without the name, prefix or buttons |
+| `isRemote` | `boolean` | true for incoming network chat; Java accessor is `isRemote()` |
+
+The plain body follows the viewer's filter setting for local chat. If you cache it, account
+for viewer-specific content instead of overwriting one value per message id with an
+uncensored version. New servers send the filtered body separately even when mentions are
+disabled. An older server may provide no body; in that case `content` is `null` and the addon
+can omit its translation button. An empty string means an actual empty body.
+
+Both overloads share ids, registration order and `unregisterChatDecorator(id)`. The legacy
+callback is skipped for incoming network chat; context callbacks still run. On the receiving
+server they run after channel, ignore and chat-toggle checks and mention highlighting.
+Viewer-specific decorations are not sent to other servers or the console.
+
+<Aside type="caution" title="Keep translation out of the callback">
+	Context decorators may run on the chat thread or global scheduler, neither of which
+	guarantees ownership of the viewer on Folia. Read cached preferences, keep the callback
+	fast and thread safe, and schedule world or inventory operations on the viewer's own
+	scheduler. The addon's command should check that the caller received the message,
+	translate asynchronously, and deliver the result on the caller's scheduler.
+</Aside>
 
 ### Register your own channel
 

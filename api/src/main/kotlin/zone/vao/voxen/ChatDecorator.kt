@@ -21,7 +21,8 @@ import java.util.UUID
  * who can read it.
  *
  * Only fires for messages sent on this server. A line arriving from another
- * server over the network has no local sender and is passed through.
+ * server over the network has no local sender and skips this callback.
+ * Use [ChatMessageDecorator] to receive the body and decorate network chat.
  */
 fun interface ChatDecorator {
     fun decorate(

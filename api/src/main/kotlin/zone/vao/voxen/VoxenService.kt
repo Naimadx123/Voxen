@@ -46,6 +46,7 @@ interface VoxenService {
     fun registerPlaceholder(name: String, placeholder: FormatPlaceholder): Boolean
     fun unregisterPlaceholder(name: String)
     fun registerChatDecorator(id: String, decorator: ChatDecorator): Boolean
+    fun registerChatDecorator(id: String, decorator: ChatMessageDecorator): Boolean
     fun unregisterChatDecorator(id: String)
     fun registerChannel(id: String, displayName: String, format: String, recipients: RecipientProvider?): Boolean
     fun registerChannel(channel: ChannelRegistration): Boolean
