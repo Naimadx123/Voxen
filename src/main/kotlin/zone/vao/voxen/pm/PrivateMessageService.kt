@@ -106,7 +106,7 @@ class PrivateMessageService(
             }
         }
         broadcastSpy(sender.name, sender.uniqueId, target.name, target.uniqueId, message)
-        logHistory(sender, text)
+        logHistory(sender, requested)
         return true
     }
 
@@ -157,7 +157,7 @@ class PrivateMessageService(
                 config().messages.send(it, "player-not-found", Placeholder.unparsed("player", timedOut.targetName))
             }
         }
-        logHistory(sender, text)
+        logHistory(sender, requested)
         return true
     }
 

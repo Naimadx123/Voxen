@@ -228,6 +228,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                     component = componentCodec.serialize(component),
                     content = content.ifEmpty { null },
                     chatContent = out.networkText,
+                    consoleComponent = out.unfilteredText?.let { componentCodec.serialize(out.console) },
                     mm = miniMessageCodec.serialize(component),
                     senderUuid = player.uniqueId.toString(),
                     flags = buildList {
@@ -308,6 +309,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                     message.content,
                     bypassIgnore = "ignore" in message.flags.orEmpty().split(','),
                     bypassChatToggle = "chattoggle" in message.flags.orEmpty().split(','),
+                    consoleMessage = message.consoleComponent
+                        ?.let { runCatching { componentCodec.deserialize(it) }.getOrNull() } ?: component,
                 )
             }
         }

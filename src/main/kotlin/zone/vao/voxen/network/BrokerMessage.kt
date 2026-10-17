@@ -22,6 +22,7 @@ data class BrokerMessage(
     val expiresAt: Long? = null,
     val createdAt: Long? = null,
     val chatContent: String? = null,
+    val consoleComponent: String? = null,
 ) {
     /** Keeps legacy mention content separate from the body used by addons. */
     fun chatContext(): ChatMessageContext = ChatMessageContext(

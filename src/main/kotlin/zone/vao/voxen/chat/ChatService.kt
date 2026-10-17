@@ -72,6 +72,7 @@ class ChatService(
         val unfilteredText: String?,
         val networkText: String,
         val id: UUID = UUID.randomUUID(),
+        val historyContent: String = content,
     )
 
     fun chat(player: Player, raw: String): Boolean {
@@ -305,7 +306,7 @@ class ChatService(
             player = player,
             channel = channel,
             content = content,
-            uncensored = uncensored?.takeIf { finalRecipients.any(::seesUnfiltered) },
+            uncensored = uncensored,
             recipients = finalRecipients,
             extraResolvers = extraResolvers,
             format = format,
@@ -336,7 +337,7 @@ class ChatService(
         val networkFormatted = networkMessage?.let {
             formats.render(bindings, collected.format, channel, it)
         }
-        val console = formats.render(bindings, collected.consoleFormat, channel, message)
+        val console = formats.render(bindings, collected.consoleFormat, channel, unfilteredMessage ?: message)
 
         val out = Outgoing(
             player,
@@ -353,6 +354,7 @@ class ChatService(
             plain.serialize(message),
             unfilteredMessage?.let(plain::serialize),
             plain.serialize(networkMessage ?: message),
+            historyContent = collected.uncensored ?: collected.content,
         )
         onMessage?.invoke(out)
         return out
@@ -422,7 +424,7 @@ class ChatService(
                 uuid = out.player.uniqueId,
                 playerName = out.player.name,
                 channel = out.channel.id,
-                content = out.content,
+                content = out.historyContent,
                 server = config().network.serverId,
                 createdAt = System.currentTimeMillis(),
                 id = out.id,
@@ -462,6 +464,7 @@ class ChatService(
         mentionContent: String? = null,
         bypassIgnore: Boolean = false,
         bypassChatToggle: Boolean = false,
+        consoleMessage: Component = message,
     ) {
         val channel = channels.channel(context.channelId) ?: return
         if (!channel.enabled || !channel.crossServer) return
@@ -478,7 +481,7 @@ class ChatService(
                 }
             }
         }
-        server.consoleSender.sendMessage(message)
+        server.consoleSender.sendMessage(consoleMessage)
     }
 
     fun forget(uuid: UUID) {
