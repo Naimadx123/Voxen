@@ -40,6 +40,8 @@ filter:
   enabled: false
   # Whether blocked words are also caught in private messages.
   affect-pm: true
+  # Whether blocked words are also caught in messages coming from Discord.
+  affect-discord: true
   mode: censor
   censor-char: "*"
   words: []
@@ -72,6 +74,8 @@ links:
   enabled: false
   # Whether links are also caught in private messages.
   affect-pm: true
+  # Whether links are also caught in messages coming from Discord.
+  affect-discord: true
   mode: block
   ips: true
   # Also catches addresses written with a comma or apostrophe instead of a dot,
