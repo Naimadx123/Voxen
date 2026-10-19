@@ -104,6 +104,14 @@ class BrokerService(
         }
     }
 
+    /**
+     * Marks [id] as handled, returning false when it already was. Several servers can run
+     * DiscordSRV with the same bot, so each one receives a Discord message on its own and also
+     * gets the other servers' copies over the broker. Whichever copy a server sees first claims
+     * the id and the rest are dropped, so the message shows once per server.
+     */
+    fun claim(id: String): Boolean = markSeen(id)
+
     fun stop() {
         runCatching { broker?.close() }
         broker = null
