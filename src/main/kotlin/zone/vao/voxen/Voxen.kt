@@ -14,6 +14,7 @@ import zone.vao.voxen.channel.ChannelService
 import zone.vao.voxen.chat.ChatDecorators
 import zone.vao.voxen.chat.ChatListener
 import zone.vao.voxen.chat.ChatService
+import zone.vao.voxen.chat.DiscordRelay
 import zone.vao.voxen.chat.FormatService
 import zone.vao.voxen.command.*
 import zone.vao.voxen.config.ConfigManager
@@ -296,7 +297,8 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
             val channel = message.channel?.let { channelService.channel(it) }
             val body = message.chatContent ?: message.content
             val component = when {
-                channel?.externalFormat != null && message.sender != null && body != null ->
+                channel?.externalFormat != null && message.sender != null && body != null &&
+                    DiscordRelay.FLAG !in message.flags.orEmpty().split(',') ->
                     formatService.renderExternal(channel, message.sender, message.server.orEmpty(), body)
 
                 else -> message.mm?.let { runCatching { miniMessageCodec.deserialize(it) }.getOrNull() }
@@ -314,6 +316,18 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                 )
             }
         }
+        hookManager.discord.receiver = DiscordRelay(
+            server,
+            { configManager.config },
+            channelService,
+            muteService,
+            wordFilter,
+            mentionService,
+            chatService.decorators,
+            brokerService,
+            threads,
+            logger,
+        )
         brokerService.start()
 
         mailService = MailService(
