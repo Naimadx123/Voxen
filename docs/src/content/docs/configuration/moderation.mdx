@@ -36,6 +36,7 @@ anti-flood:
 filter:
   enabled: false
   affect-pm: true
+  affect-discord: true
   mode: censor
   censor-char: "*"
   words: []
@@ -50,6 +51,7 @@ filter:
 links:
   enabled: false
   affect-pm: true
+  affect-discord: true
   mode: block
   ips: true
   whitelist:
@@ -99,6 +101,26 @@ switch, `respect-mutes` in `modules/private-messages.yml`.
 With `history.affect-pm` on, private messages land in the same `chat_log` table under the
 channel name `@pm`, so `/voxen history <player>` shows them alongside public messages. Only
 the sender's server writes the row.
+
+## Messages from Discord
+
+Messages that come [from Discord](/integrations/overview/#from-discord) can also go through the
+word and link filters, and each filter has its own switch for them:
+
+| Key | Default | Checks Discord messages for |
+| --- | --- | --- |
+| `filter.affect-discord` | `true` | blocked words and patterns |
+| `links.affect-discord` | `true` | links and IP addresses |
+
+The filter itself still has to be turned on with `filter.enabled` or `links.enabled`. Since
+Discord users have no Minecraft permissions, bypass permissions such as `voxen.bypass.filter`
+never apply to them.
+
+Discord messages are also blocked while the chat is muted with `/voxen mutechat`, while their
+channel is muted with `/voxen mutechannel`, and when the Discord user's linked Minecraft
+account is muted. Whenever Voxen blocks a message, it adds a ❌ reaction to it on Discord, the
+same way DiscordSRV marks the messages it blocks. Discord messages are not saved in the chat
+history.
 
 ## Message length
 

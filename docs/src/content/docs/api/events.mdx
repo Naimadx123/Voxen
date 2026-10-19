@@ -117,6 +117,35 @@ public void onPrivateMessage(PrivateMessageEvent event) {
 Only the sending server fires it, so on a network the listener has to be installed
 everywhere to see every message.
 
+## DiscordMessageReceiveEvent
+
+Fires just before a message written on Discord shows up in a Voxen channel once mutes, 
+word and link filters have let it through. Cancellable, and `content` is mutable.
+
+It only fires for channels set up to [receive Discord messages](/integrations/overview/#from-discord),
+and only for messages coming through DiscordSRV. EssentialsX Discord does not fire it yet.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `channelId` | `String` | the Voxen channel it is going to |
+| `messageId` | `UUID` | matches the decorator context and the copies sent over the network |
+| `discordMessageId` | `String` | the Discord message id |
+| `discordChannelId` | `String` | the Discord channel id |
+| `authorId` | `String` | the author's Discord id |
+| `authorName` | `String` | their display name on the Discord server |
+| `linkedPlayer` | `UUID` | their account linked through DiscordSRV, or `null` |
+| `content` | `String` | mutable; the text after filtering, still with Discord formatting like `**bold**`, without attachments |
+
+```java
+@EventHandler
+public void onDiscordMessage(DiscordMessageReceiveEvent event) {
+    if (event.getLinkedPlayer() == null) event.setCancelled(true);
+}
+```
+
+Fires on the server thread, and only on the server whose DiscordSRV received the message.
+Other servers that get the message over the network do not fire it again.
+
 ## ReportCreateEvent
 
 Fires before a report is written to the database, after the cooldown check. Cancelling drops it
