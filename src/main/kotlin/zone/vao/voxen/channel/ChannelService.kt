@@ -92,6 +92,8 @@ class ChannelService(
             scope = null,
             discord = false,
             discordFormat = null,
+            toDiscordFormat = null,
+            fromDiscordFormat = null,
             sound = SoundConfig(null),
         )
         apiVersion.incrementAndGet()
