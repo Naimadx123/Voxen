@@ -21,6 +21,7 @@ permissions:
   manage: voxen.channel.global.manage
 item-tags: true
 discord: true
+discord-channel: ""
 # How the message looks on Discord (plain text, MiniMessage tags are stripped).
 # Empty = just the message for DiscordSRV, "name: message" for EssentialsDiscord.
 discord-format: ""

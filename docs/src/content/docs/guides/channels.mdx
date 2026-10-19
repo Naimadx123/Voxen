@@ -55,6 +55,7 @@ instead of writing them from scratch.
 | `item-tags` | `true` | whether item share tags work here |
 | `scope` | none | limits recipients to a team: `towny`, `factions` or `mcmmo` |
 | `discord` | `false` | forwards messages to DiscordSRV or EssentialsDiscord |
+| `discord-channel` | channel id | name of the DiscordSRV `Channels` mapping, such as `global` or `staff`; empty uses this Voxen channel's id |
 | `discord-format` | none | how the forwarded message looks on Discord |
 | `cross-server` | `false` | sends messages to other servers over the transport |
 | `sound.*` | disabled | sound played to recipients: `key`, `source`, `volume`, `pitch` |
@@ -122,12 +123,22 @@ cross-server caveat are on the [integrations page](/integrations/overview/).
 
 ```yaml
 discord: true
+discord-channel: "global"
 discord-format: "[<world>] <player> » <message>"
 ```
 
-Rendered to plain text, so MiniMessage tags are stripped before it leaves. Empty keeps the
-default: the bare message for DiscordSRV, which formats it with its own config, and
-`name: message` for EssentialsDiscord.
+Rendered to plain text, so MiniMessage tags are stripped before it leaves. An empty
+`discord-format` uses DiscordSRV's own formatting, including its webhook delivery settings,
+or `name: message` for EssentialsDiscord. A non-empty format replaces DiscordSRV's
+additional name/group wrapper. DiscordSRV permissions, prefix checks,
+mention handling, game filters and cancellable API events still apply.
+For webhook delivery, DiscordSRV's `Experiment_WebhookChatMessageFormat` still applies;
+set it to `%message%` to keep the Voxen text without another wrapper.
+
+`discord-channel` names a Minecraft-side entry in DiscordSRV's `Channels` map, not a
+Discord channel id. It defaults to the Voxen channel id. Missing mappings skip forwarding
+and log a warning instead of falling back to the public channel. EssentialsDiscord keeps
+its own chat destination and does not use this option.
 
 <CardGrid>
 	<Card title="Formats" icon="pencil">

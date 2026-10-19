@@ -13,6 +13,9 @@ permissions:
   join: voxen.channel.staff
   manage: voxen.channel.staff.manage
 item-tags: true
+discord: false
+discord-channel: ""
+discord-format: ""
 sound:
   enabled: true
   key: "minecraft:block.note_block.hat"

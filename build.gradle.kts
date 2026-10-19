@@ -35,6 +35,9 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://repo.extendedclip.com/releases/")
     maven("https://jitpack.io")
+    maven("https://nexus.scarsz.me/content/groups/public/") {
+        content { includeGroup("com.discordsrv") }
+    }
 }
 
 dependencies {
@@ -44,6 +47,7 @@ dependencies {
     compileOnly("io.github.miniplaceholders:miniplaceholders-api:2.3.0")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
     compileOnly("net.luckperms:api:5.5")
+    compileOnly("com.discordsrv:discordsrv:1.30.5") { isTransitive = false }
     compileOnly("com.zaxxer:HikariCP:$hikariVersion")
     compileOnly("redis.clients:jedis:$jedisVersion")
     compileOnly("io.nats:jnats:$natsVersion")
@@ -53,6 +57,8 @@ dependencies {
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
+    testImplementation("org.yaml:snakeyaml:2.2")
+    testImplementation("com.discordsrv:discordsrv:1.30.5") { isTransitive = false }
     testImplementation("com.zaxxer:HikariCP:$hikariVersion")
     testImplementation("org.xerial:sqlite-jdbc:$sqliteVersion")
     testImplementation("org.postgresql:postgresql:$postgresVersion")

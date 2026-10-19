@@ -5,6 +5,10 @@ import org.bukkit.entity.Player
 import java.lang.reflect.Method
 import java.util.logging.Logger
 
+interface DiscordForwarder : AutoCloseable {
+    fun forward(player: Player, message: String, channel: String?, preformatted: Boolean)
+}
+
 class DiscordHooks(
     private val server: Server,
     private val logger: Logger,
@@ -16,24 +20,18 @@ class DiscordHooks(
     @Volatile
     private var essentialsAvailable = false
 
-    private var processChatMessage: Method? = null
-    private var discordSrvInstance: Any? = null
+    private var discordSrvBridge: DiscordForwarder? = null
     private var essentialsService: Any? = null
     private var essentialsSend: Method? = null
     private var essentialsChatType: Any? = null
 
     fun load(discordSrvEnabled: Boolean, essentialsEnabled: Boolean) {
-        discordSrvAvailable = false
-        essentialsAvailable = false
+        close()
         if (discordSrvEnabled && server.pluginManager.isPluginEnabled("DiscordSRV")) {
             runCatching {
-                val clazz = Class.forName("github.scarsz.discordsrv.DiscordSRV")
-                discordSrvInstance = clazz.getMethod("getPlugin").invoke(null)
-                processChatMessage = clazz.methods.firstOrNull { method ->
-                    method.name == "processChatMessage" && method.parameterCount == 4 &&
-                        method.parameterTypes[0] == Player::class.java
-                }
-                if (processChatMessage != null) discordSrvAvailable = true
+                discordSrvBridge = Class.forName("zone.vao.voxen.hook.DiscordSrvBridge")
+                    .getConstructor(Logger::class.java).newInstance(logger) as DiscordForwarder
+                discordSrvAvailable = true
             }.onFailure { logger.warning("Failed to hook into DiscordSRV: ${it.message}") }
         }
         if (essentialsEnabled && server.pluginManager.isPluginEnabled("EssentialsDiscord")) {
@@ -55,10 +53,10 @@ class DiscordHooks(
         }
     }
 
-    fun forward(player: Player, plainMessage: String, preformatted: Boolean = false) {
+    fun forward(player: Player, plainMessage: String, preformatted: Boolean = false, channel: String? = null) {
         if (discordSrvAvailable) {
             runCatching {
-                processChatMessage?.invoke(discordSrvInstance, player, plainMessage, null, false)
+                discordSrvBridge?.forward(player, plainMessage, channel, preformatted)
             }.onFailure { logger.warning("Failed to forward a message to DiscordSRV: ${it.message}") }
         }
         if (essentialsAvailable) {
@@ -72,4 +70,15 @@ class DiscordHooks(
     fun discordSrv(): Boolean = discordSrvAvailable
 
     fun essentials(): Boolean = essentialsAvailable
+
+    fun close() {
+        discordSrvAvailable = false
+        essentialsAvailable = false
+        runCatching { discordSrvBridge?.close() }
+            .onFailure { logger.warning("Failed to detach from DiscordSRV: ${it.message}") }
+        discordSrvBridge = null
+        essentialsService = null
+        essentialsSend = null
+        essentialsChatType = null
+    }
 }

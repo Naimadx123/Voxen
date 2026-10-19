@@ -142,7 +142,9 @@ class SystemMessageService(
     private fun publish(component: Component, event: SystemMessagesConfig.Event, source: Player?) {
         val channel = channels.channel(event.channel)?.takeIf { it.enabled } ?: return
         chat.broadcast(channel, component)
-        if (event.discord && source != null) discord().forward(source, plain.serialize(component), preformatted = true)
+        if (event.discord && source != null) {
+            discord().forward(source, plain.serialize(component), preformatted = true, channel = channel.discordChannel)
+        }
         if (!event.crossServer) return
         remotePublisher?.invoke(
             BrokerMessage(

@@ -415,7 +415,10 @@ class ChatService(
             if (out.channel.discord) {
                 val custom = out.channel.discordFormat
                     ?.let { plain.serialize(formats.render(it, out.player, out.channel, out.message)) }
-                hooks.discord.forward(out.player, custom ?: plain.serialize(out.message), preformatted = custom != null)
+                val forwarded = custom ?: plain.serialize(out.message)
+                threads.forPlayer(out.player) {
+                    hooks.discord.forward(out.player, forwarded, preformatted = custom != null, channel = out.channel.discordChannel)
+                }
             }
         }
 

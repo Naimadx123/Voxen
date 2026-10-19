@@ -31,6 +31,7 @@ data class Channel(
     val discord: Boolean,
     val discordFormat: String?,
     val sound: SoundConfig,
+    val discordChannel: String = id,
 ) {
     fun canRead(permissible: org.bukkit.permissions.Permissible): Boolean =
         readPermission == null || permissible.hasPermission(readPermission)

@@ -49,12 +49,37 @@ Forwarding is per channel, not global:
 
 ```yaml title="plugins/Voxen/channels/global.yml"
 discord: true
+discord-channel: "global"
 discord-format: "[<world>] <player> » <message>"
 ```
 
 The message is rendered to plain text first, so MiniMessage tags never reach Discord. An
 empty `discord-format` keeps each plugin's own default: the bare message for DiscordSRV,
 which then formats it with its own config, and `name: message` for EssentialsDiscord.
+
+Set `discord-channel` to the Minecraft-side name in DiscordSRV's `Channels` map. Empty or
+omitted uses the Voxen channel id. For example, enable `discord: true` in both the `global`
+and `staff` Voxen channels, then configure DiscordSRV:
+
+```yaml title="plugins/DiscordSRV/config.yml"
+Channels:
+  global: "111111111111111111"
+  staff: "222222222222222222"
+```
+
+Replace the example ids with the destination text channel ids. A missing mapping skips
+forwarding with a warning; staff chat never falls back to the public channel. An explicit
+`discord-channel` can map a differently named Voxen channel to either entry.
+
+When `discord-format` is non-empty, Voxen sends that text without
+DiscordSRV's extra name/group wrapper. DiscordSRV's permissions, prefix checks, mention
+handling, game filters and pre/post-processing cancellation remain active. Webhook delivery
+remains supported; its `Experiment_WebhookChatMessageFormat` can add another wrapper, so
+set that DiscordSRV option to `%message%` to preserve only the Voxen text.
+
+While the Voxen hook is enabled, DiscordSRV's automatic forwarding of native Minecraft
+chat events is suppressed. This avoids duplicate messages and forwarding channels with
+`discord: false`. System messages also use their configured Voxen channel's mapping.
 
 Both hooks can be on at once, in which case the message goes to both. That is usually a
 mistake, so pick one.

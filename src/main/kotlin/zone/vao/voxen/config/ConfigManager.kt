@@ -223,6 +223,7 @@ class ConfigManager(
             scope = scope?.takeIf { it in VALID_SCOPES },
             discord = section.getBoolean("discord", false),
             discordFormat = section.getString("discord-format")?.trim()?.ifEmpty { null },
+            discordChannel = section.getString("discord-channel")?.trim()?.ifEmpty { null } ?: id,
             sound = parseSound("$CHANNELS_DIR/$fileName", section.getConfigurationSection("sound")),
         )
     }

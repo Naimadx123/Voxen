@@ -393,6 +393,7 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
 
     override fun onDisable() {
         presenceTask?.cancel()
+        if (::hookManager.isInitialized) hookManager.discord.close()
         ModeratorNames.clear()
         if (::webServer.isInitialized) webServer.stop()
         if (::brokerService.isInitialized) brokerService.shutdown()
