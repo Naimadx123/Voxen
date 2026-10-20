@@ -20,3 +20,12 @@ hs_err_pid*
 # Common working directory
 run
 /src/test/
+
+# Dev containers
+.devcontainer
+
+# Visual Studio Code
+.vscode
+
+# Kotlin
+.kotlin
