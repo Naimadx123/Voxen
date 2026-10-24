@@ -57,6 +57,7 @@ dependencies {
 
     testImplementation("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
+    testImplementation("org.mockito:mockito-core:5.20.0")
     testImplementation("org.yaml:snakeyaml:2.2")
     testImplementation("com.discordsrv:discordsrv:1.30.5") { isTransitive = false }
     testImplementation("com.zaxxer:HikariCP:$hikariVersion")

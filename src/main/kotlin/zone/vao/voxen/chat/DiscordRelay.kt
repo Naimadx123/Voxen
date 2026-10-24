@@ -13,7 +13,6 @@ import org.bukkit.Server
 import zone.vao.voxen.ChatMessageContext
 import zone.vao.voxen.channel.Channel
 import zone.vao.voxen.channel.ChannelService
-import zone.vao.voxen.channel.ChannelType
 import zone.vao.voxen.config.VoxenConfig
 import zone.vao.voxen.event.DiscordMessageReceiveEvent
 import zone.vao.voxen.hook.DiscordMessage
@@ -68,14 +67,15 @@ class DiscordRelay(
             is Target.Owned -> target.channel
         }
         val id = UUID.nameUUIDFromBytes("discord:${message.id}".toByteArray(Charsets.UTF_8))
-        if (!broker.claim(id.toString())) return
-        threads.main { deliver(channel, message, id) }
+        threads.main {
+            val current = channels.channel(channel.id) ?: return@main
+            if (current.enabled && current.discord) deliver(current, message, id)
+        }
     }
 
     private fun target(channelNames: Set<String>): Target {
         val matched = channels.channels().values.filter { channel ->
             channel.enabled && channel.discord && channel.fromDiscordFormat != null &&
-                channel.type != ChannelType.PARTY &&
                 channelNames.any { it.equals(channel.discordChannel, ignoreCase = true) }
         }
         return when (matched.size) {
@@ -91,12 +91,21 @@ class DiscordRelay(
         logger.warning(
             "Discord channel #${message.channelName} maps to the Voxen channels ${ids.joinToString(", ")}, which all " +
                 "take messages from Discord. Its messages are not forwarded until only one of them has a " +
-                "from-discord-format (or discord-format) for it.",
+                "from-discord-format for it.",
         )
     }
 
     private fun deliver(channel: Channel, message: DiscordMessage, id: UUID) {
         val format = channel.fromDiscordFormat ?: return
+        if (!channels.acceptsDiscord(channel)) {
+            if (warned.add("unsupported:${channel.id}")) {
+                logger.warning(
+                    "Voxen channel '${channel.id}' cannot receive Discord messages because its recipient rules " +
+                        "require an in-game sender. The messages are not forwarded.",
+                )
+            }
+            return
+        }
         if (muted(channel, message)) {
             message.reject()
             return
@@ -104,6 +113,14 @@ class DiscordRelay(
         val moderated = moderate(message.content) ?: run {
             message.reject()
             return
+        }
+        val attachments = ArrayList<DiscordMessage.Attachment>(message.attachments.size)
+        for (attachment in message.attachments) {
+            val name = moderate(attachment.name, links = false) ?: run {
+                message.reject()
+                return
+            }
+            attachments += attachment.copy(name = name.text)
         }
         if (moderated.text.isBlank() && message.attachments.isEmpty()) return
         val event = DiscordMessageReceiveEvent(
@@ -127,20 +144,27 @@ class DiscordRelay(
             else -> message.markdown(text) ?: Component.text(text)
         }
         val content = body?.let(plain::serialize).orEmpty()
-        val rendered = render(channel, format, message, body)
+        val rendered = render(channel, format, message, body, attachments)
+        val consoleBody = if (moderated.censored) {
+            message.markdown(message.content) ?: Component.text(message.content)
+        } else body
+        val consoleRendered = if (moderated.censored || attachments != message.attachments) {
+            render(channel, format, message, consoleBody, message.attachments)
+        } else rendered
 
-        deliverLocal(channel, message, id, rendered, content)
-        if (channel.crossServer) publish(channel, message, id, rendered, content)
+        if (!broker.claim(id.toString())) return
+        deliverLocal(channel, message, id, rendered, consoleRendered, content)
+        if (channel.crossServer) publish(channel, message, id, rendered, consoleRendered, content)
     }
 
     private fun muted(channel: Channel, message: DiscordMessage): Boolean =
         mutes.globalChatMuted || mutes.isChannelMuted(channel.id) ||
             message.linked?.let { mutes.isMuted(it, channel.id) } == true
 
-    private fun moderate(content: String): Moderated? {
+    private fun moderate(content: String, links: Boolean = true): Moderated? {
         val moderation = config().moderation
         val checks = listOfNotNull(
-            wordFilter::checkLinks.takeIf { moderation.linksAffectsDiscord },
+            wordFilter::checkLinks.takeIf { links && moderation.linksAffectsDiscord },
             wordFilter::check.takeIf { moderation.filterAffectsDiscord },
         )
         var text = content
@@ -158,10 +182,16 @@ class DiscordRelay(
         return Moderated(text, censored)
     }
 
-    private fun render(channel: Channel, format: String, message: DiscordMessage, body: Component?): Component {
+    private fun render(
+        channel: Channel,
+        format: String,
+        message: DiscordMessage,
+        body: Component?,
+        attachments: List<DiscordMessage.Attachment>,
+    ): Component {
         val messages = config().messages
         val console = server.consoleSender
-        val parts = listOfNotNull(body) + message.attachments.map { attachment ->
+        val parts = listOfNotNull(body) + attachments.map { attachment ->
             messages.line(
                 console,
                 "discord-attachment",
@@ -193,7 +223,14 @@ class DiscordRelay(
         )
     }
 
-    private fun deliverLocal(channel: Channel, message: DiscordMessage, id: UUID, rendered: Component, content: String) {
+    private fun deliverLocal(
+        channel: Channel,
+        message: DiscordMessage,
+        id: UUID,
+        rendered: Component,
+        consoleRendered: Component,
+        content: String,
+    ) {
         val mentioned = if (content.isNotEmpty() && config().mentions.enabled) mentions.mentionedNames(content) else emptySet()
         val context = ChatMessageContext(
             messageId = id,
@@ -214,10 +251,17 @@ class DiscordRelay(
                 if (notify) mentions.notify(reader)
             }
         }
-        server.consoleSender.sendMessage(rendered)
+        server.consoleSender.sendMessage(consoleRendered)
     }
 
-    private fun publish(channel: Channel, message: DiscordMessage, id: UUID, rendered: Component, content: String) {
+    private fun publish(
+        channel: Channel,
+        message: DiscordMessage,
+        id: UUID,
+        rendered: Component,
+        consoleRendered: Component,
+        content: String,
+    ) {
         broker.publish(
             BrokerMessage(
                 id = id.toString(),
@@ -230,6 +274,7 @@ class DiscordRelay(
                 mm = MiniMessage.miniMessage().serialize(rendered),
                 senderUuid = message.linked?.toString(),
                 flags = FLAG,
+                consoleComponent = gson.serialize(consoleRendered),
             )
         )
     }

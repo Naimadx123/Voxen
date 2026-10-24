@@ -313,6 +313,11 @@ class Voxen : org.bukkit.plugin.java.JavaPlugin(), VoxenService {
                     bypassChatToggle = "chattoggle" in message.flags.orEmpty().split(','),
                     consoleMessage = message.consoleComponent
                         ?.let { runCatching { componentCodec.deserialize(it) }.getOrNull() } ?: component,
+                    claimDelivery = {
+                        DiscordRelay.FLAG !in message.flags.orEmpty().split(',') ||
+                            (channelService.channel(message.channel)?.let(channelService::acceptsDiscord) == true &&
+                                brokerService.claim(requireNotNull(message.id)))
+                    },
                 )
             }
         }

@@ -468,11 +468,12 @@ class ChatService(
         bypassIgnore: Boolean = false,
         bypassChatToggle: Boolean = false,
         consoleMessage: Component = message,
+        claimDelivery: () -> Boolean = { true },
     ) {
-        val channel = channels.channel(context.channelId) ?: return
-        if (!channel.enabled || !channel.crossServer) return
         val mentioned = if (!mentionContent.isNullOrEmpty() && config().mentions.enabled) mentions.mentionedNames(mentionContent) else emptySet()
         threads.main {
+            val channel = channels.channel(context.channelId) ?: return@main
+            if (!channel.enabled || !channel.crossServer || !claimDelivery()) return@main
             for (reader in channels.readers(channel, context.senderId, bypassIgnore, bypassChatToggle)) {
                 var delivered = message
                 val notify = reader.name.lowercase() in mentioned && mentions.accepts(reader)
@@ -483,8 +484,8 @@ class ChatService(
                     if (notify) mentions.notify(reader)
                 }
             }
+            server.consoleSender.sendMessage(consoleMessage)
         }
-        server.consoleSender.sendMessage(consoleMessage)
     }
 
     fun forget(uuid: UUID) {

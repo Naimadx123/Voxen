@@ -224,7 +224,7 @@ class ConfigManager(
             discord = section.getBoolean("discord", false),
             discordFormat = section.getString("discord-format")?.trim()?.ifEmpty { null },
             toDiscordFormat = discordFormat(section, "to-discord-format"),
-            fromDiscordFormat = discordFormat(section, "from-discord-format"),
+            fromDiscordFormat = section.getString("from-discord-format")?.trim()?.ifEmpty { null },
             discordChannel = section.getString("discord-channel")?.trim()?.ifEmpty { null } ?: id,
             sound = parseSound("$CHANNELS_DIR/$fileName", section.getConfigurationSection("sound")),
         )

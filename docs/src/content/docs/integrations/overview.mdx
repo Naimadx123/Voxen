@@ -62,7 +62,7 @@ from-discord-format: "<gray>[<blue>Discord</blue>]</gray> <role_color><author></
 | `discord-channel` | which DiscordSRV channel to use; empty means this channel's id |
 | `to-discord-format` | how messages from the game look on Discord ([details](#to-discord)) |
 | `from-discord-format` | how messages from Discord look in the game ([details](#from-discord)) |
-| `discord-format` | the older setting; still works, and is used for whichever format above is empty |
+| `discord-format` | the older outgoing setting; used when `to-discord-format` is empty |
 
 ### Picking the Discord channel
 
@@ -114,15 +114,19 @@ sent through both. That is rarely what you want, so it's best to pick one.
 	Discord, it keeps showing them itself, just like before.
 </Aside>
 
-A channel starts receiving messages from Discord once it has `discord: true` and a
-`from-discord-format`, or a `discord-format` it can fall back on. Without either, DiscordSRV
-keeps showing those messages the way it always has.
+A channel starts receiving messages from Discord once it has `discord: true` and a non-empty
+`from-discord-format`. An absent or empty `from-discord-format` leaves incoming messages to
+DiscordSRV. The older `discord-format` only applies to outgoing messages and never enables
+this direction.
 
 When a message arrives, Voxen picks it up before DiscordSRV has done anything with it, so
 DiscordSRV won't post it a second time. Voxen then formats it and shows it to everyone who can
 read the channel. Players who have hidden chat with `/chattoggle` won't see it, and if the
 Discord user has linked their Minecraft account, neither will players who ignore that account.
-Party channels never receive messages from Discord.
+Channels with a radius, type `world` or `party`, a team `scope`, or a custom API recipient
+provider cannot receive messages from Discord: their audience requires an in-game sender.
+If you enable `from-discord-format` on one of these channels, Voxen blocks the incoming
+messages and logs a warning instead of falling back to DiscordSRV's broadcast.
 
 #### Placeholders
 
@@ -146,10 +150,8 @@ replying to anyone, it's removed together with the space next to it, so you won'
 double spaces. `<prefix>`, `<suffix>` and `<world>` are always empty here, because the author
 isn't in the game.
 
-`<player>` doesn't work in this format; use `<author>` instead. Keep this in mind if a channel
-relies on an older `discord-format`: that format was written for messages going to Discord and
-usually contains `<player>`, which would appear as plain text, so give the channel its own
-`from-discord-format`.
+`<player>` doesn't work in this format; use `<author>` instead. Outgoing formats often contain
+`<player>`, so choose a separate `from-discord-format` when enabling incoming messages.
 
 Anything a Discord user types is treated as text. MiniMessage tags in their message are shown
 rather than applied, so they can't add colours or click actions that way.

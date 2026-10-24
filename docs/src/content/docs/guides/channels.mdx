@@ -56,9 +56,9 @@ instead of writing them from scratch.
 | `scope` | none | limits recipients to a team: `towny`, `factions` or `mcmmo` |
 | `discord` | `false` | links this channel with Discord through DiscordSRV or EssentialsX Discord |
 | `discord-channel` | channel id | which entry of DiscordSRV's `Channels` list to use, such as `global` or `staff` |
-| `discord-format` | none | the older setting, used when one of the two below is empty |
+| `discord-format` | none | the older outgoing setting, used when `to-discord-format` is empty |
 | `to-discord-format` | `discord-format` | how this channel's messages look on Discord |
-| `from-discord-format` | `discord-format` | how Discord messages look in this channel (DiscordSRV only); empty lets DiscordSRV show them itself |
+| `from-discord-format` | none | how Discord messages look in this channel (DiscordSRV only); empty lets DiscordSRV show them itself |
 | `cross-server` | `false` | sends messages to other servers over the transport |
 | `sound.*` | disabled | sound played to recipients: `key`, `source`, `volume`, `pitch` |
 
@@ -146,8 +146,8 @@ time.
 placeholders such as `<author>`, `<role>` and `<role_color>`. It only works with DiscordSRV, and
 while it's empty, DiscordSRV keeps showing those messages itself.
 
-`discord-format` is the older setting. It still works and is used for whichever of the two
-formats you leave empty.
+`discord-format` is the older outgoing setting. It is still used when `to-discord-format`
+is empty, but it never enables incoming messages.
 
 The full placeholder list, and what DiscordSRV still decides on its own, is on the
 [integrations page](/integrations/overview/#discord).

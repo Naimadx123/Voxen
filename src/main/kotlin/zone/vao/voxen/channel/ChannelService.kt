@@ -56,6 +56,10 @@ class ChannelService(
 
     fun channels(): Map<String, Channel> = view().all
 
+    fun acceptsDiscord(channel: Channel): Boolean =
+        localOnlyReason(channel.type, channel.radius, channel.scope) == null &&
+            !recipientProviders.containsKey(channel.id.lowercase())
+
     fun channel(id: String): Channel? {
         val lower = id.lowercase()
         return config().channels[lower] ?: apiChannels[lower]
