@@ -36,6 +36,7 @@ class RedisBroker(
             .connectionTimeoutMillis(timeoutMillis.toInt())
             .socketTimeoutMillis(0)
             .ssl(config.ssl)
+            .serverDefaultProtocol()
         if (config.username.isNotEmpty()) builder.user(config.username)
         if (config.password.isNotEmpty()) builder.password(config.password)
         return builder.build()
@@ -49,6 +50,7 @@ class RedisBroker(
                 .connectionTimeoutMillis(timeoutMillis.toInt())
                 .socketTimeoutMillis(timeoutMillis.toInt())
                 .ssl(config.ssl)
+                .serverDefaultProtocol()
                 .apply {
                     if (config.username.isNotEmpty()) user(config.username)
                     if (config.password.isNotEmpty()) password(config.password)

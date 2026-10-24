@@ -19,6 +19,15 @@ hs_err_pid*
 
 # Common working directory
 run
+
+# Dev containers
+.devcontainer
+
+# Visual Studio Code
+.vscode
+
+# Kotlin
+.kotlin
 /src/test/**
 !/src/test/**/
 !/src/test/kotlin/zone/vao/voxen/DiscordRelayTest.kt
