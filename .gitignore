@@ -19,4 +19,6 @@ hs_err_pid*
 
 # Common working directory
 run
-/src/test/
+/src/test/**
+!/src/test/**/
+!/src/test/kotlin/zone/vao/voxen/DiscordRelayTest.kt

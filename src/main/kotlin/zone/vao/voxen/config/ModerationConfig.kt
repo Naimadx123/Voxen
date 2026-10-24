@@ -42,6 +42,8 @@ data class ModerationConfig(
     val glyphsAffectsPm: Boolean = true,
     val historyAffectsPm: Boolean = false,
     val maxLengthAffectsPm: Boolean = true,
+    val filterAffectsDiscord: Boolean = true,
+    val linksAffectsDiscord: Boolean = true,
 ) {
 
     val spamAffectsPm: Boolean

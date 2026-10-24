@@ -223,10 +223,16 @@ class ConfigManager(
             scope = scope?.takeIf { it in VALID_SCOPES },
             discord = section.getBoolean("discord", false),
             discordFormat = section.getString("discord-format")?.trim()?.ifEmpty { null },
+            toDiscordFormat = discordFormat(section, "to-discord-format"),
+            fromDiscordFormat = section.getString("from-discord-format")?.trim()?.ifEmpty { null },
             discordChannel = section.getString("discord-channel")?.trim()?.ifEmpty { null } ?: id,
             sound = parseSound("$CHANNELS_DIR/$fileName", section.getConfigurationSection("sound")),
         )
     }
+
+    private fun discordFormat(section: ConfigurationSection, key: String): String? =
+        section.getString(key)?.trim()?.ifEmpty { null }
+            ?: section.getString("discord-format")?.trim()?.ifEmpty { null }
 
     private fun parsePermission(raw: String?): String? =
         raw?.trim()?.lowercase()?.ifEmpty { null }?.takeUnless { it == "none" }
@@ -295,6 +301,8 @@ class ConfigManager(
             floodAffectsPm = yaml.getBoolean("anti-flood.affect-pm", true),
             filterAffectsPm = yaml.getBoolean("filter.affect-pm", true),
             linksAffectsPm = yaml.getBoolean("links.affect-pm", true),
+            filterAffectsDiscord = yaml.getBoolean("filter.affect-discord", true),
+            linksAffectsDiscord = yaml.getBoolean("links.affect-discord", true),
             historyAffectsPm = yaml.getBoolean("history.affect-pm", false),
             maxLengthAffectsPm = yaml.getBoolean("max-length.affect-pm", true),
         )

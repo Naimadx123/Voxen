@@ -54,9 +54,11 @@ instead of writing them from scratch.
 | `empty-warning` | `false` | tells the sender when nobody heard them |
 | `item-tags` | `true` | whether item share tags work here |
 | `scope` | none | limits recipients to a team: `towny`, `factions` or `mcmmo` |
-| `discord` | `false` | forwards messages to DiscordSRV or EssentialsDiscord |
-| `discord-channel` | channel id | name of the DiscordSRV `Channels` mapping, such as `global` or `staff`; empty uses this Voxen channel's id |
-| `discord-format` | none | how the forwarded message looks on Discord |
+| `discord` | `false` | links this channel with Discord through DiscordSRV or EssentialsX Discord |
+| `discord-channel` | channel id | which entry of DiscordSRV's `Channels` list to use, such as `global` or `staff` |
+| `discord-format` | none | the older outgoing setting, used when `to-discord-format` is empty |
+| `to-discord-format` | `discord-format` | how this channel's messages look on Discord |
+| `from-discord-format` | none | how Discord messages look in this channel (DiscordSRV only); empty lets DiscordSRV show them itself |
 | `cross-server` | `false` | sends messages to other servers over the transport |
 | `sound.*` | disabled | sound played to recipients: `key`, `source`, `volume`, `pitch` |
 
@@ -119,26 +121,36 @@ Accepts `towny`, `factions` and `mcmmo`. The channel still applies its own permi
 radius on top; scope only removes people who are not on the sender's team. Details and the
 cross-server caveat are on the [integrations page](/integrations/overview/).
 
-## Discord forwarding
+## Discord
 
 ```yaml
 discord: true
 discord-channel: "global"
-discord-format: "[<world>] <player> » <message>"
+to-discord-format: "[<world>] <player> » <message>"
+from-discord-format: "<gray>[<blue>Discord</blue>]</gray> <role_color><author></role_color><dark_gray>:</dark_gray> <message>"
 ```
 
-Rendered to plain text, so MiniMessage tags are stripped before it leaves. An empty
-`discord-format` uses DiscordSRV's own formatting, including its webhook delivery settings,
-or `name: message` for EssentialsDiscord. A non-empty format replaces DiscordSRV's
-additional name/group wrapper. DiscordSRV permissions, prefix checks,
-mention handling, game filters and cancellable API events still apply.
-For webhook delivery, DiscordSRV's `Experiment_WebhookChatMessageFormat` still applies;
-set it to `%message%` to keep the Voxen text without another wrapper.
+`discord-channel` is the **name** of an entry in DiscordSRV's `Channels` list rather than a
+Discord channel id. If you leave it empty, the channel's own id is used. When DiscordSRV has no
+entry with that name, nothing is sent and a warning is logged, so staff chat never ends up in
+the public Discord channel. EssentialsX Discord ignores this setting and uses its own chat
+channel.
 
-`discord-channel` names a Minecraft-side entry in DiscordSRV's `Channels` map, not a
-Discord channel id. It defaults to the Voxen channel id. Missing mappings skip forwarding
-and log a warning instead of falling back to the public channel. EssentialsDiscord keeps
-its own chat destination and does not use this option.
+`to-discord-format` controls how messages look on Discord. They are sent as plain text, with
+colours and tags removed, and if you leave the format empty, DiscordSRV or EssentialsX Discord
+uses its own style. If DiscordSRV posts through a webhook, set its
+`Experiment_WebhookChatMessageFormat` to `%message%` so it doesn't wrap your format a second
+time.
+
+`from-discord-format` controls how messages written on Discord look in Voxen's channel (Minecraft), and supports
+placeholders such as `<author>`, `<role>` and `<role_color>`. It only works with DiscordSRV, and
+while it's empty, DiscordSRV keeps showing those messages itself.
+
+`discord-format` is the older outgoing setting. It is still used when `to-discord-format`
+is empty, but it never enables incoming messages.
+
+The full placeholder list, and what DiscordSRV still decides on its own, is on the
+[integrations page](/integrations/overview/#discord).
 
 <CardGrid>
 	<Card title="Formats" icon="pencil">

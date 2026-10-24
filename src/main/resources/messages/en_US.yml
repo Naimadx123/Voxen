@@ -117,6 +117,7 @@ realname-found: "<gray><white><nickname></white> is <white><player></white>."
 realname-none: "<red>No online player uses the nickname <white><nickname></white>."
 
 item-empty: "<gray><italic>nothing</italic></gray>"
+discord-attachment: "<aqua><click:open_url:'<url>'><hover:show_text:'<gray>Open <url>'>[<name>]</hover></click></aqua>"
 helpop-sent: "<green>Your request was sent to the staff."
 helpop-alert: "<gold>[HelpOp] <white><player></white>: <gray><message>"
 helpop-nobody: "<yellow>No staff member is online right now, your request was logged."

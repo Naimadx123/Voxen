@@ -29,8 +29,8 @@ The `network:` block in the same file is the cross-server transport and has
 | `miniplaceholders` | MiniMessage tags in both directions |
 | `luckperms` | `<prefix>`, `<suffix>` and group names for `group-formats` |
 | `vault-chat` | the same, for setups without LuckPerms |
-| `discordsrv` | forwards channel messages to Discord |
-| `essentials-discord` | the same, through EssentialsX Discord |
+| `discordsrv` | links channels with Discord, in both directions |
+| `essentials-discord` | sends channel messages to Discord through EssentialsX Discord (one direction only, for now) |
 | `towny` | `scope: towny` on a channel |
 | `factions` | `scope: factions` |
 | `mcmmo` | `scope: mcmmo` |
@@ -45,21 +45,29 @@ Vault. Leave both on and Voxen takes whichever is there.
 
 ## Discord
 
-Forwarding is per channel, not global:
+Voxen can connect its chat channels to Discord, one channel at a time. Messages can travel in
+both directions: from the game to Discord, which works with both DiscordSRV and EssentialsX
+Discord, and from Discord back into the game, which currently works with DiscordSRV only.
 
 ```yaml title="plugins/Voxen/channels/global.yml"
 discord: true
 discord-channel: "global"
-discord-format: "[<world>] <player> » <message>"
+to-discord-format: "[<world>] <player> » <message>"
+from-discord-format: "<gray>[<blue>Discord</blue>]</gray> <role_color><author></role_color><dark_gray>:</dark_gray> <message>"
 ```
 
-The message is rendered to plain text first, so MiniMessage tags never reach Discord. An
-empty `discord-format` keeps each plugin's own default: the bare message for DiscordSRV,
-which then formats it with its own config, and `name: message` for EssentialsDiscord.
+| Setting | What it does |
+| --- | --- |
+| `discord` | turns the Discord link on for this channel |
+| `discord-channel` | which DiscordSRV channel to use; empty means this channel's id |
+| `to-discord-format` | how messages from the game look on Discord ([details](#to-discord)) |
+| `from-discord-format` | how messages from Discord look in the game ([details](#from-discord)) |
+| `discord-format` | the older outgoing setting; used when `to-discord-format` is empty |
 
-Set `discord-channel` to the Minecraft-side name in DiscordSRV's `Channels` map. Empty or
-omitted uses the Voxen channel id. For example, enable `discord: true` in both the `global`
-and `staff` Voxen channels, then configure DiscordSRV:
+### Picking the Discord channel
+
+DiscordSRV keeps its own list of channels under `Channels`, where each entry pairs a name with
+the id of a Discord text channel:
 
 ```yaml title="plugins/DiscordSRV/config.yml"
 Channels:
@@ -67,27 +75,120 @@ Channels:
   staff: "222222222222222222"
 ```
 
-Replace the example ids with the destination text channel ids. A missing mapping skips
-forwarding with a warning; staff chat never falls back to the public channel. An explicit
-`discord-channel` can map a differently named Voxen channel to either entry.
+Replace the example ids with the ids of your own Discord channels, then point each Voxen
+channel at one of these entries by setting `discord-channel` to the entry's **name**, not to
+the Discord id. If you leave it empty, Voxen uses the channel's own id, so `global.yml`
+connects to the `global` entry and `staff.yml` to `staff`. You only need to set it when the
+names differ.
 
-When `discord-format` is non-empty, Voxen sends that text without
-DiscordSRV's extra name/group wrapper. DiscordSRV's permissions, prefix checks, mention
-handling, game filters and pre/post-processing cancellation remain active. Webhook delivery
-remains supported; its `Experiment_WebhookChatMessageFormat` can add another wrapper, so
-set that DiscordSRV option to `%message%` to preserve only the Voxen text.
+When the name can't be found in DiscordSRV's list, Voxen doesn't send the message anywhere and
+logs a warning instead. This guarantees that staff chat never ends up in the public Discord
+channel by accident. EssentialsX Discord doesn't use `discord-channel` at all and always posts
+to its own chat channel.
 
-While the Voxen hook is enabled, DiscordSRV's automatic forwarding of native Minecraft
-chat events is suppressed. This avoids duplicate messages and forwarding channels with
-`discord: false`. System messages also use their configured Voxen channel's mapping.
+### To Discord
 
-Both hooks can be on at once, in which case the message goes to both. That is usually a
-mistake, so pick one.
+Messages are converted to plain text before they are sent, so colours and other MiniMessage
+tags never show up on Discord. If both `to-discord-format` and `discord-format` are empty, each
+plugin falls back to its own style: DiscordSRV formats the bare message using its own config,
+while EssentialsX Discord sends it as `name: message`.
 
-<Aside type="note">
-	Only chat sent through Voxen is forwarded. Nothing in the other direction: messages
-	coming **from** Discord are still handled by DiscordSRV or EssentialsX exactly as
-	before.
+Once you set a format, Discord receives your text exactly as written, without the name and
+group that DiscordSRV would normally add around it. DiscordSRV's permissions, prefix checks,
+mention handling, game filters and cancellable events all keep working as usual. If DiscordSRV
+posts through a webhook, keep in mind that its `Experiment_WebhookChatMessageFormat` option can
+wrap the message a second time; set it to `%message%` to show only Voxen's text.
+
+While the hook is active, DiscordSRV stops picking up regular Minecraft chat on its own. This
+prevents messages from appearing twice and keeps channels with `discord: false` off Discord.
+System messages, such as joins and deaths, are sent to the Discord channel linked to whichever
+Voxen channel they are configured to use.
+
+You can turn on both the DiscordSRV and the EssentialsX Discord hook, but every message is then
+sent through both. That is rarely what you want, so it's best to pick one.
+
+### From Discord
+
+<Aside type="note" title="DiscordSRV only">
+	Messages from Discord can only come in through DiscordSRV for now. If you use EssentialsX
+	Discord, it keeps showing them itself, just like before.
+</Aside>
+
+A channel starts receiving messages from Discord once it has `discord: true` and a non-empty
+`from-discord-format`. An absent or empty `from-discord-format` leaves incoming messages to
+DiscordSRV. The older `discord-format` only applies to outgoing messages and never enables
+this direction.
+
+When a message arrives, Voxen picks it up before DiscordSRV has done anything with it, so
+DiscordSRV won't post it a second time. Voxen then formats it and shows it to everyone who can
+read the channel. Players who have hidden chat with `/chattoggle` won't see it, and if the
+Discord user has linked their Minecraft account, neither will players who ignore that account.
+Channels with a radius, type `world` or `party`, a team `scope`, or a custom API recipient
+provider cannot receive messages from Discord: their audience requires an in-game sender.
+If you enable `from-discord-format` on one of these channels, Voxen blocks the incoming
+messages and logs a warning instead of falling back to DiscordSRV's broadcast.
+
+#### Placeholders
+
+Alongside `<message>`, `<channel>`, `<channel_id>` and `<server>`, which work the same as in any
+other format, you can use these:
+
+| Placeholder | Shows |
+| --- | --- |
+| `<author>` | their name on your Discord server (their nickname, if they set one) |
+| `<username>` | their Discord username |
+| `<user_id>` | their Discord user id |
+| `<role>` | their highest role, following DiscordSRV's `DiscordChatChannelRolesSelection` |
+| `<roles>` | all of those roles, separated by commas |
+| `<role_color>…</role_color>` | colours the text in between with their role's colour; does nothing if the role has none |
+| `<discord_channel>` | the name of the Discord channel |
+| `<reply_to>` | who they replied to |
+| `<linked_player>` | their Minecraft name, if they linked their account through DiscordSRV |
+
+When a placeholder has nothing to show, for example because the user has no role or isn't
+replying to anyone, it's removed together with the space next to it, so you won't end up with
+double spaces. `<prefix>`, `<suffix>` and `<world>` are always empty here, because the author
+isn't in the game.
+
+`<player>` doesn't work in this format; use `<author>` instead. Outgoing formats often contain
+`<player>`, so choose a separate `from-discord-format` when enabling incoming messages.
+
+Anything a Discord user types is treated as text. MiniMessage tags in their message are shown
+rather than applied, so they can't add colours or click actions that way.
+
+#### How the message looks
+
+Discord formatting such as bold and italics is converted the same way DiscordSRV converts it;
+for the full conversion, turn on `Experiment_MCDiscordReserializer_ToMinecraft` in DiscordSRV's
+config. Images, files and stickers appear as clickable links, and you can change how they look
+with the `discord-attachment` message. Mentions are shown as names, and emoji follow
+DiscordSRV's `DiscordChatChannelEmojiBehavior` setting.
+
+DiscordSRV's `DiscordChatChannelDiscordFilters` and `DiscordChatChannelTruncateLength` still
+apply. Its own Discord-to-Minecraft format and its colour-code roles don't, because Voxen takes
+care of the formatting.
+
+#### Who can talk
+
+DiscordSRV checks every message first, exactly as you've configured it, so bots, webhooks,
+blocked users and roles, and `DiscordChatChannelRequireLinkedAccount` all work as before. Make
+sure `DiscordChatChannelDiscordToMinecraft` stays `true` in DiscordSRV's config, though: if it's
+turned off, DiscordSRV drops the message before Voxen ever sees it.
+
+Once DiscordSRV is done, Voxen runs its own checks, the word and link filters and mutes, which
+are described under [moderation](/configuration/moderation/#messages-from-discord). Other
+plugins can also cancel or change the message through `DiscordMessageReceiveEvent`.
+
+#### Across servers
+
+With `cross-server: true`, the message is also sent to your other servers and looks exactly the
+same there. It's fine to run DiscordSRV with the same bot on several servers, since each message
+still appears only once per server.
+
+<Aside type="caution" title="One Voxen channel per Discord channel">
+	If two Voxen channels would both take messages from the same Discord channel, Voxen can't
+	tell which one you mean. In that case the message isn't shown in either of them, DiscordSRV
+	doesn't show it either, and a warning is logged.
 </Aside>
 
 ## Towny, Factions and mcMMO

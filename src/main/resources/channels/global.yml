@@ -24,8 +24,17 @@ discord: true
 discord-channel: ""
 # How the message looks on Discord (plain text, MiniMessage tags are stripped).
 # Empty = just the message for DiscordSRV, "name: message" for EssentialsDiscord.
+# Also the fallback for to-discord-format when it is empty. Only affects outgoing messages.
 discord-format: ""
 # discord-format: "[<world>] <player> » <message>"
+# Game to Discord only. Takes priority over discord-format.
+to-discord-format: ""
+# How messages written on Discord look in this channel (MiniMessage). DiscordSRV only;
+# Empty leaves incoming messages to DiscordSRV. Never falls back to discord-format.
+# Placeholders: <author>, <username>, <user_id>, <role>, <roles>, <role_color>...</role_color>,
+# <discord_channel>, <reply_to>, <linked_player>, <message>.
+from-discord-format: ""
+# from-discord-format: "<gray>[<blue>Discord</blue>]</gray> <role_color><author></role_color><dark_gray>:</dark_gray> <message>"
 cross-server: false
 sound:
   enabled: false

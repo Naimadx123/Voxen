@@ -16,6 +16,8 @@ item-tags: true
 discord: false
 discord-channel: ""
 discord-format: ""
+to-discord-format: ""
+from-discord-format: ""
 sound:
   enabled: true
   key: "minecraft:block.note_block.hat"
