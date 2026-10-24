@@ -30,6 +30,8 @@ data class Channel(
     val scope: String?,
     val discord: Boolean,
     val discordFormat: String?,
+    val toDiscordFormat: String?,
+    val fromDiscordFormat: String?,
     val sound: SoundConfig,
     val discordChannel: String = id,
 ) {

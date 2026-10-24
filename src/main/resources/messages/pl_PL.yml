@@ -117,6 +117,7 @@ realname-found: "<gray><white><nickname></white> to <white><player></white>."
 realname-none: "<red>Żaden gracz online nie używa pseudonimu <white><nickname></white>."
 
 item-empty: "<gray><italic>nic</italic></gray>"
+discord-attachment: "<aqua><click:open_url:'<url>'><hover:show_text:'<gray>Otwórz <url>'>[<name>]</hover></click></aqua>"
 helpop-sent: "<green>Twoje zgłoszenie zostało wysłane do administracji."
 helpop-alert: "<gold>[HelpOp] <white><player></white>: <gray><message>"
 helpop-nobody: "<yellow>Nikt z administracji nie jest teraz online, zgłoszenie zapisano w konsoli."

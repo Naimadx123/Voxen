@@ -1,12 +1,40 @@
 package zone.vao.voxen.hook
 
+import net.kyori.adventure.text.Component
 import org.bukkit.Server
 import org.bukkit.entity.Player
 import java.lang.reflect.Method
+import java.util.UUID
 import java.util.logging.Logger
 
 interface DiscordForwarder : AutoCloseable {
     fun forward(player: Player, message: String, channel: String?, preformatted: Boolean)
+}
+
+interface DiscordReceiver {
+    fun claims(channelNames: Set<String>): Boolean
+    fun receive(message: DiscordMessage)
+}
+
+class DiscordMessage(
+    val id: String,
+    val channelId: String,
+    val channelName: String,
+    val channelNames: Set<String>,
+    val authorId: String,
+    val authorName: String,
+    val username: String,
+    val roles: List<String>,
+    val roleColor: Int?,
+    val linked: UUID?,
+    val replyTo: String?,
+    val content: String,
+    val attachments: List<Attachment>,
+    val markdown: (String) -> Component? = { null },
+    val reject: () -> Unit = {},
+) {
+
+    data class Attachment(val name: String, val url: String)
 }
 
 class DiscordHooks(
@@ -20,6 +48,17 @@ class DiscordHooks(
     @Volatile
     private var essentialsAvailable = false
 
+    @Volatile
+    var receiver: DiscordReceiver? = null
+
+    private val inbound = object : DiscordReceiver {
+        override fun claims(channelNames: Set<String>): Boolean = receiver?.claims(channelNames) == true
+
+        override fun receive(message: DiscordMessage) {
+            receiver?.receive(message)
+        }
+    }
+
     private var discordSrvBridge: DiscordForwarder? = null
     private var essentialsService: Any? = null
     private var essentialsSend: Method? = null
@@ -30,7 +69,8 @@ class DiscordHooks(
         if (discordSrvEnabled && server.pluginManager.isPluginEnabled("DiscordSRV")) {
             runCatching {
                 discordSrvBridge = Class.forName("zone.vao.voxen.hook.DiscordSrvBridge")
-                    .getConstructor(Logger::class.java).newInstance(logger) as DiscordForwarder
+                    .getConstructor(Logger::class.java, DiscordReceiver::class.java)
+                    .newInstance(logger, inbound) as DiscordForwarder
                 discordSrvAvailable = true
             }.onFailure { logger.warning("Failed to hook into DiscordSRV: ${it.message}") }
         }

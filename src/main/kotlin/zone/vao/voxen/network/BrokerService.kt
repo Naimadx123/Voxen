@@ -45,6 +45,7 @@ class BrokerService(
         "The broker is unreachable or too slow, so cross-server messages are being dropped.",
     )
     private val seen = LinkedHashMap<String, Long>(256)
+    private val delivered = LinkedHashMap<String, Long>(256)
 
     fun active(): Boolean = broker?.connected() == true
 
@@ -95,7 +96,7 @@ class BrokerService(
 
     fun publish(message: BrokerMessage) {
         val current = broker ?: return
-        message.id?.let(::markSeen)
+        message.id?.let { markSeen(it) }
         io.submit {
             val sent = runCatching { current.publish(Envelope.wrap(gson.toJson(message), network().secret), message.route) }
                 .onFailure { logger.warning("Failed to publish a cross-server message: ${it.message}") }
@@ -103,6 +104,8 @@ class BrokerService(
             if (!sent) io.noteDrop()
         }
     }
+
+    fun claim(id: String): Boolean = markSeen(id, delivered)
 
     fun stop() {
         runCatching { broker?.close() }
@@ -145,21 +148,23 @@ class BrokerService(
         onChatMessage?.invoke(message)
     }
 
-    private fun markSeen(id: String): Boolean {
+    private fun markSeen(id: String, cache: LinkedHashMap<String, Long> = seen): Boolean {
         val now = System.currentTimeMillis()
         val expiresAt = now + ((network().maxAgeSeconds * 1000L).takeIf { it > 0 } ?: DEFAULT_REPLAY_MILLIS)
-        synchronized(seen) {
-            val entries = seen.entries.iterator()
+        synchronized(cache) {
+            val entries = cache.entries.iterator()
             while (entries.hasNext()) {
                 if (entries.next().value > now) break
                 entries.remove()
             }
-            while (seen.size >= MAX_SEEN) {
-                val oldest = seen.entries.iterator()
+            if (cache.containsKey(id)) return false
+            while (cache.size >= MAX_SEEN) {
+                val oldest = cache.entries.iterator()
                 oldest.next()
                 oldest.remove()
             }
-            return seen.put(id, expiresAt) == null
+            cache[id] = expiresAt
+            return true
         }
     }
 
